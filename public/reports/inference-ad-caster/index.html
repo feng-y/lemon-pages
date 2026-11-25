@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inference 模型访问与 AD Caster 接入方案</title>
+  <style>
+    :root { color-scheme: light; background: #f5f7fa; color: #182334; font-family: system-ui, sans-serif; }
+    body { margin: 0; }
+    main { margin: auto; max-width: 82rem; padding: clamp(1rem, 3vw, 3rem); }
+    h1 { margin: .4rem 0 .7rem; font-size: clamp(1.55rem, 3vw, 2.5rem); }
+    p, li { line-height: 1.7; }
+    figure { margin: 1.5rem 0; }
+    .diagram { overflow-x: auto; border: 1px solid #d7dee9; border-radius: .6rem; background: white; }
+    .diagram img { display: block; width: 100%; min-width: 62rem; height: auto; }
+    figcaption { margin-top: .65rem; font-size: .9rem; }
+    a { color: #165ca0; }
+    .notes { max-width: 62rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Inference 模型访问与 AD Caster 接入方案</h1>
+    <p>AD Caster 在现有 Inference 中并行接入。两路模型复用同一条 Creative、同一份稿件快照和同一份创意图片。</p>
+    <figure>
+      <div class="diagram" tabindex="0" aria-label="Inference 模型访问图，可横向滚动">
+        <img src="inference-ad-caster.png" width="2400" height="846" alt="Creative Kafka 进入共享取数，分别供现有模型与拟新增的 AD Caster 使用。AD Caster 缓存命中和推理成功均汇入专用 Kafka Topic。">
+      </div>
+      <figcaption><a href="inference-ad-caster.svg">查看 SVG</a> · <a href="inference-ad-caster.mmd">下载 Mermaid 源文件</a></figcaption>
+    </figure>
+    <div class="notes">
+      <ul>
+        <li>创意图片只下载一次。AD Caster 在素材签名缓存未命中时按需下载稿件封面。<code>avid=0</code> 或 Archive Redis 未命中时，稿件输入按缺省处理。</li>
+        <li>AD Caster 独立执行缓存查询、模型调用和 Kafka 发布。缓存命中和推理成功都按 <code>creative_id</code> 发布 <code>emb_128</code>，供 Kafka2Hive 消费。</li>
+      </ul>
+      <p>AD Caster 分支是接入方案。队列满时的处理方式待定。</p>
+    </div>
+  </main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const sitePath = link.dataset.sitePath;
+  link.href = new URL(sitePath, window.location.href).href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

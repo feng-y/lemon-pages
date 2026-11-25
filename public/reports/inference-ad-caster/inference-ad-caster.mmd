@@ -1,0 +1,51 @@
+---
+title: Inference 模型访问与 AD Caster 接入方案
+---
+flowchart LR
+    K["Creative Kafka"] --> C["解析与过滤 Creative"]
+
+    subgraph INPUTS["共享取数"]
+        A["Archive Redis · arc_text"]
+        P["创意图片下载 · PreparedImage"]
+    end
+
+    C --> A
+    C --> P
+
+    subgraph CURRENT["现有模型"]
+        V["Video Redis · KFC fallback"] --> F["Fusion gRPC"]
+        T["Text gRPC"] --> F
+        I["Image gRPC"] --> F
+        F --> S["SID gRPC"]
+        S --> O["现有 Result Redis / Kafka"]
+    end
+
+    C --> V
+    C --> T
+    A -->|"标题、标签"| T
+    P -->|"图片 bytes"| I
+    T --> O
+    I --> O
+
+    subgraph AD["拟新增 · AD Caster"]
+        D{"Redis 素材签名缓存命中？"}
+        R["组装 AD Caster 请求"]
+        M["AD Caster BatchPredict"]
+        E["按 creative_id 发布 emb_128"]
+        H["专用 Kafka Topic → Kafka2Hive"]
+        D -->|"命中"| E
+        D -->|"未命中"| R
+        R --> M
+        M -->|"有效结果写缓存"| E
+        E --> H
+    end
+
+    C -->|"avid、标题 MD5、图片 MD5"| D
+    C -->|"创意字段"| R
+    A -->|"标题、标签、封面 URL"| R
+    P -->|"图片 bytes"| R
+
+    classDef proposed fill:#fff4e7,stroke:#aa5a10,color:#291a0f;
+    classDef shared fill:#eef7ff,stroke:#3478b5,color:#10263b;
+    class D,R,M,E,H proposed;
+    class C,A,P shared;
