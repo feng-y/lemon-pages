@@ -1,0 +1,46 @@
+stateDiagram-v2
+    direction TB
+    state "Creative Kafka" as K
+    state "解析与过滤 Creative" as C
+    state "Archive Redis · arc_text" as A
+    state "创意图片下载 · PreparedImage" as P
+    state "Video Redis · KFC fallback" as V
+    state "Text gRPC" as T
+    state "Image gRPC" as I
+    state "Fusion gRPC" as F
+    state "SID gRPC" as S
+    state "现有 Result Redis / Kafka" as O
+    state "查询 Redis 素材签名缓存" as D
+    state "组装 AD Caster 请求" as R
+    state "AD Caster BatchPredict" as M
+    state "按 creative_id 发布 emb_128" as E
+    state "专用 Kafka Topic → Kafka2Hive" as H
+
+    K --> C
+    C --> A
+    C --> P
+    C --> V
+    C --> T
+    A --> T : 标题、标签
+    P --> I : 图片 bytes
+    V --> F
+    T --> F
+    I --> F
+    F --> S
+    S --> O
+    T --> O
+    I --> O
+
+    C --> D : avid、标题 MD5、图片 MD5
+    C --> R : 创意字段
+    A --> R : 标题、标签、封面 URL
+    P --> R : 图片 bytes
+    D --> R : 未命中
+    D --> E : 命中
+    R --> M
+    M --> E : 有效结果写缓存
+    E --> H
+
+    class K,C,A,P shared
+    class V,T,I,F,S,O existing
+    class D,R,M,E,H proposed

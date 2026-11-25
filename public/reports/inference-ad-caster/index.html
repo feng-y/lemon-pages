@@ -375,48 +375,62 @@ footer {
 }
 
 /* 报告专用样式 */
-body { padding: 44px 24px 96px; }
-header { margin-bottom: 24px; }
-header .subtitle { margin-top: 10px; }
-.architecture { margin: 0; }
-.shared, .lane {
-  padding: 20px;
-  background: var(--surface);
+.pele {
+  --pele-bg: var(--surface, #fff);
+  --pele-fg: var(--ink, #1c1c1c);
+  --pele-muted: var(--muted, #656565);
+  --pele-line: var(--muted, #656565);
+  --pele-surface: var(--line-soft, #f1f1f1);
+  --pele-border: var(--faint, #808080);
+}
+.pele .shared rect { fill: var(--shared-fill, #e7f2ff); stroke: var(--shared-line, #6082a6); }
+.pele .proposed rect { fill: var(--proposed-fill, #e2f2ef); stroke: var(--proposed-line, #51827b); }
+.pele [data-id="edge15"] > path:first-child,
+.pele [data-id="edge16"] > path:first-child,
+.pele [data-id="edge17"] > path:first-child { stroke-dasharray: 4 3; }
+@media (prefers-color-scheme: dark) {
+  .pele {
+    --pele-bg: var(--surface, #1f1f1f);
+    --pele-fg: var(--ink, #f5f5f5);
+    --pele-muted: var(--muted, #acacac);
+    --pele-line: var(--muted, #acacac);
+    --pele-surface: var(--line-soft, #2c2c2c);
+    --pele-border: var(--faint, #767b75);
+    --shared-fill: #1b3857;
+    --shared-line: #7296ba;
+    --proposed-fill: #174641;
+    --proposed-line: #66a89d;
+  }
+}
+
+body { padding: 36px 24px 96px; }
+main { max-width: 1160px; }
+header { margin-bottom: 20px; }
+header .subtitle { margin-top: 8px; }
+figure { margin: 0; }
+.chart-scroll {
+  overflow-x: auto;
   border: var(--border);
   border-radius: var(--radius);
-  min-width: 0;
+  background: var(--surface);
 }
-.shared { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 24px; }
-.shared p { max-width: 26em; }
-.branches { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.architecture .split { max-width: none; height: 24px; }
-.lane { margin: 0; }
-.proposed { border-top: 3px solid var(--accent); padding-top: 18.5px; }
-.lane h2 span { margin-left: 8px; color: var(--accent-strong); font-size: 13px; }
-.lane .subtitle { min-height: 3.5em; }
-.lane svg { margin-top: 8px; }
-.lane-note, figcaption, .sources { color: var(--muted); font-size: 13px; }
-.lane-note { margin: 10px 0 0; }
-figcaption, .sources { margin-top: 12px; }
-.architecture svg { display: block; width: 100%; height: auto; max-width: 400px; margin-inline: auto; overflow: visible; }
-.connector { fill: none; stroke: var(--muted); stroke-width: 1.4; }
-marker path { fill: var(--muted); }
-.node :is(rect, polygon) { fill: var(--surface); stroke: var(--muted); stroke-width: .85; }
-.node .result { fill: var(--line-soft); }
-.node .decision { fill: var(--accent-tint); stroke: var(--accent); }
-.node .publish { fill: var(--accent-tint); stroke: var(--accent); }
-.node text { fill: var(--ink-strong); font-size: 14px; font-weight: 650; text-anchor: middle; }
-.node .detail, .edge-label { fill: var(--muted); font-size: 12px; font-weight: 500; }
-@media (max-width: 720px) {
-  body { padding: 28px 14px 96px; }
-  h1 { font-size: 25px; }
-  .shared, .branches { grid-template-columns: 1fr; gap: 12px; }
-  .shared, .lane { padding: 14px; }
-  .architecture .split { display: none; }
-  .branches { margin-top: 12px; }
-  .proposed { padding-top: 12.5px; }
-  .lane .subtitle { min-height: 0; }
+.chart-scroll svg { display: block; width: 100%; margin-inline: auto; }
+.key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; border: 1px solid var(--faint); background: var(--line-soft); }
+.swatch.shared { background: var(--shared-fill, #e7f2ff); border-color: var(--shared-line, #6082a6); }
+.swatch.proposed { background: var(--proposed-fill, #e2f2ef); border-color: var(--proposed-line, #51827b); }
+.key a { margin-left: auto; }
+.chart-help { display: none; margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+figcaption { margin-top: 14px; color: var(--muted); font-size: 14px; }
+figcaption p { margin: 0 0 6px; }
+footer { margin-top: 16px; }
+@media (max-width: 1028px) { .chart-help { display: block; } }
+@media (max-width: 600px) {
+  body { padding: 22px 14px 96px; }
+  h1 { font-size: 24px; }
+  .key a { margin-left: 0; }
 }
+
   </style>
 </head>
 <body>
@@ -425,102 +439,23 @@ marker path { fill: var(--muted); }
       <h1>Inference 模型访问与 AD Caster 接入方案</h1>
       <p class="subtitle">两路模型共用同一条 Creative、同一份稿件快照和同一份创意图片。AD Caster 独立查询缓存、调用模型并发布结果。</p>
     </header>
-
-    <figure class="architecture" aria-label="Inference 模型访问图">
-      <div class="shared">
-        <div>
-          <h2>共享取数</h2>
-          <p class="subtitle">创意图片只下载一次。<code>avid=0</code> 或 Archive Redis 未命中时，稿件输入按缺省处理。</p>
-        </div>
-        <svg viewBox="0 0 360 126" role="img" aria-labelledby="shared-title shared-desc">
-          <title id="shared-title">Creative 入口与共享取数</title>
-          <desc id="shared-desc">Creative Kafka 的消息经解析和过滤后，读取 Archive Redis 并下载创意图片。</desc>
-          <defs>
-            <marker id="shared-arrow" markerWidth="7" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L7 4L0 8Z"/></marker>
-          </defs>
-          <g class="connector" marker-end="url(#shared-arrow)">
-            <path d="M144 24H176"/>
-            <path d="M216 44V56Q216 64 208 64H92Q84 64 84 72V80"/>
-            <path d="M300 44V56Q300 64 292 64H284Q276 64 276 72V80"/>
-          </g>
-          <g class="node">
-            <rect x="4" y="4" width="140" height="40" rx="6"/><text x="74" y="29">Creative Kafka</text>
-            <rect x="176" y="4" width="180" height="40" rx="6"/><text x="266" y="29">解析与过滤 Creative</text>
-            <rect x="4" y="80" width="160" height="44" rx="6"/><text x="84" y="98">Archive Redis</text><text class="detail" x="84" y="116">arc_text</text>
-            <rect x="196" y="80" width="160" height="44" rx="6"/><text x="276" y="98">创意图片下载</text><text class="detail" x="276" y="116">PreparedImage</text>
-          </g>
-        </svg>
+    <figure>
+      <div class="key pele">
+        <span><i class="swatch shared" aria-hidden="true"></i>共享取数</span>
+        <span><i class="swatch" aria-hidden="true"></i>现有模型</span>
+        <span><i class="swatch proposed" aria-hidden="true"></i>AD Caster（拟新增）</span>
+        <a href="inference-ad-caster-statechart.svg">查看全尺寸 SVG</a>
       </div>
-
-      <svg class="split" viewBox="0 0 880 24" preserveAspectRatio="none" aria-hidden="true">
-        <path class="connector" d="M440 0V8M216 24V16Q216 8 224 8H656Q664 8 664 16V24"/>
-      </svg>
-      <div class="branches">
-        <section class="lane">
-          <h2>现有模型</h2>
-          <p class="subtitle">Creative 供 Video Redis 和 Text gRPC 使用。Text gRPC 同时使用稿件标题和标签。Image gRPC 使用创意图片。</p>
-          <svg viewBox="0 0 360 312" role="img" aria-labelledby="current-title current-desc">
-            <title id="current-title">现有模型的推理和写入路径</title>
-            <desc id="current-desc">Text gRPC、Video Redis 和 Image gRPC 的结果进入 Fusion gRPC，再经 SID gRPC 写入现有 Result Redis / Kafka。Text gRPC 和 Image gRPC 也直接写入现有 Result Redis / Kafka。</desc>
-            <defs>
-              <marker id="current-arrow" markerWidth="7" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L7 4L0 8Z"/></marker>
-            </defs>
-            <g class="connector" marker-end="url(#current-arrow)">
-              <path d="M84 68V88Q84 96 92 96H132Q140 96 140 104V120"/>
-              <path d="M180 68V120"/>
-              <path d="M276 68V88Q276 96 268 96H228Q220 96 220 104V120"/>
-              <path d="M180 164V192"/>
-              <path d="M180 236V264"/>
-              <path d="M44 68V248Q44 256 52 256H64Q72 256 72 264"/>
-              <path d="M316 68V248Q316 256 308 256H296Q288 256 288 264"/>
-            </g>
-            <g class="node">
-              <rect x="8" y="12" width="104" height="56" rx="6"/><text x="60" y="45">Text gRPC</text>
-              <rect x="120" y="12" width="120" height="56" rx="6"/><text x="180" y="35">Video Redis</text><text class="detail" x="180" y="53">KFC fallback</text>
-              <rect x="248" y="12" width="104" height="56" rx="6"/><text x="300" y="45">Image gRPC</text>
-              <rect x="104" y="120" width="152" height="44" rx="6"/><text x="180" y="147">Fusion gRPC</text>
-              <rect x="104" y="192" width="152" height="44" rx="6"/><text x="180" y="219">SID gRPC</text>
-              <rect class="result" x="44" y="264" width="272" height="44" rx="6"/><text x="180" y="291">现有 Result Redis / Kafka</text>
-            </g>
-          </svg>
-        </section>
-
-        <section class="lane proposed">
-          <h2>AD Caster <span>拟新增</span></h2>
-          <p class="subtitle">AD Caster 用 <code>avid</code>、标题 MD5 和图片 MD5 查询 Redis 素材签名缓存。</p>
-          <svg viewBox="0 0 360 312" role="img" aria-labelledby="caster-title caster-desc">
-            <title id="caster-title">AD Caster 缓存命中和未命中路径</title>
-            <desc id="caster-desc">缓存命中时直接发布 emb_128。未命中时组装请求，调用 AD Caster BatchPredict，将有效结果写入缓存后发布。两条路径都按 creative_id 发布到专用 Kafka Topic，由 Kafka2Hive 消费。</desc>
-            <defs>
-              <marker id="caster-arrow" markerWidth="7" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L7 4L0 8Z"/></marker>
-            </defs>
-            <g class="connector" marker-end="url(#caster-arrow)">
-              <path d="M126 68V104"/>
-              <path d="M242 36H304Q312 36 312 44V228"/>
-              <path d="M126 144V160"/>
-              <path d="M126 196V228"/>
-              <path d="M180 264V280"/>
-            </g>
-            <g class="node">
-              <polygon class="decision" points="10,36 126,4 242,36 126,68"/>
-              <text x="126" y="41">素材签名缓存命中？</text>
-              <rect x="16" y="104" width="220" height="40" rx="6"/><text x="126" y="129">组装 AD Caster 请求</text>
-              <rect x="16" y="160" width="220" height="36" rx="6"/><text x="126" y="183">AD Caster BatchPredict</text>
-              <rect class="publish" x="16" y="228" width="328" height="36" rx="6"/><text x="180" y="251">按 creative_id 发布 emb_128</text>
-              <rect class="result" x="16" y="280" width="328" height="28" rx="6"/><text x="180" y="299">专用 Kafka Topic → Kafka2Hive</text>
-            </g>
-            <g class="edge-label">
-              <text x="140" y="91">未命中</text>
-              <text x="270" y="64">命中</text>
-              <text x="140" y="217">有效结果写缓存</text>
-            </g>
-          </svg>
-          <p class="lane-note">缓存未命中时，AD Caster 用创意字段、稿件标题和标签、封面 URL 与图片 bytes 组装请求，并按需下载稿件封面。</p>
-        </section>
+      <p class="chart-help">打开全尺寸 SVG 可放大查看节点和连线。</p>
+      <div class="chart-scroll">
+        <svg xmlns="http://www.w3.org/2000/svg" class="pele pele-state" viewBox="0 0 1143 829" width="1143" height="829" style="max-width:100%;height:auto;--_bg:var(--pele-bg,#fff);--_fg:var(--pele-fg,#1f1f1f);--_m:var(--pele-muted,#6e6e6e);--_l:var(--pele-line,#1f1f1f);--_s:var(--pele-surface,#f3f3f3);--_a:var(--pele-surface-alt,#e6e6e6);--_b:var(--pele-border,#8a8a8a);--_c:var(--pele-accent,#5b7bd5);color:var(--_fg);--_fm:var(--pele-font-mono,monospace);font:16px sans-serif;letter-spacing:normal;word-spacing:normal;text-transform:none;direction:ltr;font-family:var(--pele-font,system-ui, sans-serif)" fill="var(--_fg)" role="img" aria-labelledby="inference-ad-caster-title inference-ad-caster-desc"><title id="inference-ad-caster-title">Inference 模型访问与 AD Caster 接入方案</title><desc id="inference-ad-caster-desc">Creative Kafka 进入共享取数。图中标出 Archive Redis 和创意图片的消费者，以及现有模型与拟新增 AD Caster 的输出。缓存命中和推理成功都进入同一个发布节点。</desc><rect width="100%" height="100%" fill="var(--_bg)"/><g class="pele-edges" fill="none" stroke="var(--_l)" stroke-linecap="round"><g class="pele-edge pele-transition" data-id="edge0"><path d="M592.18,62L592.18,99"/><path class="pele-marker" d="M592.18,106L588.82,98L595.54,98Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge1"><path d="M556.17,150C556.17,207.25 202.04,207.25 202.04,264.5L202.04,270.5"/><path class="pele-marker" d="M202.04,277.5L198.68,269.5L205.4,269.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge2"><path d="M612.18,150C612.18,202.75 683.18,202.75 683.18,255.5L683.18,261.5"/><path class="pele-marker" d="M683.18,268.5L679.82,260.5L686.54,260.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge3"><path d="M572.17,150C572.17,207.25 458.48,207.25 458.48,264.5L458.48,270.5"/><path class="pele-marker" d="M458.48,277.5L455.12,269.5L461.84,269.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge4"><path d="M540.17,150C540.17,209.25 65.12,209.25 65.12,268.5L65.12,435"/><path class="pele-marker" d="M65.12,442L61.76,434L68.48,434Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge5"><path d="M114.12,321.5L114.12,435"/><path class="pele-marker" d="M114.12,442L110.76,434L117.48,434Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge6"><path d="M664.05,330.5C664.05,339.75 611.73,339.75 611.73,349L611.73,435"/><path class="pele-marker" d="M611.73,442L608.37,434L615.09,434Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge7"><path d="M458.48,321.5L458.48,523"/><path class="pele-marker" d="M458.48,530L455.12,522L461.84,522Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge8"><path d="M78.68,486C78.68,496.57 442.48,506.43 442.48,517L442.48,523"/><path class="pele-marker" d="M442.48,530L439.12,522L445.84,522Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge9"><path d="M601.94,486C601.94,501.5 474.48,501.5 474.48,517L474.48,523"/><path class="pele-marker" d="M474.48,530L471.12,522L477.84,522Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge10"><path d="M458.48,574L458.48,645"/><path class="pele-marker" d="M458.48,652L455.12,644L461.84,644Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge11"><path d="M458.48,696L458.48,742"/><path class="pele-marker" d="M458.48,749L455.12,741L461.84,741Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge12"><path d="M62.68,486L62.68,705C62.68,716.51 396.79,724.49 396.79,736L396.79,742"/><path class="pele-marker" d="M396.79,749L393.42,741L400.15,741Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge13"><path d="M619.73,486L619.73,705C619.73,720.5 506.18,720.5 506.18,736L506.18,742"/><path class="pele-marker" d="M506.18,749L502.82,741L509.54,741Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge14"><path d="M628.18,150C628.18,174.8 684.31,190 775.89,190C867.47,190 923.6,200.64 923.6,218L923.6,270.5"/><path class="pele-marker" d="M923.6,277.5L920.24,269.5L926.96,269.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge15"><path d="M644.18,150C644.18,167.36 728.98,178 867.34,178C1005.7,178 1090.5,195.58 1090.5,224.25L1090.5,367.75C1090.5,396.43 1046.88,414 975.72,414C904.55,414 860.93,419.99 860.93,429.75L860.93,435"/><path class="pele-marker" d="M860.93,442L857.57,434L864.29,434Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge16"><path d="M249.07,321.5L249.07,374C249.07,398.8 348.09,414 509.65,414C671.22,414 770.24,419.99 770.24,429.75L770.24,435"/><path class="pele-marker" d="M770.24,442L766.88,434L773.6,434Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge17"><path d="M705.08,330.5L705.08,374C705.08,391.36 720.5,402 745.66,402C770.82,402 786.24,412.26 786.24,429L786.24,435"/><path class="pele-marker" d="M786.24,442L782.88,434L789.6,434Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge18"><path d="M915.6,321.5L915.6,374C915.6,391.36 902.18,402 880.27,402C858.36,402 844.93,412.26 844.93,429L844.93,435"/><path class="pele-marker" d="M844.93,442L841.57,434L848.29,434Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge19"><path d="M952.93,321.5L952.93,636"/><path class="pele-marker" d="M952.93,643L949.57,635L956.29,635Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge20"><path d="M815.59,486L815.59,523"/><path class="pele-marker" d="M815.59,530L812.23,522L818.95,522Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge21"><path d="M815.59,574L815.59,617.5C815.59,624.44 866.67,624.44 866.67,631.38L866.67,636"/><path class="pele-marker" d="M866.67,643L863.31,635L870.03,635Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge22"><path d="M897.79,705L897.79,742"/><path class="pele-marker" d="M897.79,749L894.43,741L901.15,741Z" fill="var(--_l)" stroke="none"/></g></g><g class="pele-edge-labels" font-size="14"><g class="pele-edge-label" data-id="edge5"><rect x="75.12" y="351" width="78" height="21" rx="3" fill="var(--_bg)"/><text x="114.12" y="366.4" text-anchor="middle">标题、标签</text></g><g class="pele-edge-label" data-id="edge6"><rect x="575.05" y="351" width="73.35" height="21" rx="3" fill="var(--_bg)"/><text x="611.73" y="366.4" text-anchor="middle">图片 bytes</text></g><g class="pele-edge-label" data-id="edge14"><rect x="831.32" y="220" width="184.57" height="21" rx="3" fill="var(--_bg)"/><text x="923.6" y="235.4" text-anchor="middle">avid、标题 MD5、图片 MD5</text></g><g class="pele-edge-label" data-id="edge15"><rect x="1058.5" y="289" width="64" height="21" rx="3" fill="var(--_bg)"/><text x="1090.5" y="304.4" text-anchor="middle">创意字段</text></g><g class="pele-edge-label" data-id="edge16"><rect x="173.12" y="351" width="151.89" height="21" rx="3" fill="var(--_bg)"/><text x="249.07" y="366.4" text-anchor="middle">标题、标签、封面 URL</text></g><g class="pele-edge-label" data-id="edge17"><rect x="668.41" y="351" width="73.35" height="21" rx="3" fill="var(--_bg)"/><text x="705.08" y="366.4" text-anchor="middle">图片 bytes</text></g><g class="pele-edge-label" data-id="edge18"><rect x="890.6" y="351" width="50" height="21" rx="3" fill="var(--_bg)"/><text x="915.6" y="366.4" text-anchor="middle">未命中</text></g><g class="pele-edge-label" data-id="edge19"><rect x="934.93" y="453.5" width="36" height="21" rx="3" fill="var(--_bg)"/><text x="952.93" y="468.9" text-anchor="middle">命中</text></g><g class="pele-edge-label" data-id="edge21"><rect x="762.59" y="594.5" width="106" height="21" rx="3" fill="var(--_bg)"/><text x="815.59" y="609.9" text-anchor="middle">有效结果写缓存</text></g></g><g class="pele-nodes"><g class="pele-node pele-state shared" data-id="K" transform="translate(592.18,40)"><rect x="-68.46" y="-22" width="136.93" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">Creative Kafka</text></g><g class="pele-node pele-state shared" data-id="C" transform="translate(592.18,128)"><rect x="-88.01" y="-22" width="176.02" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">解析与过滤 Creative</text></g><g class="pele-node pele-state shared" data-id="A" transform="translate(202.04,299.5)"><rect x="-102.89" y="-22" width="205.78" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">Archive Redis · arc_text</text></g><g class="pele-node pele-state shared" data-id="P" transform="translate(683.18,299.5)"><rect x="-71.14" y="-31" width="142.27" height="62" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-4.9">创意图片下载 ·</tspan><tspan x="0" y="16.1">PreparedImage</tspan></text></g><g class="pele-node pele-state existing" data-id="V" transform="translate(458.48,299.5)"><rect x="-113.56" y="-22" width="227.12" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">Video Redis · KFC fallback</text></g><g class="pele-node pele-state existing" data-id="T" transform="translate(73.12,464)"><rect x="-55.12" y="-22" width="110.24" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">Text gRPC</text></g><g class="pele-node pele-state existing" data-id="I" transform="translate(611.73,464)"><rect x="-61.79" y="-22" width="123.58" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">Image gRPC</text></g><g class="pele-node pele-state existing" data-id="F" transform="translate(458.48,552)"><rect x="-63.57" y="-22" width="127.14" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">Fusion gRPC</text></g><g class="pele-node pele-state existing" data-id="S" transform="translate(458.48,674)"><rect x="-52.9" y="-22" width="105.79" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">SID gRPC</text></g><g class="pele-node pele-state existing" data-id="O" transform="translate(451.48,771)"><rect x="-106.7" y="-22" width="213.39" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">现有 Result Redis / Kafka</text></g><g class="pele-node pele-state proposed" data-id="D" transform="translate(923.6,299.5)"><rect x="-104.9" y="-22" width="209.79" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">查询 Redis 素材签名缓存</text></g><g class="pele-node pele-state proposed" data-id="R" transform="translate(815.59,464)"><rect x="-89.34" y="-22" width="178.69" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">组装 AD Caster 请求</text></g><g class="pele-node pele-state proposed" data-id="M" transform="translate(815.59,552)"><rect x="-100.47" y="-22" width="200.94" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">AD Caster BatchPredict</text></g><g class="pele-node pele-state proposed" data-id="E" transform="translate(897.79,674)"><rect x="-83.13" y="-31" width="166.26" height="62" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-4.9">按 creative_id 发布</tspan><tspan x="0" y="16.1">emb_128</tspan></text></g><g class="pele-node pele-state proposed" data-id="H" transform="translate(897.79,780)"><rect x="-83.33" y="-31" width="166.66" height="62" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" text-anchor="middle" xml:space="preserve"><tspan x="0" y="-4.9">专用 Kafka Topic →</tspan><tspan x="0" y="16.1">Kafka2Hive</tspan></text></g></g></svg>
       </div>
-      <figcaption>AD Caster 队列满时的处理方式待定。</figcaption>
+      <figcaption>
+        <p>虚线标出 AD Caster 组装请求时使用的数据。AD Caster 在缓存未命中时组装请求，并按需下载稿件封面。</p>
+        <p>创意图片只下载一次。<code>avid=0</code> 或 Archive Redis 未命中时，稿件输入按缺省处理。AD Caster 队列满时的处理方式待定。</p>
+      </figcaption>
     </figure>
-    <footer class="sources">来源为原接入方案的 <a href="inference-ad-caster.mmd">Mermaid 源文件</a>与<a href="inference-ad-caster.svg">原图 SVG</a>。图于 2026-11-25 重绘。</footer>
+    <footer>来源为<a href="inference-ad-caster.mmd">原接入方案</a>。<a href="inference-ad-caster-statechart.mmd">新版 Mermaid 源文件</a></footer>
   </main>
 <!-- to-pages:back-link:start -->
 <style>
