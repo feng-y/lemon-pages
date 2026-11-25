@@ -1,0 +1,924 @@
+<title>Rook 工作台</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  :root {
+    --bg: #ffffff;
+    --doc-bg: #f6f8fb;
+    --ink: #202532;
+    --ink-2: #3c4454;
+    --muted: #77808f;
+    --faint: #9aa3b2;
+    --line: #e8ebf0;
+    --line-strong: #d9dee7;
+    --sidebar: #f6f8fb;
+    --soft: #f4f6fa;
+    --soft-2: #f8fafc;
+    --accent: #3469e9;
+    --accent-ink: #2f4f86;
+    --accent-soft: #edf2fc;
+    --accent-line: #dbe5fb;
+    --green: #1f7a4d;
+    --green-soft: #eaf6ef;
+    --green-line: #cfe9db;
+    --gate-col: #f1f8f3;
+    --amber: #8a5a00;
+    --amber-soft: #fdf3e2;
+    --amber-line: #f0e0bf;
+    --red: #b4372f;
+    --red-soft: #fdeceb;
+    --avatar-human: #e7ecf5;
+    --agent-bg: #202532;
+    --agent-fg: #ffffff;
+    --on-accent: #ffffff;
+    --shadow: 0 1px 2px rgba(32, 37, 50, 0.04);
+    --shadow-frame: 0 1px 2px rgba(32, 37, 50, 0.05), 0 18px 48px rgba(32, 37, 50, 0.07);
+    --logo-filter: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1218;
+      --doc-bg: #0b0e13;
+      --ink: #e9edf4;
+      --ink-2: #c8cfda;
+      --muted: #8f99a8;
+      --faint: #6c7686;
+      --line: #242a35;
+      --line-strong: #313847;
+      --sidebar: #141922;
+      --soft: #171c25;
+      --soft-2: #12161e;
+      --accent: #6f9bff;
+      --accent-ink: #a9c4ff;
+      --accent-soft: #1a2437;
+      --accent-line: #26344e;
+      --green: #63c994;
+      --green-soft: #12251b;
+      --green-line: #1f3b2c;
+      --gate-col: #12201a;
+      --amber: #e0b25c;
+      --amber-soft: #241d10;
+      --amber-line: #3a2f18;
+      --red: #f08a82;
+      --red-soft: #2a1615;
+      --avatar-human: #24303f;
+      --agent-bg: #e9edf4;
+      --agent-fg: #141922;
+      --on-accent: #0f1218;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-frame: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 48px rgba(0, 0, 0, 0.3);
+      --logo-filter: invert(1);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1218;
+    --doc-bg: #0b0e13;
+    --ink: #e9edf4;
+    --ink-2: #c8cfda;
+    --muted: #8f99a8;
+    --faint: #6c7686;
+    --line: #242a35;
+    --line-strong: #313847;
+    --sidebar: #141922;
+    --soft: #171c25;
+    --soft-2: #12161e;
+    --accent: #6f9bff;
+    --accent-ink: #a9c4ff;
+    --accent-soft: #1a2437;
+    --accent-line: #26344e;
+    --green: #63c994;
+    --green-soft: #12251b;
+    --green-line: #1f3b2c;
+      --gate-col: #12201a;
+    --amber: #e0b25c;
+    --amber-soft: #241d10;
+    --amber-line: #3a2f18;
+    --red: #f08a82;
+    --red-soft: #2a1615;
+    --avatar-human: #24303f;
+    --agent-bg: #e9edf4;
+    --agent-fg: #141922;
+      --on-accent: #0f1218;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-frame: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 48px rgba(0, 0, 0, 0.3);
+    --logo-filter: invert(1);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--doc-bg);
+    color: var(--ink);
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  a { color: var(--accent-ink); text-decoration: none; }
+  button { font: inherit; }
+  .ic { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .ic.sm { width: 13px; height: 13px; }
+  .wrap {
+    max-width: 1496px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  .doc-head { max-width: 840px; padding: 60px 0 10px; }
+  .doc-eyebrow { font-size: 11.5px; font-weight: 650; letter-spacing: 0.13em; color: var(--accent); text-transform: uppercase; }
+  .doc-head h1 { margin: 14px 0 0; font-size: 34px; line-height: 1.16; letter-spacing: -0.025em; font-weight: 720; text-wrap: balance; }
+  .doc-lede { margin: 15px 0 0; max-width: 64ch; font-size: 14.5px; line-height: 1.78; color: var(--muted); }
+  .doc-nav {
+    position: sticky; top: 0; z-index: 30;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 7px;
+    margin: 0 0 4px; padding: 10px 0 12px;
+    background: var(--doc-bg);
+  }
+  .doc-nav-label { display: inline-flex; align-items: center; gap: 5px; margin-right: 3px; font-size: 10px; letter-spacing: 0.1em; color: var(--faint); }
+  .doc-nav-label .ic { width: 12px; height: 12px; }
+  .doc-nav a {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 11px; border: 1px solid var(--line); border-radius: 7px;
+    background: var(--bg); color: var(--ink-2); font-size: 12px; font-weight: 550;
+  }
+  .doc-nav a b { color: var(--accent); font-size: 10.5px; letter-spacing: 0.06em; }
+  .doc-nav a:hover { border-color: var(--accent-line); color: var(--accent-ink); }
+
+  .sec { margin: 52px 0 66px; scroll-margin-top: 64px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .sec-no { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--accent); }
+  .sec-title { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
+  .sec-note { margin: 0 0 16px; max-width: 76ch; font-size: 13px; line-height: 1.7; color: var(--muted); }
+  .fig {
+    border-radius: 18px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    box-shadow: var(--shadow-frame);
+    background: var(--bg);
+    -webkit-overflow-scrolling: touch;
+  }
+  .screen {
+    width: 1248px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  .app { display: grid; grid-template-columns: 200px minmax(0, 1fr); min-height: 720px; }
+  .main { min-width: 0; padding: 20px 22px 22px; display: flex; flex-direction: column; }
+
+  /* sidebar */
+  .sb { background: var(--sidebar); border-right: 1px solid var(--line); padding: 12px 10px 8px; display: flex; flex-direction: column; min-height: 100%; }
+  .sb-brand { display: flex; align-items: center; gap: 8px; padding: 5px 7px 15px; }
+  .sb-brand img { height: 20px; width: auto; filter: var(--logo-filter); }
+  .wordmark { font-size: 16.5px; font-weight: 720; letter-spacing: -0.015em; }
+  .icon-btn { border: 0; background: transparent; color: var(--muted); width: 26px; height: 26px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+  .icon-btn.mini { width: 20px; height: 20px; color: var(--faint); }
+  .collapse { margin-left: auto; }
+  .new-session {
+    display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+    border: 1px solid var(--accent-line); background: var(--accent-soft); color: var(--accent-ink);
+    border-radius: 9px; padding: 10px 12px; font-size: 13px; font-weight: 560; margin: 0 0 6px;
+  }
+  .nav { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; color: var(--ink-2); font-size: 13px; font-weight: 500; }
+  .nav .ic { color: var(--muted); }
+  .nav.active { background: var(--accent-soft); color: var(--accent-ink); font-weight: 560; }
+  .nav.active .ic { color: var(--accent); }
+  .side-head { margin: 15px 8px 4px; color: var(--faint); font-size: 11px; letter-spacing: 0.05em; }
+  .view { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 7px; color: var(--muted); font-size: 12.5px; }
+  .view .ic { width: 13px; height: 13px; color: var(--faint); }
+  .view em { margin-left: auto; font-style: normal; font-size: 10.5px; color: var(--faint); }
+  .view.gate-entry { color: var(--accent-ink); }
+  .view.gate-entry .ic { color: var(--accent); }
+  .view.gate-entry em { color: var(--accent); font-weight: 650; }
+  .view:hover { background: var(--soft); color: var(--ink); }
+  .ws-head { display: flex; align-items: center; margin: 16px 8px 5px; color: var(--faint); font-size: 11px; letter-spacing: 0.05em; }
+  .ws-tools { margin-left: auto; display: flex; align-items: center; gap: 9px; }
+  .ws { display: flex; align-items: center; gap: 7px; padding: 7px 8px; border-radius: 7px; font-size: 12.5px; color: var(--ink-2); }
+  .ws .ic { color: var(--faint); width: 12px; height: 12px; }
+  .ws-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-more { margin-left: auto; color: var(--faint); font-size: 12px; letter-spacing: 1px; }
+  .conv { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 26px; border-radius: 7px; font-size: 12px; color: var(--muted); }
+  .conv span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv time { margin-left: auto; flex: none; font-size: 10.5px; color: var(--faint); }
+  .conv.on { background: var(--soft); color: var(--ink); }
+  .sb-me { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 12px 8px 4px; font-size: 12px; color: var(--muted); }
+  .sb-me span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* shared */
+  .av { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none; font-size: 9.5px; font-weight: 700; }
+  .av.agent { background: var(--agent-bg); color: var(--agent-fg); }
+  .av.me { background: var(--avatar-human); color: var(--ink-2); font-size: 9px; }
+  .av.sm { width: 16px; height: 16px; font-size: 8.5px; }
+  .tag { display: inline-flex; align-items: center; font-size: 9.5px; line-height: 1; padding: 3px 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 650; letter-spacing: 0.02em; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 20px; border: 1px solid var(--line); background: var(--soft); color: var(--ink-2); font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+  .pill.review { background: var(--green-soft); border-color: var(--green-line); color: var(--green); }
+  .pill.doing { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber); }
+  .pill.on { background: var(--green-soft); border-color: var(--green-line); color: var(--green); }
+  .pill.off { background: var(--soft); border-color: var(--line); color: var(--muted); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); display: inline-block; flex: none; }
+  .dot.review { background: var(--green); }
+  .dot.doing { background: var(--amber); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 7px 11px; font-size: 12px; font-weight: 560; box-shadow: var(--shadow); white-space: nowrap; }
+  .btn .ic { width: 14px; height: 14px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .btn.ghost { background: transparent; box-shadow: none; }
+  .btn.block { width: 100%; padding: 9px 12px; }
+  .btn.sm { padding: 5px 9px; font-size: 11px; }
+  .seg { display: inline-flex; background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+  .seg span { padding: 5px 10px; border-radius: 6px; font-size: 11.5px; color: var(--muted); }
+  .seg .on { background: var(--bg); color: var(--ink); font-weight: 600; box-shadow: var(--shadow); }
+
+  /* kanban */
+  .kb-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+  .app-h1 { margin: 0; font-size: 28px; line-height: 1.1; font-weight: 750; letter-spacing: -0.02em; }
+  .sub { margin: 5px 0 0; font-size: 12.5px; color: var(--muted); }
+  .head-actions { display: flex; align-items: center; gap: 8px; }
+  .kb-body { display: flex; gap: 10px; align-items: flex-start; flex: 1; }
+  .cols { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .col { min-width: 0; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: 8px; min-height: 500px; }
+  .col.review-col { background: var(--gate-col); }
+  .col-head { display: flex; align-items: center; gap: 6px; padding: 2px 3px 10px; font-size: 12px; font-weight: 620; color: var(--ink-2); }
+  .count { padding: 1px 6px; border: 1px solid var(--line); border-radius: 20px; background: var(--bg); font-size: 10.5px; font-weight: 500; color: var(--faint); }
+  .col-head .icon-btn { margin-left: auto; }
+  .card { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px; margin-bottom: 8px; box-shadow: var(--shadow); }
+  .card:last-child { margin-bottom: 0; }
+  .card.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .card-k { display: flex; align-items: center; justify-content: space-between; font-size: 10.5px; color: var(--faint); letter-spacing: 0.03em; }
+  .card h3 { margin: 6px 0 7px; font-size: 13px; line-height: 1.45; font-weight: 610; letter-spacing: -0.01em; }
+  .card-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 10.5px; color: var(--muted); }
+  .card-meta .ic { width: 11px; height: 11px; color: var(--faint); }
+  .card-ev { display: flex; align-items: center; gap: 4px; margin-top: 7px; font-size: 10.5px; color: var(--green); }
+  .card-ev .ic { width: 11px; height: 11px; }
+  .card-foot { display: flex; align-items: center; gap: 6px; margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 10.5px; color: var(--faint); }
+  .person { display: inline-flex; align-items: center; gap: 5px; min-width: 0; font-size: 10.5px; color: var(--ink-2); }
+  .card-foot .person { flex: 1; min-width: 0; }
+  .card-foot time { flex: none; }
+  .unassigned { color: var(--faint); }
+
+  .req { width: 248px; flex: none; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); padding: 12px 12px; box-shadow: var(--shadow); }
+  .rp-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 620; color: var(--ink-2); margin-bottom: 11px; }
+  .rp-title .rk { font-size: 10px; color: var(--faint); letter-spacing: 0.04em; }
+  .rp-title h2 { margin: 4px 0 0; font-size: 15px; font-weight: 650; line-height: 1.4; letter-spacing: -0.01em; }
+  .rp-fields { display: grid; gap: 8px; margin: 12px 0 0; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .rp-fields > div { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; align-items: center; }
+  .rp-fields dt { font-size: 11px; color: var(--muted); }
+  .rp-fields dd { margin: 0; font-size: 11.5px; color: var(--ink-2); min-width: 0; }
+  .rp-actions { display: grid; gap: 7px; margin-top: 12px; }
+  .rp-note { margin: 10px 0 0; font-size: 10.5px; line-height: 1.6; color: var(--faint); }
+
+  /* task */
+  .task-bar { display: flex; align-items: center; gap: 10px; padding: 11px 28px; border-bottom: 1px solid var(--line); }
+  .task-bar .back { border: 0; background: transparent; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 4px 2px; }
+  .crumb { font-size: 12px; color: var(--faint); }
+  .crumb b { color: var(--muted); font-weight: 500; }
+  .task-bar .sp { flex: 1; }
+  .task-outer { width: 100%; max-width: 1080px; margin: 0 auto; padding: 20px 22px 26px; display: flex; gap: 20px; align-items: flex-start; }
+  .task-main { flex: 1; min-width: 0; max-width: 796px; }
+  .task-title .pill { margin-bottom: 10px; }
+  .task-title h1 { margin: 0; font-size: 27px; line-height: 1.22; font-weight: 720; letter-spacing: -0.022em; }
+  .task-meta { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+  .doc-sec { margin-top: 22px; }
+  .doc-sec h4 { margin: 0 0 7px; font-size: 11px; font-weight: 650; letter-spacing: 0.07em; color: var(--muted); }
+  .doc-sec p { margin: 0; font-size: 13px; line-height: 1.72; color: var(--ink-2); }
+  .doc-sec ul { margin: 0; padding-left: 17px; font-size: 13px; line-height: 1.78; color: var(--ink-2); }
+  .thread { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 17px; }
+  .tl { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 9px; }
+  .tl.system { display: block; padding-left: 31px; font-size: 10.5px; color: var(--faint); }
+  .tl-body { min-width: 0; }
+  .tl-head { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .tl-head strong { font-weight: 620; }
+  .tl-head time { font-size: 10.5px; color: var(--faint); }
+  .tl-body p { margin: 5px 0 0; font-size: 13px; line-height: 1.72; color: var(--ink-2); }
+  .plan { margin: 7px 0 0; padding-left: 17px; font-size: 12.5px; line-height: 1.82; color: var(--ink-2); }
+  .tl-actions { margin-top: 8px; display: flex; align-items: center; gap: 8px; }
+  .state { font-size: 10.5px; color: var(--green); display: inline-flex; align-items: center; gap: 4px; }
+  .state .ic { width: 12px; height: 12px; }
+  .ev-card { margin-top: 9px; max-width: 430px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--soft-2); }
+  .ev-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 11px; font-size: 11px; border-top: 1px solid var(--line); }
+  .ev-row:first-child { border-top: 0; }
+  .ev-row span { color: var(--muted); }
+  .ev-row b { font-weight: 600; color: var(--ink-2); }
+  .ok { color: var(--green) !important; }
+  .runline { margin-top: 9px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 10.5px; color: var(--faint); }
+  .link { border: 0; background: transparent; padding: 0; font-size: 10.5px; font-weight: 560; color: var(--accent-ink); display: inline-flex; align-items: center; gap: 4px; }
+  .link .ic { width: 12px; height: 12px; }
+  .gate { margin-top: 18px; padding: 12px 14px; border: 1px solid var(--green-line); border-radius: 11px; background: var(--green-soft); display: flex; align-items: center; gap: 16px; justify-content: space-between; }
+  .gate strong { display: block; font-size: 12.5px; font-weight: 650; color: var(--green); }
+  .gate small { display: block; margin-top: 2px; font-size: 10.5px; color: var(--ink-2); }
+  .gate-actions { display: flex; gap: 7px; flex: none; }
+  .cmp { margin-top: 14px; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--bg); padding: 10px 12px; box-shadow: var(--shadow); }
+  .cmp .ph { padding: 5px 1px 16px; font-size: 12px; color: var(--faint); }
+  .cmp-bar { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--faint); }
+  .cmp-bar .sp { flex: 1; }
+  .send { width: 27px; height: 27px; border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: inline-flex; align-items: center; justify-content: center; }
+  .send .ic { width: 14px; height: 14px; }
+  .props { width: 216px; flex: none; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); padding: 12px 13px; box-shadow: var(--shadow); }
+  .props-head { font-size: 11px; font-weight: 620; color: var(--muted); margin-bottom: 6px; }
+  .prow { display: flex; align-items: flex-start; gap: 8px; padding: 5px 0; font-size: 11.5px; }
+  .pl { width: 55px; flex: none; color: var(--muted); }
+  .pv { min-width: 0; color: var(--ink-2); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .pv .ic { width: 12px; height: 12px; color: var(--faint); }
+
+  /* chat */
+  .chat-main { display: flex; flex-direction: column; min-height: 800px; padding-bottom: 16px; }
+  .chat-top { display: flex; align-items: center; gap: 10px; padding: 11px 28px; border-bottom: 1px solid var(--line); }
+  .chat-top .sp { flex: 1; }
+  .chat-body { width: min(720px, 100%); margin: 0 auto; padding: 26px 0 8px; flex: 1; display: flex; flex-direction: column; gap: 19px; }
+  .msg.user { align-self: flex-end; max-width: 76%; background: var(--soft); border-radius: 13px; padding: 11px 14px; font-size: 13px; line-height: 1.68; color: var(--ink); }
+  .who { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 11.5px; color: var(--muted); }
+  .who strong { color: var(--ink); font-weight: 620; }
+  .who time { font-size: 10.5px; color: var(--faint); }
+  .agent-body p { margin: 0; font-size: 13px; line-height: 1.72; color: var(--ink-2); }
+  .plan-box { margin-top: 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--soft-2); padding: 10px 12px; font-size: 12.5px; line-height: 1.75; color: var(--ink-2); }
+  .plan-box ol { margin: 4px 0 0; padding-left: 17px; }
+  .chat-actions { display: flex; gap: 7px; margin-top: 10px; }
+  .divider { display: flex; align-items: center; gap: 9px; justify-content: center; font-size: 10.5px; color: var(--faint); }
+  .divider::before, .divider::after { content: ""; height: 1px; width: 54px; background: var(--line); }
+  .steps { border: 1px solid var(--line); border-radius: 9px; background: var(--soft-2); padding: 9px 11px; }
+  .steps-head { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 560; color: var(--muted); }
+  .steps-head .ic { width: 13px; height: 13px; }
+  .step { display: flex; align-items: center; gap: 7px; padding-top: 6px; font-size: 11px; color: var(--ink-2); }
+  .step .ic { width: 12px; height: 12px; color: var(--faint); }
+  .step time { margin-left: auto; color: var(--faint); font-size: 10px; }
+  .task-ref { margin-top: 9px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--accent-line); background: var(--accent-soft); border-radius: 9px; padding: 9px 11px; }
+  .task-ref .rk { font-size: 10px; color: var(--accent-ink); letter-spacing: 0.04em; }
+  .task-ref b { display: block; margin-top: 1px; font-size: 12px; font-weight: 620; color: var(--ink); }
+  .task-ref small { display: block; margin-top: 1px; font-size: 10px; color: var(--muted); }
+  .task-ref .btn { margin-left: auto; flex: none; }
+  .chat-cmp { width: min(720px, 100%); margin: 0 auto; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--bg); padding: 10px 12px 9px; box-shadow: var(--shadow); }
+  .chat-cmp .chip-row { display: flex; align-items: center; gap: 7px; font-size: 10.5px; color: var(--muted); }
+  .chat-cmp .chip { display: inline-flex; align-items: center; gap: 4px; }
+  .chat-cmp .queue { margin-left: auto; color: var(--faint); }
+  .chat-cmp .ph { padding: 8px 1px 17px; font-size: 12px; color: var(--faint); }
+  .chat-cmp .bar { display: flex; align-items: center; gap: 9px; font-size: 10.5px; color: var(--muted); }
+  .chat-cmp .bar .sp { flex: 1; }
+  .model { display: inline-flex; align-items: center; gap: 3px; color: var(--ink-2); }
+
+  /* automation */
+  .auto-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .split { display: inline-flex; border-radius: 8px; overflow: hidden; box-shadow: var(--shadow); }
+  .split .a { border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); padding: 7px 11px; font-size: 12px; font-weight: 560; display: inline-flex; align-items: center; gap: 5px; border-radius: 8px 0 0 8px; }
+  .split .a .ic { width: 13px; height: 13px; }
+  .split .b { border: 1px solid var(--accent); border-left: 1px solid rgba(255,255,255,0.25); background: var(--accent); color: var(--on-accent); padding: 0 8px; display: inline-flex; align-items: center; border-radius: 0 8px 8px 0; }
+  .auto-tabs { display: flex; gap: 20px; margin-top: 16px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .auto-tabs span { padding: 8px 0; position: relative; }
+  .auto-tabs .on { color: var(--ink); font-weight: 620; }
+  .auto-tabs .on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 2px; background: var(--accent); }
+  .auto-tabs em { font-style: normal; color: var(--faint); font-size: 10px; margin-left: 3px; }
+  .search { display: flex; align-items: center; gap: 8px; margin: 12px 0 14px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); font-size: 12px; color: var(--faint); }
+  .auto-body { display: flex; gap: 14px; align-items: flex-start; flex: 1; }
+  .auto-list { flex: 1; min-width: 0; display: grid; gap: 8px; align-content: start; }
+  .arow { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--bg); padding: 13px 14px; box-shadow: var(--shadow); }
+  .arow.on { border-color: var(--accent-line); box-shadow: 0 0 0 1px var(--accent-line) inset; }
+  .arow-main { min-width: 0; }
+  .arow-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 610; }
+  .arow-meta { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 9px; font-size: 10.5px; color: var(--muted); }
+  .arow-side { margin-left: auto; flex: none; display: flex; align-items: center; gap: 10px; font-size: 10.5px; color: var(--faint); }
+  .auto-panel { width: 320px; flex: none; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); padding: 13px 14px; box-shadow: var(--shadow); }
+  .ap-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .ap-head h2 { margin: 0; font-size: 14px; font-weight: 650; line-height: 1.4; letter-spacing: -0.01em; }
+  .ap-fields { display: grid; gap: 7px; margin: 11px 0 0; padding: 11px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .ap-fields > div { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 8px; font-size: 11px; }
+  .ap-fields dt { color: var(--muted); }
+  .ap-fields dd { margin: 0; color: var(--ink-2); line-height: 1.55; }
+  .ap-sec { margin: 11px 0 2px; font-size: 10.5px; font-weight: 620; color: var(--muted); }
+  .run { display: flex; align-items: center; gap: 7px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 10.5px; }
+  .run:first-of-type { border-top: 0; }
+  .run time { width: 78px; flex: none; color: var(--muted); }
+  .run .st { color: var(--green); font-weight: 560; }
+  .run .st.err { color: var(--red); }
+  .run .dur { color: var(--faint); }
+  .run a { margin-left: auto; font-size: 10px; color: var(--accent-ink); }
+  .ap-actions { display: flex; gap: 7px; margin-top: 12px; }
+  .ap-actions .btn { flex: 1; }
+
+  .closing { max-width: 72ch; margin: 0 0 72px; font-size: 13px; line-height: 1.8; color: var(--muted); }
+
+  @media (max-width: 760px) {
+    .doc-nav { position: static; padding-top: 4px; }
+    .doc-head { padding-top: 40px; }
+    .doc-head h1 { font-size: 27px; }
+    .doc-lede { font-size: 13.5px; }
+    .sec { margin: 38px 0 46px; }
+    .fig { border-radius: 12px; }
+    .screen { border-radius: 12px; }
+  }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V6M6.5 11.5L12 6l5.5 5.5"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path d="M8.5 12.5l6-6a3 3 0 014.2 4.2l-7.4 7.4a5 5 0 01-7.1-7.1l7-7"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.4 4.4 1.6-4.4 1.6L12 15.5l-1.6-4.4L6 9.5l4.4-1.6L12 3.5z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M4 7.5A1.5 1.5 0 015.5 6h4l2 2h7A1.5 1.5 0 0120 9.5v8A1.5 1.5 0 0118.5 19h-13A1.5 1.5 0 014 17.5z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8.5 5.5l9.5 6.5-9.5 6.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 5.5v13M15 5.5v13"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.2"/><circle cx="17" cy="6" r="2.2"/><circle cx="17" cy="18" r="2.2"/><path d="M8 11l6.8-4M8 13l6.8 4"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+  <symbol id="i-steps" viewBox="0 0 24 24"><path d="M5 7h6M5 12h10M5 17h14"/></symbol>
+  <symbol id="i-plus-square" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8.5v7M8.5 12h7"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l.8 12h8.4L17 7"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5.5 20c.7-3.4 3.2-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 9a6 6 0 10-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 19a2 2 0 003 0"/></symbol>
+</svg>
+
+
+
+<div class="wrap">
+  <header class="doc-head">
+    <div class="doc-eyebrow">Rook · Agent 工作台 · v0.4</div>
+    <h1>Rook 的四个视图</h1>
+    <p class="doc-lede">没有新开导航。会话是入口，Kanban 是承诺，任务页是验收，自动化是重复。Rook 作为 agent 直接出现在处理人、时间线和运行记录里。</p>
+  </header>
+
+  <nav class="doc-nav" aria-label="页面目录">
+    <span class="doc-nav-label"><svg class="ic"><use href="#i-steps"/></svg>目录</span>
+    <a href="#kanban"><b>01</b> Kanban</a>
+    <a href="#task"><b>02</b> 任务页</a>
+    <a href="#chat"><b>03</b> 新会话</a>
+    <a href="#automation"><b>04</b> 自动化任务</a>
+  </nav>
+
+  <section class="sec" id="kanban">
+    <div class="sec-head"><span class="sec-no">01</span><h2 class="sec-title">Kanban</h2></div>
+    <p class="sec-note">看板沿用 Rook 的三列，加一列待验收作为人审闸门。点卡片先看需求详情，再进任务页。</p>
+    <div class="fig">
+      <div class="screen">
+        <div class="app">
+          <aside class="sb">
+            <div class="sb-brand">
+              <img src="data:image/png;base64,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" alt="">
+              <span class="wordmark">Rook</span>
+              <button class="icon-btn collapse" type="button" aria-label="收起侧栏"><svg class="ic"><use href="#i-panel"/></svg></button>
+            </div>
+            <button class="new-session" type="button"><svg class="ic"><use href="#i-plus-square"/></svg><span>新会话</span></button>
+            <a class="nav" href="#automation"><svg class="ic"><use href="#i-clock"/></svg><span>自动化任务</span></a>
+            <a class="nav active" href="#kanban"><svg class="ic"><use href="#i-grid"/></svg><span>Kanban</span></a>
+            <div class="side-head"><span>视图</span></div>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-user"/></svg><span>我的工作</span></a>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-play"/></svg><span>运行中</span><em>1</em></a>
+            <a class="view gate-entry" href="#kanban"><svg class="ic"><use href="#i-check"/></svg><span>待我评审</span><em>1</em></a>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-bell"/></svg><span>已订阅</span></a>
+            <div class="ws-head"><span>工作区</span><span class="ws-tools"><svg class="ic sm"><use href="#i-search"/></svg><svg class="ic sm"><use href="#i-plus"/></svg></span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-d"/></svg><span class="ws-name">clawsec</span><span class="ws-more">···</span></div>
+            <div class="conv on"><span>支付回调排查</span><time>11/25</time></div>
+            <div class="conv"><span>训练任务巡检</span><time>11/25</time></div>
+            <div class="conv"><span>CTR 流量盘点</span><time>11/24</time></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">Rook Agent 验收 2026-11-20</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">rook-chat skill 验收</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">性能相关</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">Magpie 在线评估</span><span class="ws-more">···</span></div>
+            <div class="sb-me"><span class="av me">Y</span><span>yanfeng@bilibili.com</span></div>
+          </aside>
+
+          <main class="main">
+            <div class="kb-head">
+              <div><h1 class="app-h1">Kanban</h1><p class="sub">全部需求</p></div>
+              <div class="head-actions">
+                <div class="seg"><span class="on">全部</span><span>我的</span></div>
+                <button class="btn ghost" type="button"><svg class="ic"><use href="#i-filter"/></svg>筛选</button>
+                <button class="btn primary" type="button"><svg class="ic"><use href="#i-plus"/></svg>新建需求</button>
+              </div>
+            </div>
+
+            <div class="kb-body">
+              <div class="cols">
+                <section class="col">
+                  <div class="col-head"><span>待处理</span><span class="count">3</span><button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-plus"/></svg></button></div>
+                  <article class="card">
+                    <div class="card-k"><span>RK-15</span><span class="dot"></span></div>
+                    <h3>支付回调重试策略对齐</h3>
+                    <div class="card-meta"><svg class="ic"><use href="#i-link"/></svg><span>反馈 #41</span><span>·</span><span>2 小时前</span></div>
+                    <div class="card-foot"><span class="person unassigned">未指派</span><time>待补充验收</time></div>
+                  </article>
+                  <article class="card">
+                    <div class="card-k"><span>RK-14</span><span class="dot"></span></div>
+                    <h3>CTR 模型流量盘点</h3>
+                    <div class="card-meta"><span>来源 会话</span><span>·</span><span>昨天</span></div>
+                    <div class="card-foot"><span class="person"><span class="av me sm">Y</span>yanfeng</span><time>11/24</time></div>
+                  </article>
+                  <article class="card">
+                    <div class="card-k"><span>RK-16</span><span class="dot"></span></div>
+                    <h3>清理过期灰度开关</h3>
+                    <div class="card-meta"><span>来源 反馈 #42</span><span>·</span><span>1 小时前</span></div>
+                    <div class="card-foot"><span class="person unassigned">未指派</span><time>待补充验收</time></div>
+                  </article>
+                </section>
+
+                <section class="col">
+                  <div class="col-head"><span>处理中</span><span class="count">1</span><button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-plus"/></svg></button></div>
+                  <article class="card">
+                    <div class="card-k"><span>RK-13</span><span class="dot doing"></span></div>
+                    <h3>修正优惠券过期逻辑</h3>
+                    <div class="card-meta"><span>plan 已确认</span><span>·</span><span>执行 8 分钟</span></div>
+                    <div class="card-foot"><span class="person"><span class="av agent sm">R</span>Rook<span class="tag">Agent</span></span><time>运行中</time></div>
+                  </article>
+                </section>
+
+                <section class="col review-col">
+                  <div class="col-head"><span>待验收</span><span class="count">1</span><button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-plus"/></svg></button></div>
+                  <article class="card sel">
+                    <div class="card-k"><span>RK-11</span><span class="dot review"></span></div>
+                    <h3>网关超时重试</h3>
+                    <div class="card-meta"><span>来源 会话</span><span>·</span><span>4 分钟前</span></div>
+                    <div class="card-ev"><svg class="ic"><use href="#i-check"/></svg><span>112/112 · MR !236</span></div>
+                    <div class="card-foot"><span class="person"><span class="av agent sm">R</span>Rook<span class="tag">Agent</span></span><time>待你验收</time></div>
+                  </article>
+                </section>
+
+                <section class="col">
+                  <div class="col-head"><span>已完成</span><span class="count">3</span><button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-plus"/></svg></button></div>
+                  <article class="card">
+                    <div class="card-k"><span>RK-10</span><span class="dot"></span></div>
+                    <h3>训练任务异常降噪</h3>
+                    <div class="card-meta"><span>来源 自动化</span><span>·</span><span>昨天 18:20</span></div>
+                    <div class="card-foot"><span class="person"><span class="av agent sm">R</span>Rook<span class="tag">Agent</span></span><time>完成</time></div>
+                  </article>
+                  <article class="card">
+                    <div class="card-k"><span>RK-9</span><span class="dot"></span></div>
+                    <h3>Abyss 关联口径整理</h3>
+                    <div class="card-meta"><span>来源 会话</span><span>·</span><span>11/22</span></div>
+                    <div class="card-foot"><span class="person"><span class="av me sm">Y</span>yanfeng</span><time>完成</time></div>
+                  </article>
+                  <article class="card">
+                    <div class="card-k"><span>RK-8</span><span class="dot"></span></div>
+                    <h3>支付回调告警接入</h3>
+                    <div class="card-meta"><span>来源 自动化</span><span>·</span><span>11/21</span></div>
+                    <div class="card-foot"><span class="person"><span class="av agent sm">R</span>Rook<span class="tag">Agent</span></span><time>完成</time></div>
+                  </article>
+                </section>
+              </div>
+
+              <aside class="req">
+                <div class="rp-head"><span>需求详情</span><button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-x"/></svg></button></div>
+                <div class="rp-title"><span class="rk">RK-11</span><h2>网关超时重试</h2></div>
+                <dl class="rp-fields">
+                  <div><dt>状态</dt><dd><span class="pill review"><i class="dot review"></i>待验收</span></dd></div>
+                  <div><dt>处理人</dt><dd><span class="person"><span class="av agent sm">R</span>Rook</span> <span class="tag">Agent</span></dd></div>
+                  <div><dt>来源</dt><dd>会话 · 支付回调排查</dd></div>
+                  <div><dt>验收</dt><dd>112/112 · <a href="#task">MR !236</a></dd></div>
+                  <div><dt>通知</dt><dd>处理人已收到</dd></div>
+                  <div><dt>创建</dt><dd>11/25 14:02 · yanfeng</dd></div>
+                </dl>
+                <div class="rp-actions">
+                  <a class="btn primary block" href="#task">打开任务页</a>
+                  <button class="btn ghost block" type="button"><svg class="ic"><use href="#i-share"/></svg>分享回答快照</button>
+                </div>
+                <p class="rp-note">分享快照会带上会话里的计划、执行步骤和结果。</p>
+              </aside>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="task">
+    <div class="sec-head"><span class="sec-no">02</span><h2 class="sec-title">任务页</h2></div>
+    <p class="sec-note">文档 + 时间线 + 属性。计划、执行、证据都留在时间线，人只在确认计划和验收两个点出现。</p>
+    <div class="fig">
+      <div class="screen">
+        <div class="app">
+          <aside class="sb">
+            <div class="sb-brand">
+              <img src="data:image/png;base64,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" alt="">
+              <span class="wordmark">Rook</span>
+              <button class="icon-btn collapse" type="button" aria-label="收起侧栏"><svg class="ic"><use href="#i-panel"/></svg></button>
+            </div>
+            <button class="new-session" type="button"><svg class="ic"><use href="#i-plus-square"/></svg><span>新会话</span></button>
+            <a class="nav" href="#automation"><svg class="ic"><use href="#i-clock"/></svg><span>自动化任务</span></a>
+            <a class="nav active" href="#kanban"><svg class="ic"><use href="#i-grid"/></svg><span>Kanban</span></a>
+            <div class="side-head"><span>视图</span></div>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-user"/></svg><span>我的工作</span></a>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-play"/></svg><span>运行中</span><em>1</em></a>
+            <a class="view gate-entry" href="#kanban"><svg class="ic"><use href="#i-check"/></svg><span>待我评审</span><em>1</em></a>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-bell"/></svg><span>已订阅</span></a>
+            <div class="ws-head"><span>工作区</span><span class="ws-tools"><svg class="ic sm"><use href="#i-search"/></svg><svg class="ic sm"><use href="#i-plus"/></svg></span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-d"/></svg><span class="ws-name">clawsec</span><span class="ws-more">···</span></div>
+            <div class="conv on"><span>支付回调排查</span><time>11/25</time></div>
+            <div class="conv"><span>训练任务巡检</span><time>11/25</time></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">Rook Agent 验收 2026-11-20</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">rook-chat skill 验收</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">性能相关</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">Magpie 在线评估</span><span class="ws-more">···</span></div>
+            <div class="sb-me"><span class="av me">Y</span><span>yanfeng@bilibili.com</span></div>
+          </aside>
+
+          <main class="main" style="padding:0">
+            <div class="task-bar">
+              <a class="back" href="#kanban"><svg class="ic"><use href="#i-back"/></svg>Kanban</a>
+              <span class="crumb"><b>支付</b> / RK-11</span>
+              <span class="sp"></span>
+              <button class="btn ghost sm" type="button"><svg class="ic"><use href="#i-share"/></svg>分享快照</button>
+              <button class="icon-btn" type="button"><svg class="ic"><use href="#i-more"/></svg></button>
+            </div>
+
+            <div class="task-outer">
+              <div class="task-main">
+                <div class="task-title">
+                  <span class="pill review"><i class="dot review"></i>待验收</span>
+                  <h1>网关超时重试</h1>
+                  <p class="task-meta"><span>来源 <a href="#chat">会话 · 支付回调排查</a></span><span>·</span><span>yanfeng 创建于 11/25 14:02</span></p>
+                </div>
+
+                <section class="doc-sec">
+                  <h4>背景</h4>
+                  <p>支付回调在网关 504 后直接失败。现有重试没有区分 4xx 与 5xx，正常业务也会被重复提交。</p>
+                </section>
+
+                <section class="doc-sec">
+                  <h4>验收</h4>
+                  <ul>
+                    <li>5xx 重试 2 次，指数退避；4xx 原样返回。</li>
+                    <li>单测覆盖 504、400 与幂等场景。</li>
+                    <li>staging 连续 30 分钟无重复回调。</li>
+                  </ul>
+                </section>
+
+                <div class="thread">
+                  <div class="tl system">yanfeng 创建了需求 · 14:02</div>
+
+                  <div class="tl">
+                    <span class="av agent">R</span>
+                    <div class="tl-body">
+                      <div class="tl-head"><strong>Rook</strong><span class="tag">Agent</span><time>14:03</time></div>
+                      <p>计划三步：</p>
+                      <ol class="plan">
+                        <li>在 <code>gateway/retry.py</code> 拆出 4xx / 5xx 分支。</li>
+                        <li>5xx 重试 2 次，保留幂等键。</li>
+                        <li>补 504、400 和幂等测试。</li>
+                      </ol>
+                      <div class="tl-actions"><span class="state"><svg class="ic"><use href="#i-check"/></svg>计划已确认 · 14:05</span></div>
+                    </div>
+                  </div>
+
+                  <div class="tl">
+                    <span class="av me">Y</span>
+                    <div class="tl-body">
+                      <div class="tl-head"><strong>yanfeng</strong><time>14:06</time></div>
+                      <p>4xx 保持原样返回，别包一层。staging 观察 30 分钟再给我。</p>
+                    </div>
+                  </div>
+
+                  <div class="tl">
+                    <span class="av agent">R</span>
+                    <div class="tl-body">
+                      <div class="tl-head"><strong>Rook</strong><span class="tag">Agent</span><time>14:09</time></div>
+                      <p>收到。4xx 原样返回，5xx 重试 2 次，幂等键未动。staging 30 分钟无重复，112/112 通过，MR !236 已创建。</p>
+                      <div class="ev-card">
+                        <div class="ev-row"><span>单测</span><b class="ok">112 / 112</b></div>
+                        <div class="ev-row"><span>staging</span><b class="ok">30 分钟无重复</b></div>
+                        <div class="ev-row"><span>变更</span><b>+38 / −12 · 2 files</b></div>
+                      </div>
+                      <div class="runline">
+                        <button class="link" type="button"><svg class="ic"><use href="#i-steps"/></svg>执行过程 · 18 步</button>
+                        <span>·</span><span>24.8k tok</span><span>·</span><span>3 分 12 秒</span>
+                        <span>·</span>
+                        <button class="link" type="button">分享快照</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="gate">
+                  <div><strong>等待你验收</strong><small>通过后 RK-11 进入已完成，MR !236 可合并。</small></div>
+                  <div class="gate-actions"><button class="btn ghost" type="button">退回</button><button class="btn primary" type="button">通过并完成</button></div>
+                </div>
+
+                <div class="cmp">
+                  <div class="ph">评论，或 @Rook 让他继续改</div>
+                  <div class="cmp-bar"><button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-clip"/></svg></button><button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-spark"/></svg></button><span>支持 @ 与 /skill</span><span class="sp"></span><button class="send" type="button"><svg class="ic"><use href="#i-send"/></svg></button></div>
+                </div>
+              </div>
+
+              <aside class="props">
+                <div class="props-head">属性</div>
+                <div class="prow"><span class="pl">状态</span><span class="pv"><span class="pill review"><i class="dot review"></i>待验收</span></span></div>
+                <div class="prow"><span class="pl">处理人</span><span class="pv"><span class="av agent sm">R</span>Rook <span class="tag">Agent</span></span></div>
+                <div class="prow"><span class="pl">来源</span><span class="pv">会话 · 支付回调排查</span></div>
+                <div class="prow"><span class="pl">工作区</span><span class="pv"><svg class="ic"><use href="#i-folder"/></svg>支付</span></div>
+                <div class="prow"><span class="pl">优先级</span><span class="pv">中</span></div>
+                <div class="prow"><span class="pl">关联</span><span class="pv"><a href="#task">MR !236</a></span></div>
+                <div class="prow"><span class="pl">用量</span><span class="pv">24.8k tok</span></div>
+                <div class="prow"><span class="pl">创建</span><span class="pv">11/25 14:02</span></div>
+              </aside>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="chat">
+    <div class="sec-head"><span class="sec-no">03</span><h2 class="sec-title">新会话</h2></div>
+    <p class="sec-note">所有工作从一句话开始。Rook 先给计划，人确认后执行，完成后自动建档回看板。</p>
+    <div class="fig">
+      <div class="screen">
+        <div class="app">
+          <aside class="sb">
+            <div class="sb-brand">
+              <img src="data:image/png;base64,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" alt="">
+              <span class="wordmark">Rook</span>
+              <button class="icon-btn collapse" type="button" aria-label="收起侧栏"><svg class="ic"><use href="#i-panel"/></svg></button>
+            </div>
+            <button class="new-session" type="button"><svg class="ic"><use href="#i-plus-square"/></svg><span>新会话</span></button>
+            <a class="nav" href="#automation"><svg class="ic"><use href="#i-clock"/></svg><span>自动化任务</span></a>
+            <a class="nav" href="#kanban"><svg class="ic"><use href="#i-grid"/></svg><span>Kanban</span></a>
+            <div class="side-head"><span>视图</span></div>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-user"/></svg><span>我的工作</span></a>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-play"/></svg><span>运行中</span><em>1</em></a>
+            <a class="view gate-entry" href="#kanban"><svg class="ic"><use href="#i-check"/></svg><span>待我评审</span><em>1</em></a>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-bell"/></svg><span>已订阅</span></a>
+            <div class="ws-head"><span>工作区</span><span class="ws-tools"><svg class="ic sm"><use href="#i-search"/></svg><svg class="ic sm"><use href="#i-plus"/></svg></span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-d"/></svg><span class="ws-name">clawsec</span><span class="ws-more">···</span></div>
+            <div class="conv on"><span>支付回调排查</span><time>11/25</time></div>
+            <div class="conv"><span>训练任务巡检</span><time>11/25</time></div>
+            <div class="conv"><span>CTR 流量盘点</span><time>11/24</time></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">Rook Agent 验收 2026-11-20</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">rook-chat skill 验收</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">性能相关</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">Magpie 在线评估</span><span class="ws-more">···</span></div>
+            <div class="sb-me"><span class="av me">Y</span><span>yanfeng@bilibili.com</span></div>
+          </aside>
+
+          <main class="main chat-main">
+            <div class="chat-top">
+              <span class="crumb"><b>支付</b> / 支付回调排查</span>
+              <span class="sp"></span>
+              <button class="btn ghost sm" type="button"><svg class="ic"><use href="#i-clock"/></svg>设为自动化</button>
+              <button class="icon-btn" type="button"><svg class="ic"><use href="#i-more"/></svg></button>
+            </div>
+
+            <div class="chat-body">
+              <div class="msg user">支付回调在网关 504 后一直失败。改成只重试 5xx，先给我计划，幂等键不要动。</div>
+
+              <div class="msg agent">
+                <div class="who"><span class="av agent sm">R</span><strong>Rook</strong><span class="tag">Agent</span><time>14:03</time></div>
+                <div class="agent-body">
+                  <p>计划三步：</p>
+                  <div class="plan-box">
+                    <ol>
+                      <li>找到 <code>gateway/retry.py</code> 的重试分支。</li>
+                      <li>只对 5xx 重试 2 次，4xx 原样返回。</li>
+                      <li>补 504、400 和幂等测试。</li>
+                    </ol>
+                  </div>
+                  <p style="margin-top:8px;color:var(--muted);font-size:12px">改动预计 2 个文件，约 40 行。</p>
+                  <div class="chat-actions"><button class="btn primary sm" type="button">确认计划</button><button class="btn ghost sm" type="button">调整范围</button></div>
+                </div>
+              </div>
+
+              <div class="divider"><svg class="ic sm"><use href="#i-check"/></svg>计划已确认 · 14:05</div>
+
+              <div class="steps">
+                <div class="steps-head"><svg class="ic"><use href="#i-chev-d"/></svg>执行过程 · 18 步</div>
+                <div class="step"><svg class="ic"><use href="#i-folder"/></svg><span>读取 gateway/retry.py</span><time>0.0 秒</time></div>
+                <div class="step"><svg class="ic"><use href="#i-folder"/></svg><span>修改 gateway/retry.py、tests/test_retry.py</span><time>1.2 秒</time></div>
+                <div class="step"><svg class="ic"><use href="#i-steps"/></svg><span>运行 pytest tests/gateway</span><time>41.2 秒</time></div>
+              </div>
+
+              <div class="msg agent">
+                <div class="who"><span class="av agent sm">R</span><strong>Rook</strong><span class="tag">Agent</span><time>14:09</time></div>
+                <div class="agent-body">
+                  <p>改完了。4xx 原样返回，5xx 重试 2 次，幂等键未动。112/112 通过，staging 30 分钟无重复，MR !236 已创建。</p>
+                  <div class="task-ref">
+                    <div><span class="rk">RK-11</span><b>网关超时重试</b><small>已建档到 Kanban · 待验收</small></div>
+                    <a class="btn ghost sm" href="#task">打开任务</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="chat-cmp">
+              <div class="chip-row"><span class="chip"><svg class="ic"><use href="#i-folder"/></svg>支付</span><span class="queue">排队消息 0</span></div>
+              <div class="ph">发消息，输入 / 查看 skill...</div>
+              <div class="bar">
+                <button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-clip"/></svg></button>
+                <button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-spark"/></svg></button>
+                <span class="sp"></span>
+                <span class="model">DeepSeek V4.1 Flash<svg class="ic sm"><use href="#i-chev-d"/></svg></span>
+                <span>思考 high</span>
+                <button class="send" type="button"><svg class="ic"><use href="#i-send"/></svg></button>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="automation">
+    <div class="sec-head"><span class="sec-no">04</span><h2 class="sec-title">自动化任务</h2></div>
+    <p class="sec-note">自动化不是另一套系统。它由会话创建，每次运行留下会话、结果和用量。</p>
+    <div class="fig">
+      <div class="screen">
+        <div class="app">
+          <aside class="sb">
+            <div class="sb-brand">
+              <img src="data:image/png;base64,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" alt="">
+              <span class="wordmark">Rook</span>
+              <button class="icon-btn collapse" type="button" aria-label="收起侧栏"><svg class="ic"><use href="#i-panel"/></svg></button>
+            </div>
+            <button class="new-session" type="button"><svg class="ic"><use href="#i-plus-square"/></svg><span>新会话</span></button>
+            <a class="nav active" href="#automation"><svg class="ic"><use href="#i-clock"/></svg><span>自动化任务</span></a>
+            <a class="nav" href="#kanban"><svg class="ic"><use href="#i-grid"/></svg><span>Kanban</span></a>
+            <div class="side-head"><span>视图</span></div>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-user"/></svg><span>我的工作</span></a>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-play"/></svg><span>运行中</span><em>1</em></a>
+            <a class="view gate-entry" href="#kanban"><svg class="ic"><use href="#i-check"/></svg><span>待我评审</span><em>1</em></a>
+            <a class="view" href="#kanban"><svg class="ic"><use href="#i-bell"/></svg><span>已订阅</span></a>
+            <div class="ws-head"><span>工作区</span><span class="ws-tools"><svg class="ic sm"><use href="#i-search"/></svg><svg class="ic sm"><use href="#i-plus"/></svg></span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-d"/></svg><span class="ws-name">clawsec</span><span class="ws-more">···</span></div>
+            <div class="conv"><span>支付回调排查</span><time>11/25</time></div>
+            <div class="conv on"><span>训练任务巡检</span><time>11/25</time></div>
+            <div class="conv"><span>CTR 流量盘点</span><time>11/24</time></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">Rook Agent 验收 2026-11-20</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">rook-chat skill 验收</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">性能相关</span><span class="ws-more">···</span></div>
+            <div class="ws"><svg class="ic"><use href="#i-chev-r"/></svg><span class="ws-name">Magpie 在线评估</span><span class="ws-more">···</span></div>
+            <div class="sb-me"><span class="av me">Y</span><span>yanfeng@bilibili.com</span></div>
+          </aside>
+
+          <main class="main">
+            <div class="auto-head">
+              <div><h1 class="app-h1">自动化任务</h1><p class="sub">由会话创建，按时间或事件运行</p></div>
+              <div class="split"><span class="a"><svg class="ic"><use href="#i-plus"/></svg>新建</span><span class="b"><svg class="ic sm"><use href="#i-chev-d"/></svg></span></div>
+            </div>
+
+            <div class="auto-tabs">
+              <span class="on">已开启<em>2</em></span>
+              <span>已暂停<em>1</em></span>
+              <span>已结束<em>4</em></span>
+              <span>全部<em>7</em></span>
+            </div>
+
+            <div class="search"><svg class="ic sm"><use href="#i-search"/></svg><span>搜索名称、任务内容或会话 ID</span></div>
+
+            <div class="auto-body">
+              <div class="auto-list">
+                <article class="arow on">
+                  <div class="arow-main">
+                    <div class="arow-title">每日训练任务巡检<span class="pill on"><i class="dot review"></i>已开启</span></div>
+                    <div class="arow-meta"><span>每天 09:30</span><span>·</span><span>clawsec</span><span>·</span><span>上次 今天 09:30 成功</span></div>
+                  </div>
+                  <div class="arow-side"><span>下次 明天 09:30</span><button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-more"/></svg></button></div>
+                </article>
+
+                <article class="arow">
+                  <div class="arow-main">
+                    <div class="arow-title">支付回调错误日报<span class="pill on"><i class="dot review"></i>已开启</span></div>
+                    <div class="arow-meta"><span>每小时整点</span><span>·</span><span>支付</span><span>·</span><span>上次 14:00 成功</span></div>
+                  </div>
+                  <div class="arow-side"><span>下次 15:00</span><button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-more"/></svg></button></div>
+                </article>
+
+                <article class="arow">
+                  <div class="arow-main">
+                    <div class="arow-title">MR 待评审提醒<span class="pill off">已暂停</span></div>
+                    <div class="arow-meta"><span>工作日 18:00</span><span>·</span><span>clawsec</span><span>·</span><span>上次 昨天 18:00 成功</span></div>
+                  </div>
+                  <div class="arow-side"><span>已暂停</span><button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-more"/></svg></button></div>
+                </article>
+              </div>
+
+              <aside class="auto-panel">
+                <div class="ap-head"><h2>每日训练任务巡检</h2><button class="icon-btn mini" type="button"><svg class="ic"><use href="#i-x"/></svg></button></div>
+                <dl class="ap-fields">
+                  <div><dt>触发</dt><dd>每天 09:30 · Asia/Shanghai</dd></div>
+                  <div><dt>内容</dt><dd>巡检 flexrec 训练任务，汇总异常 PS / worker 数量并发到值班群。</dd></div>
+                  <div><dt>工作区</dt><dd>clawsec</dd></div>
+                  <div><dt>模型</dt><dd>DeepSeek V4.1 Flash · 思考 high</dd></div>
+                  <div><dt>来源</dt><dd><a href="#chat">会话 #b21c</a> · yanfeng 创建</dd></div>
+                </dl>
+                <div class="ap-sec">运行记录</div>
+                <div class="run"><time>今天 09:30</time><span class="st">成功</span><span class="dur">2 分 18 秒</span><a href="#chat">查看会话</a></div>
+                <div class="run"><time>昨天 09:30</time><span class="st">成功</span><span class="dur">2 分 04 秒</span><a href="#chat">查看会话</a></div>
+                <div class="run"><time>11/23 09:30</time><span class="st err">中断</span><span class="dur">76 秒</span><a href="#chat">查看会话</a></div>
+                <div class="ap-actions"><button class="btn primary" type="button"><svg class="ic"><use href="#i-play"/></svg>立即运行</button><button class="btn ghost" type="button"><svg class="ic"><use href="#i-pause"/></svg>暂停</button></div>
+              </aside>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="closing">四个视图共用同一套壳和同一份状态：会话里的执行，就是任务页的时间线；任务的来源，就是会话；自动化的每次运行，都是一次会话。</p>
+</div>
+
+
