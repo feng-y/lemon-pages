@@ -136,12 +136,12 @@
       "title": "Rook：Kanban 里的常驻智能体",
       "versions": [
         {
-          "digest": "998771ebf69faeb6f2ae35d7d10b4c58e8d8cdc2c289f6e56715e06ab570b8da",
+          "digest": "4f5851f4a095d0b43cc01878f2be9b14565c50890e19dc7e82b3f0fc59fc5681",
           "label": "v1",
           "path": "reports/building-always-on-agents",
           "published_at": "2026-11-25T14:10:13.365022Z",
           "summary": "对照 Rook SuperAgent 方案 v2：Phase 0-3、Session Queue、下游 Agent 分派、记忆/权限/投递缺口；含三张原创图",
-          "updated_at": "2026-11-25T14:42:42.205578Z"
+          "updated_at": "2026-11-25T14:48:47.089479Z"
         }
       ]
     },
