@@ -125,6 +125,14 @@
           "published_at": "2026-11-25T14:41:58.958575Z",
           "summary": "v3：触发词定为智能体名称，系统 skill 全部可见，待决定剩 5 项",
           "updated_at": "2026-11-25T14:41:58.958575Z"
+        },
+        {
+          "digest": "c4d83cc38787d53faf0c691f7ef4bdb4d9d61ea45f95bab5f4d90f57587ff16f",
+          "label": "v4",
+          "path": "reports/rook-superagent-plan-v4",
+          "published_at": "2026-11-25T15:23:50.097803Z",
+          "summary": "v4：8 项决定全部确认，设计已写入 CONTEXT 与 DESIGN",
+          "updated_at": "2026-11-25T15:23:50.097803Z"
         }
       ]
     },
