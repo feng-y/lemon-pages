@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rook SuperAgent 设计草案</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+
+
+/* ▼ 报告专用样式：components.md 没有的才写，只用 token，不重定义 base.css 已有的 class ▼ */
+
+</style>
+</head>
+<body>
+<nav class="toc">
+  <div class="toc-title">On this page</div>
+  <a href="#tldr">TL;DR</a>
+  <a href="#s1">对照</a>
+  <a href="#s1b">常驻原语</a>
+  <a href="#s2">四个阶段</a>
+  <a href="#s3">已定的决定</a>
+</nav>
+
+<main>
+
+  <header>
+    <div class="head-top">
+      <h1>Rook SuperAgent 设计草案</h1>
+    </div>
+    <p class="subtitle">参考 dsh-superagent-prototype，给 Rook 增加一个自动回答问题、接下游开发的 Agent。草案阶段，尚未实现。</p>
+  </header>
+
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">TL;DR</div>
+    <p>Rook 已有 prototype 领域模型的大半：Kanban Task 对应 Ticket，<code>Run</code> 对应 Executor，Task 时间线对应 Channel。缺两个实体：用户创建的智能体定义，以及 Task 到 Session 的绑定。阶段 0 先做智能体定义，阶段 1 做「评论里 @智能体 自动回答」，阶段 2 接单开发，阶段 3 才建 Durable Inbox 和外部事件。常驻 Agent 文章的五个原语里，收件箱、定时器、权限已有对应物，阶段 1 复用持久的 Queue，不新建收件箱表。记忆和发件箱各有一个缺口。</p>
+  </div>
+
+  <section>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">4</div>
+        <div class="stat-label">阶段</div>
+        <div class="stat-note">定义智能体，回答，开发，事件驱动</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">2</div>
+        <div class="stat-label">新增实体</div>
+        <div class="stat-note">智能体定义，以及它与 Task 的会话绑定</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">0</div>
+        <div class="stat-label">待决定</div>
+        <div class="stat-note">8 项决定已全部确认，见最后一节</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="s1">
+    <h2>与 prototype 的对照</h2>
+    <hr class="rule">
+    <p class="lede">prototype 的链路是 Source → Trigger → Thread → Eval → Ticket → Assignment → Executor。下表说明每一环在 Rook 里有没有现成的对应物。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>prototype</th><th>Rook 现状</th><th>缺口</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Ticket</td><td>Kanban Task：状态、接单人、交付、验收、Agent 凭据</td><td>无</td></tr>
+          <tr><td>Executor</td><td>聊天管理器产生的 <code>Run</code>，自动化投递已走这条路</td><td>Task 到 Session 的绑定</td></tr>
+          <tr><td>Channel</td><td>Task 时间线的 activity，作者 <code>Rook</code></td><td>无</td></tr>
+          <tr><td>Source</td><td>Task 评论，已能解析邮箱 mention</td><td>解析 <code>@Rook</code></td></tr>
+          <tr><td>Gate</td><td>用户准入加默认组 RD</td><td>触发者检查</td></tr>
+          <tr><td>Report</td><td>交付、提问、<code>run_finished</code></td><td>状态映射</td></tr>
+          <tr><td>Durable Inbox、Worker、Scheduler</td><td>无，词表标为后续</td><td>阶段 3</td></tr>
+          <tr><td>Eval 研判、Mandate、Policy 版本</td><td>无</td><td>阶段 1、2 不做</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <div class="callout-title">为什么不照搬 Ticket 和 Mandate</div>
+      <p>Task、接单操作和 Agent 凭据已经承担授权。再加一套 Ticket、Mandate 会让同一件事有两个名字。阶段 1 只响应显式的 @Rook，不需要模型判断「这条消息是不是在要活」。</p>
+    </div>
+  </section>
+
+  <section id="s1b">
+    <h2>常驻 Agent 的五个原语</h2>
+    <hr class="rule">
+    <p class="lede">文章把常驻 Agent 拆成收件箱、定时器、记忆、权限、发件箱。下表对照 Rook 现状。依据是用户提供的文章原文（Anthropic，2026-11-13）。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>原语</th><th>文章的要求</th><th>Rook 现状</th><th>缺口</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>事件收件箱</td><td>所有来源先写事件，再由 worker 取；按来源标识去重；每个收件箱一个活跃 worker；连续消息合并成一次运行</td><td>每个 Session 有持久化的 Queue，按 requestId 幂等，创建 Run 的事务内取出队首，自动化投递已能把多条合并成一次 Turn</td><td>外部 webhook 没有入口，留给阶段 3</td></tr>
+          <tr><td>定时器</td><td>follow-up 与 schedule 分开存储；scheduler 只把到期项转成事件</td><td>自动化任务有到点 ticker，Agent 可用 <code>schedule_create</code> 给自己建任务</td><td>一次性 follow-up 是否已支持，未核对</td></tr>
+          <tr><td>记忆</td><td>只存取不回来的信息；指令、笔记、已发消息、任务进度四类；存在持久存储里</td><td>原生 context 的 checkpoint 存 MySQL，Project 背景每个 Turn 注入，Task 的计划和时间线保存进度</td><td>容器内文件会随容器丢失，智能体的跨 Run 笔记必须落 MySQL</td></tr>
+          <tr><td>权限</td><td>凭证放在 Agent 之外；高风险动作自动审查或延迟调用，等人回复后恢复</td><td>凭证由 ClawSec 保管，Run 只拿到当前用户的会话；Task 的提问与验收对应「等人回复」</td><td>自动审查高风险动作的分类器没有</td></tr>
+          <tr><td>发件箱</td><td>运行有三种结局：发消息、无需发送、等待输入；从安静开始，用 eval 调消息量</td><td>回复写成 Task activity，企业微信通知会记录发送状态</td><td>「判断无需回复」没有显式结局，也没有消息量的评测</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>一次 Run 的整体循环</h3>
+    <p>左列决定何时开始，中列是 Run 用到的状态和权限，右列是结果怎样送达。用户的回复又作为新输入回到 Queue。图是按原文五个原语，用 Rook 的名字重画的，不是原图。</p>
+    <div class="table-wrap">
+      <svg viewBox="0 0 760 330" role="img" aria-label="常驻 Agent 在 Rook 中的整体循环" style="width:100%;min-width:640px;height:auto;font-family:var(--sans);font-size:13px">
+        <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--accent)"/></marker></defs>
+        <rect x="10" y="10" width="205" height="290" rx="12" style="fill:var(--line-soft)"/>
+        <rect x="255" y="10" width="285" height="290" rx="12" style="fill:var(--line-soft)"/>
+        <rect x="560" y="10" width="190" height="290" rx="12" style="fill:var(--line-soft)"/>
+        <text x="112" y="34" text-anchor="middle" style="fill:var(--muted);font-weight:600">什么触发 Run</text>
+        <text x="397" y="34" text-anchor="middle" style="fill:var(--muted);font-weight:600">Run 用到什么</text>
+        <text x="655" y="34" text-anchor="middle" style="fill:var(--muted);font-weight:600">什么离开 Run</text>
+        <rect x="30" y="48" width="165" height="38" rx="8" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+        <text x="112" y="72" text-anchor="middle" style="fill:var(--ink)">评论里 @智能体</text>
+        <rect x="30" y="94" width="165" height="38" rx="8" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+        <text x="112" y="118" text-anchor="middle" style="fill:var(--ink)">自动化任务到点</text>
+        <rect x="30" y="140" width="165" height="38" rx="8" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5;stroke-dasharray:5 4"/>
+        <text x="112" y="164" text-anchor="middle" style="fill:var(--muted)">外部事件 · 阶段 3</text>
+        <path d="M112 180V226" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar)"/>
+        <rect x="30" y="230" width="165" height="56" rx="10" style="fill:var(--accent-tint);stroke:var(--accent);stroke-width:2"/>
+        <text x="112" y="254" text-anchor="middle" style="fill:var(--accent-strong);font-weight:700">Queue</text>
+        <text x="112" y="273" text-anchor="middle" style="fill:var(--muted);font-size:12px">持久、按序、幂等</text>
+        <path d="M195 258H232V145H298" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar)"/>
+        <rect x="300" y="108" width="170" height="74" rx="10" style="fill:var(--surface);stroke:var(--ink);stroke-width:2"/>
+        <text x="385" y="140" text-anchor="middle" style="fill:var(--ink-strong);font-weight:700">Run</text>
+        <text x="385" y="162" text-anchor="middle" style="fill:var(--muted);font-size:12px">处理一个 Turn</text>
+        <path d="M345 184V228M345 228V184" style="stroke:var(--muted);stroke-width:1.5;fill:none"/>
+        <path d="M440 184V228" style="stroke:var(--muted);stroke-width:1.5;fill:none"/>
+        <rect x="270" y="230" width="150" height="56" rx="8" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+        <text x="345" y="253" text-anchor="middle" style="fill:var(--accent-strong);font-weight:700">记忆</text>
+        <text x="345" y="272" text-anchor="middle" style="fill:var(--muted);font-size:12px">原生 context、Task 进度</text>
+        <rect x="430" y="230" width="100" height="56" rx="8" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+        <text x="480" y="253" text-anchor="middle" style="fill:var(--accent-strong);font-weight:700">权限</text>
+        <text x="480" y="272" text-anchor="middle" style="fill:var(--muted);font-size:12px">ClawSec</text>
+        <path d="M470 145H583" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar)"/>
+        <rect x="585" y="108" width="140" height="74" rx="10" style="fill:var(--surface);stroke:var(--accent);stroke-width:2"/>
+        <text x="655" y="140" text-anchor="middle" style="fill:var(--accent-strong);font-weight:700">Task 时间线</text>
+        <text x="655" y="162" text-anchor="middle" style="fill:var(--muted);font-size:12px">回复，或无需回复</text>
+        <path d="M655 184V226" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar)"/>
+        <rect x="585" y="230" width="140" height="56" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+        <text x="655" y="263" text-anchor="middle" style="fill:var(--ink);font-weight:700">用户</text>
+        <path d="M655 288V316H112V290" style="stroke:var(--accent);stroke-width:2;fill:none;stroke-dasharray:6 4" marker-end="url(#ar)"/>
+        <text x="385" y="310" text-anchor="middle" style="fill:var(--muted);font-size:12px;paint-order:stroke;stroke:var(--ground);stroke-width:5px">用户的回复或验收，作为新输入回到 Queue</text>
+      </svg>
+    </div>
+
+    <h3>一条事件怎样变成一个 Turn</h3>
+    <p>原文的六步收件箱流程，在 Rook 里由现有的 Queue 完成，阶段 1 不需要新表。</p>
+    <div class="table-wrap">
+      <svg viewBox="0 0 780 150" role="img" aria-label="事件写入 Queue 到 Turn 结束的六个步骤" style="width:100%;min-width:640px;height:auto;font-family:var(--sans);font-size:13px">
+        <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--accent)"/></marker></defs>
+        <g>
+          <rect x="19" y="20" width="112" height="110" rx="10" style="fill:var(--surface);stroke:var(--accent);stroke-width:2"/>
+          <circle cx="40" cy="42" r="11" style="fill:var(--accent)"/><text x="40" y="47" text-anchor="middle" style="fill:var(--surface);font-weight:700">1</text>
+          <text x="75" y="76" text-anchor="middle" style="fill:var(--ink-strong);font-weight:700">写入 Queue</text>
+          <text x="75" y="98" text-anchor="middle" style="fill:var(--muted);font-size:12px">评论 @ 触发</text>
+          <text x="75" y="115" text-anchor="middle" style="fill:var(--muted);font-size:12px">requestId 去重</text>
+        </g>
+        <path d="M133 75H143" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar2)"/>
+        <g>
+          <rect x="145" y="20" width="112" height="110" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+          <circle cx="166" cy="42" r="11" style="fill:var(--muted)"/><text x="166" y="47" text-anchor="middle" style="fill:var(--surface);font-weight:700">2</text>
+          <text x="201" y="76" text-anchor="middle" style="fill:var(--ink-strong);font-weight:700">唤醒派发</text>
+          <text x="201" y="98" text-anchor="middle" style="fill:var(--muted);font-size:12px">写入后立即</text>
+          <text x="201" y="115" text-anchor="middle" style="fill:var(--muted);font-size:12px">触发派发</text>
+        </g>
+        <path d="M259 75H269" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar2)"/>
+        <g>
+          <rect x="271" y="20" width="112" height="110" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+          <circle cx="292" cy="42" r="11" style="fill:var(--muted)"/><text x="292" y="47" text-anchor="middle" style="fill:var(--surface);font-weight:700">3</text>
+          <text x="327" y="76" text-anchor="middle" style="fill:var(--ink-strong);font-weight:700">取出队首</text>
+          <text x="327" y="98" text-anchor="middle" style="fill:var(--muted);font-size:12px">创建 Run 时</text>
+          <text x="327" y="115" text-anchor="middle" style="fill:var(--muted);font-size:12px">同事务移除</text>
+        </g>
+        <path d="M385 75H395" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar2)"/>
+        <g>
+          <rect x="397" y="20" width="112" height="110" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+          <circle cx="418" cy="42" r="11" style="fill:var(--muted)"/><text x="418" y="47" text-anchor="middle" style="fill:var(--surface);font-weight:700">4</text>
+          <text x="453" y="76" text-anchor="middle" style="fill:var(--ink-strong);font-weight:700">Turn 执行</text>
+          <text x="453" y="98" text-anchor="middle" style="fill:var(--muted);font-size:12px">Agent Loop</text>
+          <text x="453" y="115" text-anchor="middle" style="fill:var(--muted);font-size:12px">含多个 Step</text>
+        </g>
+        <path d="M511 75H521" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar2)"/>
+        <g>
+          <rect x="523" y="20" width="112" height="110" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+          <circle cx="544" cy="42" r="11" style="fill:var(--muted)"/><text x="544" y="47" text-anchor="middle" style="fill:var(--surface);font-weight:700">5</text>
+          <text x="579" y="76" text-anchor="middle" style="fill:var(--ink-strong);font-weight:700">写回时间线</text>
+          <text x="579" y="98" text-anchor="middle" style="fill:var(--muted);font-size:12px">回复写成</text>
+          <text x="579" y="115" text-anchor="middle" style="fill:var(--muted);font-size:12px">Task activity</text>
+        </g>
+        <path d="M637 75H647" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar2)"/>
+        <g>
+          <rect x="649" y="20" width="112" height="110" rx="10" style="fill:var(--warn-tint);stroke:var(--warn);stroke-width:1.5;stroke-dasharray:5 4"/>
+          <circle cx="670" cy="42" r="11" style="fill:var(--warn)"/><text x="670" y="47" text-anchor="middle" style="fill:var(--surface);font-weight:700">6</text>
+          <text x="705" y="76" text-anchor="middle" style="fill:var(--ink-strong);font-weight:700">异常则暂停</text>
+          <text x="705" y="98" text-anchor="middle" style="fill:var(--muted);font-size:12px">Stop 或失败</text>
+          <text x="705" y="115" text-anchor="middle" style="fill:var(--muted);font-size:12px">人工继续</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-title">上下文开销与压缩</div>
+      <p>原文提醒，系统提示、工具定义和记忆文件在每次 Run 开头都要加载，所以要保持精简并用 prompt caching。会话过长时压缩或新开会话都会丢细节，重要信息要在过程中写进记忆。Rook 的 Pi 已有压缩和 context 占用估算，但智能体的指令和笔记会增加每个 Turn 的固定开销，阶段 0 要给指令长度设上限。原文的 dreaming（回看过去会话整理记忆）是可选项，本草案不做。</p>
+    </div>
+
+    <div class="callout ok">
+      <div class="callout-title">对阶段 1 的影响</div>
+      <p>文章建议把「直接调用 Agent」改成「写一条事件」。Rook 已有这条路：评论里的 @ 触发写进目标 Session 的 Queue，沿用现有的幂等和暂停规则。阶段 1 因此不需要新的收件箱表。</p>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2>四个阶段</h2>
+    <hr class="rule">
+    <p class="lede">每个阶段都以一个可验收的用户结果结束，后一阶段只在前一阶段通过后开始。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>阶段</th><th>用户看到什么</th><th>实现要点</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>0 智能体定义</td><td>内置的 Rook，管理员编辑指令和停用，不提供用户创建</td><td>目录按多个智能体的形状设计，保存在加密配置文档里，不新建表。开放用户创建需要先有每个智能体的连接器和操作白名单。</td></tr>
+          <tr><td>1 自动回答</td><td>在需求评论里 @某个智能体，它的回复出现在时间线</td><td>触发者通过准入后，向该 Task 绑定的 Session 投递一条消息。Run 结束后把回复写成 activity。Task 状态不变。</td></tr>
+          <tr><td>2 接下游开发</td><td>Rook 接单、改代码、提交交付，验收人退回或通过</td><td>Rook 以 agent 身份接单，在会话仓库根里工作，提交 MR 链接作为交付。</td></tr>
+          <tr><td>3 事件驱动</td><td>MR 评论、告警、定时事件自动唤醒 Task</td><td>Durable Inbox 落表，Worker 领取，Scheduler 写入同一入口。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-title">范围提示</div>
+      <p>阶段 1 的 Runtime 先接 Pi。设计依赖某个 Runtime 专属能力时，需要说明 Claude Code 和 Codex 如何接入或降级，并分别记录验收。</p>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2>已定的决定</h2>
+    <hr class="rule">
+    <p class="lede">待决定项已全部确认，其中执行身份、创建权限、个人 skill 和 Task 会话的名字采用默认方案。设计已写入仓库的词表和设计文档。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>项</th><th>决定</th></tr></thead>
+        <tbody>
+          <tr><td>触发词</td><td>智能体自己的名称，写作 <code>@名称</code>。名称全站唯一，允许中文，不含 <code>@</code> 和空白，可以改名。评论写入时解析成智能体 id 保存，改名不影响已有评论。Chat 里 <code>@superagent</code> 的旧定义失效。</td></tr>
+          <tr><td>智能体</td><td>用户创建的、有名称的自动执行者，对应 Grok 的 bot 这类产品里的角色。词表里的「Agent」仍指持有 Task 凭据的外部 Agent。</td></tr>
+          <tr><td>执行身份</td><td>触发者。使用触发者的公司 SSO 会话和 Provider，不引入服务账号。</td></tr>
+          <tr><td>创建权限</td><td>阶段 0 到 3 只有内置的 Rook，管理员维护。用户创建延后，前提是每个智能体声明可用的连接器和操作白名单，由 Rook Backend 在执行边界强制。</td></tr>
+          <tr><td>系统 skill</td><td>对所有智能体可见。可见不等于有权操作，每次 Run 仍按触发者校验，智能体的指令不能提升权限。</td></tr>
+          <tr><td>个人 skill</td><td>默认不开放，创建者主动绑定后才可用。</td></tr>
+          <tr><td>可见范围</td><td>默认组可见。创建者可以改成仅自己可触发。</td></tr>
+          <tr><td>Task 会话</td><td>一个智能体、一个 Task 和一名触发者之间唯一的 Session。不同触发者分开，原生 context 不跨用户共享。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-title">依据缺口</div>
+      <p>需求页设计稿和 Multica 的实现没有读到，对应部分只来自待办文档的转述，设计稿对 Rook 行为的要求可能改变阶段 1 的形状。Claude 的 always-on agents 文章已按用户提供的原文核对。</p>
+    </div>
+  </section>
+
+  <footer>
+    Sources: dsh-superagent-prototype 的 README 与 000、001、003 设计文档（MIT）；LofiSu/dsh-super-agent 的架构文档；Anthropic「Building always-on agents」（William Hu，2026-11-13，用户提供的原文）；Rook 的词表、设计文档与待办 &nbsp;—&nbsp; generated 2026-11-25
+  </footer>
+
+</main>
+
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

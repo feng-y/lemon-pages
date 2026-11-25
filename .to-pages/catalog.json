@@ -133,6 +133,14 @@
           "published_at": "2026-11-25T15:23:50.097803Z",
           "summary": "v4：8 项决定全部确认，设计已写入 CONTEXT 与 DESIGN",
           "updated_at": "2026-11-25T15:23:50.097803Z"
+        },
+        {
+          "digest": "39edb497a9771d76b587936f9b500f45194c389230eedd4705e7f58cd3a6f381",
+          "label": "v5",
+          "path": "reports/rook-superagent-plan-v5",
+          "published_at": "2026-11-25T15:36:12.704624Z",
+          "summary": "v5：阶段 0 只做内置 Rook，用户创建延后；Task 会话按触发者分开",
+          "updated_at": "2026-11-25T15:36:12.704624Z"
         }
       ]
     },
