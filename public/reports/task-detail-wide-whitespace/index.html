@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>需求页宽屏排法</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  :root {
+    --bg: #f7f9fc;
+    --surface: #ffffff;
+    --ink: #1d2330;
+    --ink-2: #445066;
+    --muted: #6b7889;
+    --line: #e2e8f1;
+    --line-strong: #cbd5e4;
+    --accent: #2f62d8;
+    --accent-soft: #eaf0fc;
+    --good: #1f7a4d;
+    --good-soft: #eaf6ef;
+    --shadow: 0 1px 2px #2230470d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1218;
+      --surface: #161d27;
+      --ink: #e9edf4;
+      --ink-2: #c3ccda;
+      --muted: #93a0b2;
+      --line: #27313e;
+      --line-strong: #3a475a;
+      --accent: #8dabff;
+      --accent-soft: #1a2740;
+      --good: #6ed3a4;
+      --good-soft: #12271d;
+      --shadow: 0 1px 2px #00000066;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1218;
+    --surface: #161d27;
+    --ink: #e9edf4;
+    --ink-2: #c3ccda;
+    --muted: #93a0b2;
+    --line: #27313e;
+    --line-strong: #3a475a;
+    --accent: #8dabff;
+    --accent-soft: #1a2740;
+    --good: #6ed3a4;
+    --good-soft: #12271d;
+    --shadow: 0 1px 2px #00000066;
+    color-scheme: dark;
+  }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 44px 72px; }
+  .eyebrow {
+    margin: 0 0 10px; color: var(--accent); font-size: 11px; font-weight: 700;
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  h1 {
+    margin: 0; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.2;
+    font-weight: 700; letter-spacing: -.025em; text-wrap: balance;
+  }
+  .lede { max-width: 64ch; margin: 14px 0 0; color: var(--ink-2); font-size: 14.5px; line-height: 1.8; }
+  .spec {
+    display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 18px 0 0; padding: 0; list-style: none;
+    color: var(--muted); font-size: 12px;
+  }
+  .spec li { padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+  .spec b { color: var(--ink-2); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+  .variant {
+    margin-top: 34px; padding: 22px; border: 1px solid var(--line); border-radius: 14px;
+    background: var(--surface); box-shadow: var(--shadow);
+  }
+  .variant-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+  .variant-head h2 { margin: 0; font-size: 17px; font-weight: 660; letter-spacing: -.01em; }
+  .variant-head p { margin: 0; color: var(--muted); font-size: 12.5px; }
+  .shots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+  figure { margin: 0; min-width: 0; }
+  figure img {
+    display: block; width: 100%; height: auto; max-width: 100%;
+    border: 1px solid var(--line-strong); border-radius: 9px; background: #fff;
+  }
+  figcaption {
+    margin-top: 7px; color: var(--muted); font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .facts div {
+    flex: 1 1 210px; min-width: 0; padding: 9px 11px; border-radius: 9px;
+    background: var(--bg); border: 1px solid var(--line);
+  }
+  .facts dt { color: var(--muted); font-size: 10.5px; letter-spacing: .05em; }
+  .facts dd { margin: 2px 0 0; color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .facts b { color: var(--ink); font-weight: 650; }
+
+  .table-wrap { margin-top: 34px; overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  caption { padding: 16px 18px 0; text-align: left; color: var(--ink); font-weight: 660; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: .04em; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.name { font-weight: 620; color: var(--ink); }
+  td.name small { display: block; color: var(--muted); font-weight: 400; font-size: 10.5px; }
+  tr.mark td { background: var(--accent-soft); }
+
+  .callout {
+    margin-top: 26px; padding: 18px 20px; border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); border-radius: 12px; background: var(--surface);
+  }
+  .callout h2 { margin: 0 0 8px; font-size: 15px; font-weight: 660; }
+  .callout p { margin: 0 0 8px; color: var(--ink-2); font-size: 13px; line-height: 1.75; }
+  .callout p:last-child { margin-bottom: 0; }
+  .note { margin-top: 26px; color: var(--muted); font-size: 11.5px; line-height: 1.7; }
+  @media (max-width: 720px) {
+    .shots { grid-template-columns: 1fr; }
+    .variant { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="eyebrow">Rook · 需求页</p>
+    <h1>宽屏留白怎么排</h1>
+    <p class="lede">同一张 RK-11 需求页，在 MacBook Pro 14 寸和 2K 下的实际渲染。设计稿的任务页是 1080px 页块：正文 796、属性栏 216、间距 20。</p>
+    <ul class="spec">
+      <li>MBP 14″ 默认缩放 <b>1512×982</b></li>
+      <li>2K <b>2560×1440</b></li>
+      <li>正文 <b>796px</b></li>
+      <li>属性栏 <b>216px</b></li>
+      <li>设计稿间距 <b>20px</b></li>
+    </ul>
+  </header>
+
+  <section class="variant">
+    <div class="variant-head">
+      <h2>A · 线上 v2026.1125.009</h2>
+      <p>正文贴左，属性栏贴右，中间留白随窗口伸缩。</p>
+    </div>
+    <div class="shots">
+      <figure><img src="shots/online-1512.png" alt="线上排法在 1512 宽下的需求页"><figcaption>MBP 14″ · 1512×982</figcaption></figure>
+      <figure><img src="shots/online-2560.png" alt="线上排法在 2560 宽下的需求页"><figcaption>2K · 2560×1440</figcaption></figure>
+    </div>
+    <dl class="facts">
+      <div><dt>1512</dt><dd>正文到属性栏 <b>143px</b>；属性栏 <b>265px</b>；页块占满工作区</dd></div>
+      <div><dt>2560</dt><dd>正文到属性栏 <b>1152px</b>；属性栏 <b>304px</b>；页块占满工作区</dd></div>
+    </dl>
+  </section>
+
+  <section class="variant">
+    <div class="variant-head">
+      <h2>B · 当前本地改动</h2>
+      <p>1080px 页块居中，正文和属性栏相邻。</p>
+    </div>
+    <div class="shots">
+      <figure><img src="shots/current-1512.png" alt="页块居中排法在 1512 宽下的需求页"><figcaption>MBP 14″ · 1512×982</figcaption></figure>
+      <figure><img src="shots/current-2560.png" alt="页块居中排法在 2560 宽下的需求页"><figcaption>2K · 2560×1440</figcaption></figure>
+    </div>
+    <dl class="facts">
+      <div><dt>1512</dt><dd>两侧留白 <b>84px</b>；正文到属性栏 <b>24px</b>；属性栏 <b>216px</b></dd></div>
+      <div><dt>2560</dt><dd>两侧留白 <b>608px</b>；正文到属性栏 <b>24px</b>；属性栏 <b>216px</b></dd></div>
+    </dl>
+  </section>
+
+  <section class="variant">
+    <div class="variant-head">
+      <h2>C · 动态间距</h2>
+      <p>正文和属性栏相邻，间距从 20 随窗口增长到 96，整块居中。</p>
+    </div>
+    <div class="shots">
+      <figure><img src="shots/fluid-1512.png" alt="动态间距排法在 1512 宽下的需求页"><figcaption>MBP 14″ · 1512×982</figcaption></figure>
+      <figure><img src="shots/fluid-2560.png" alt="动态间距排法在 2560 宽下的需求页"><figcaption>2K · 2560×1440</figcaption></figure>
+    </div>
+    <dl class="facts">
+      <div><dt>1512</dt><dd>两侧留白 <b>66px</b>；正文到属性栏 <b>60px</b>；属性栏 <b>216px</b></dd></div>
+      <div><dt>2560</dt><dd>两侧留白 <b>572px</b>；正文到属性栏 <b>96px</b>；属性栏 <b>216px</b></dd></div>
+    </dl>
+  </section>
+
+  <div class="table-wrap">
+    <table>
+      <caption>两种分辨率下的实际尺寸</caption>
+      <thead>
+        <tr><th>排法</th><th>1512 两侧留白</th><th>1512 正文↔属性</th><th>2560 两侧留白</th><th>2560 正文↔属性</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="name">A 线上<small>正文贴左、属性贴右</small></td><td>0</td><td>143px</td><td>0</td><td>1152px</td></tr>
+        <tr class="mark"><td class="name">B 页块居中<small>设计稿 1080 页块</small></td><td>84px</td><td>24px</td><td>608px</td><td>24px</td></tr>
+        <tr><td class="name">C 动态间距<small>间距 20→96</small></td><td>66px</td><td>60px</td><td>572px</td><td>96px</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <section class="callout">
+    <h2>我的判断</h2>
+    <p><b>MBP 14″：</b>A 把工作区用满，但正文和属性栏隔了 143px；B 和 C 把两者拉在一起，读需求时眼睛不用跨屏。B 的两侧留白 84px，在这个宽度下已经是设计稿的样子。</p>
+    <p><b>2K：</b>A 的正文和属性栏隔了 1152px，评审时属性栏基本脱离视线，这是最该避免的。B 和 C 都保住相邻关系；B 的 608px 外侧留白让页面像一张居中的文档，C 只把中间间距放宽到 96px，外侧留白少 36px，差别不大。</p>
+    <p><b>结论：</b>按设计稿优先选 <b>B</b>，它是 1080 页块的严格实现。如果「留白动态」的意思是宽屏下间距也要跟着长，选 <b>C</b>：正文宽度和属性栏不变，只让两者之间呼吸。A 在两个分辨率下都不推荐。</p>
+  </section>
+
+  <p class="note">截图来自本地 Chromium，数据是需求页夹具；尺寸取元素的实际布局宽度，未含浏览器窗口边框。线上版本为 v2026.1125.009（提交 859d0d2）。</p>
+</main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

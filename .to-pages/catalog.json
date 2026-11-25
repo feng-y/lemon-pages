@@ -77,6 +77,23 @@
           "updated_at": "2026-11-25T10:04:37.010272Z"
         }
       ]
+    },
+    {
+      "category": "设计原型",
+      "description": "宽屏留白怎么排",
+      "id": "reports/task-detail-wide-whitespace",
+      "project": "Rook",
+      "title": "需求页宽屏排法",
+      "versions": [
+        {
+          "digest": "bfd175326992b6b5c1b68b5ab9b2e81df7cf908cc1da2809d683d5901f8eae44",
+          "label": "v1",
+          "path": "reports/task-detail-wide-whitespace",
+          "published_at": "2026-11-25T12:40:46.271516Z",
+          "summary": "需求页宽屏留白：线上、1080 页块居中、动态间距三种排法在 MBP14 与 2K 下的实拍对比",
+          "updated_at": "2026-11-25T12:40:46.271516Z"
+        }
+      ]
     }
   ]
 }
