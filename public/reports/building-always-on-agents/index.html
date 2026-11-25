@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>构建常驻 Agent · Building always-on agents</title>
-<meta name="description" content="Anthropic《Building always-on agents》中文摘要：事件收件箱、定时器、记忆、权限、发件箱五个原语，以及它们如何组成一个持续运行的 Agent。">
+<title>常驻 Agent 的工程结构 · 二次理解</title>
+<meta name="description" content="基于 Anthropic《Building always-on agents》的独立二次整理：把常驻 Agent 拆成入口、时间、状态、安全、出口五层，并讨论落地取舍。不是译文，不是全文转载。">
 <style>
   :root {
     color-scheme: light dark;
@@ -48,8 +48,8 @@
   a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 3px; }
   a:hover { color: var(--accent); }
 
-  .wrap { width: min(100% - 40px, 780px); margin: 0 auto; }
-  header.hero { padding: clamp(48px, 9vw, 92px) 0 36px; }
+  .wrap { width: min(100% - 40px, 800px); margin: 0 auto; }
+  header.hero { padding: clamp(48px, 9vw, 92px) 0 34px; }
   .kicker {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
     margin: 0 0 22px; color: var(--accent-ink);
@@ -57,16 +57,19 @@
   }
   .kicker::before { content: ""; width: 26px; height: 2px; background: var(--accent); }
   h1, h2, h3 { font-family: "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif CJK SC", Georgia, serif; font-weight: 600; }
-  h1 { margin: 0 0 20px; font-size: clamp(2.15rem, 6vw, 3.4rem); line-height: 1.16; letter-spacing: -.02em; }
-  .dek { margin: 0 0 28px; max-width: 40em; color: var(--muted); font-size: clamp(1.02rem, 2.4vw, 1.2rem); line-height: 1.75; }
+  h1 { margin: 0 0 20px; font-size: clamp(2.1rem, 6vw, 3.3rem); line-height: 1.16; letter-spacing: -.02em; }
+  .dek { margin: 0 0 26px; max-width: 42em; color: var(--muted); font-size: clamp(1.02rem, 2.4vw, 1.18rem); line-height: 1.75; }
   .meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 18px 0 0; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
   .meta span { display: inline-flex; align-items: center; gap: 8px; }
   .meta span + span::before { content: ""; width: 3px; height: 3px; border-radius: 50%; background: var(--muted); opacity: .6; }
 
+  .disclaimer { margin: 26px 0 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--muted); font-size: .88rem; line-height: 1.7; }
+  .disclaimer strong { color: var(--ink); }
+
   main { padding-bottom: 20px; }
-  section { margin: 0 0 44px; }
+  section { margin: 0 0 46px; }
   h2 { margin: 0 0 18px; font-size: clamp(1.38rem, 3.4vw, 1.72rem); line-height: 1.35; letter-spacing: -.01em; }
-  h3 { margin: 30px 0 10px; font-size: 1.08rem; line-height: 1.5; }
+  h3 { margin: 28px 0 10px; font-size: 1.06rem; line-height: 1.5; }
   p { margin: 0 0 16px; }
   strong { font-weight: 650; }
 
@@ -82,37 +85,30 @@
   .stat strong { display: block; color: var(--accent-ink); font-family: "Iowan Old Style", Georgia, serif; font-size: clamp(1.7rem, 4vw, 2.2rem); line-height: 1.1; }
   .stat span { display: block; margin-top: 6px; color: var(--muted); font-size: .88rem; line-height: 1.55; }
 
-  .loop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 20px 0 10px; }
-  .loop-step {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 8px 13px 8px 9px; border: 1px solid var(--line); border-radius: 999px;
-    background: var(--surface); font-size: .88rem; white-space: nowrap;
-  }
-  .loop-n { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-size: .72rem; font-weight: 700; }
-  .loop-arrow { color: var(--accent); font-size: .95rem; }
-  .loop-note { margin-top: 12px; color: var(--muted); font-size: .9rem; }
-
-  .toc { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 22px 0 6px; }
+  .toc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 22px 0 6px; }
   .toc a {
-    display: block; padding: 10px 8px; border: 1px solid var(--line); border-radius: 10px;
-    background: var(--surface); color: var(--ink); text-align: center; text-decoration: none;
-    font-size: .76rem; line-height: 1.4;
+    display: block; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface); color: var(--ink); text-decoration: none; font-size: .82rem; line-height: 1.45;
   }
   .toc a:hover { border-color: var(--accent); color: var(--accent-ink); }
   .toc b { display: block; margin-bottom: 2px; color: var(--accent-ink); font-size: .68rem; letter-spacing: .08em; }
 
-  .primitive { margin: 0 0 20px; padding: 26px clamp(20px, 4vw, 30px); border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
-  .primitive h2 { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; font-size: clamp(1.3rem, 3vw, 1.55rem); }
-  .num { color: var(--accent); font-family: "SFMono-Regular", Consolas, monospace; font-size: .72em; letter-spacing: .08em; }
-  .primitive h3 { color: var(--ink); }
-  .primitive ul, .primitive ol { margin: 0 0 16px; padding-left: 1.25em; }
-  .primitive li { margin: 0 0 8px; padding-left: .15em; }
-  .primitive li::marker { color: var(--accent); }
+  .layers { display: grid; gap: 8px; margin: 20px 0 8px; }
+  .layer { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: baseline; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .layer b { color: var(--accent-ink); font-family: "SFMono-Regular", Consolas, monospace; font-size: .78rem; letter-spacing: .06em; }
+  .layer span { color: var(--muted); font-size: .9rem; line-height: 1.6; }
 
-  .compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0 18px; }
-  .compare div { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--code); }
-  .compare h4 { margin: 0 0 4px; font-size: .82rem; letter-spacing: .06em; color: var(--muted); }
-  .compare p { margin: 0; font-size: .9rem; line-height: 1.6; }
+  .compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 18px 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--line); }
+  .compare > div { padding: 16px 18px; background: var(--surface); }
+  .compare h4 { margin: 0 0 10px; color: var(--accent-ink); font-size: .8rem; letter-spacing: .06em; }
+  .compare ul { margin: 0; padding-left: 1.05em; }
+  .compare li { margin: 0 0 6px; color: var(--muted); font-size: .88rem; line-height: 1.6; }
+  .compare li::marker { color: var(--accent); }
+
+  .kv { display: grid; gap: 1px; margin: 18px 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--line); }
+  .kv-row { display: grid; grid-template-columns: 150px 1fr; gap: 1px; background: var(--line); }
+  .kv-row > div { padding: 12px 16px; background: var(--surface); font-size: .9rem; line-height: 1.65; }
+  .kv-row > div:first-child { color: var(--accent-ink); font-weight: 600; }
 
   .callout { margin: 18px 0; padding: 16px 18px; border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; background: var(--accent-soft); }
   .callout p { margin: 0; }
@@ -122,8 +118,21 @@
   blockquote p { margin: 0; }
 
   code { padding: .12em .38em; border-radius: 5px; background: var(--code); font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .86em; }
-  pre { margin: 14px 0 18px; padding: 14px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--code); font-size: .84rem; line-height: 1.65; }
+  pre { margin: 14px 0 18px; padding: 16px 18px; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--code); font-size: .82rem; line-height: 1.7; }
   pre code { padding: 0; background: none; }
+
+  .steps { margin: 18px 0; padding: 0; list-style: none; counter-reset: step; }
+  .steps li { position: relative; margin: 0 0 14px; padding-left: 42px; counter-increment: step; }
+  .steps li::before {
+    content: counter(step, decimal-leading-zero); position: absolute; left: 0; top: .12em;
+    display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 50%;
+    background: var(--surface); color: var(--accent-ink); font-family: "SFMono-Regular", Consolas, monospace; font-size: .68rem;
+  }
+
+  .tradeoffs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+  .tradeoff { padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  .tradeoff h4 { margin: 0 0 6px; color: var(--accent-ink); font-size: .86rem; }
+  .tradeoff p { margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.65; }
 
   .checklist { padding: 22px clamp(20px, 4vw, 28px); border: 1px dashed var(--line); border-radius: 16px; background: var(--surface); }
   .checklist ul { margin: 0; padding: 0; list-style: none; }
@@ -141,11 +150,11 @@
 
   @media (max-width: 640px) {
     body { font-size: 16px; }
-    .wrap { width: min(100% - 32px, 780px); }
-    .stat, .compare { grid-template-columns: 1fr; }
+    .wrap { width: min(100% - 32px, 800px); }
+    .stat, .compare, .tradeoffs { grid-template-columns: 1fr; }
     .toc { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .loop-arrow { display: none; }
-    .loop-step { flex: 1 1 auto; justify-content: center; }
+    .layer { grid-template-columns: 1fr; gap: 2px; }
+    .kv-row { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -153,21 +162,22 @@
 
 <div class="wrap">
   <header class="hero">
-    <p class="kicker">Anthropic · Best practices · 中文整理</p>
-    <h1>构建常驻 Agent</h1>
-    <p class="dek">用事件收件箱、定时器、记忆、权限和发件箱，把一次性的 Agent 变成持续在线、能自己醒来的系统。</p>
+    <p class="kicker">技术解读 · 二次理解</p>
+    <h1>常驻 Agent 的工程结构</h1>
+    <p class="dek">从一次性调用到持久事件循环：五个构件、一次完整运行，以及落地时必须做的取舍。</p>
     <p class="meta">
-      <span>原文 <a href="https://claude.com/resources/articles/building-always-on-agents">Building always-on agents</a></span>
+      <span>基于 <a href="https://claude.com/resources/articles/building-always-on-agents">Anthropic《Building always-on agents》</a></span>
       <span>作者 William Hu</span>
-      <span>2026-11-13</span>
-      <span>原文约 14 分钟</span>
+      <span>原文 2026-11-13</span>
     </p>
+    <p class="disclaimer"><strong>说明：</strong>本文是独立的中文二次整理。它抽取原文的思想、事实和数据，用不同结构和语言重新组织，并加入工程取舍分析；不是译文，不是原文全文，也不替代原文。原文观点与数据归 William Hu 及 Anthropic 所有，补充分析由本文整理者负责。</p>
   </header>
 
   <main>
     <section class="lead">
-      <p>常驻 Agent（always-on agents）最近又流行起来。它们跨会话保留状态，并且能在没人逐步指挥的情况下行动。底层仍然是与其他 Agent 相同的推理循环，真正不同的是外围架构：<strong>什么时候醒来、两次运行之间保留什么、结果怎样送到用户手里</strong>。</p>
-      <p>这件事现在更可行，有两个原因。第一，模型判断更好：更能读懂用户意图，也更知道什么时候该回来确认。第二，成本更低，长周期任务受益尤其明显。文章给出的数字是：Opus 5.5 在长周期编程任务上，每个已解决任务的成本比 Opus 5 低 78%；在典型工作负载上，成本低 40%。</p>
+      <p>绝大多数 Agent 产品仍然是请求—响应式的：用户提问，模型回答，会话结束，状态归零。这个模型适合助手，不适合“常驻”。常驻 Agent 要跨会话保留状态，并在没有用户逐步指挥的情况下行动。它和普通 Agent 共享同一套推理循环，差别在循环外面的那层系统。</p>
+      <p>这层系统必须回答三个问题：<strong>谁来唤醒它？两次运行之间留下什么？结果怎样到达用户？</strong>把这三个问题答清楚，比换一个更强的模型更能决定 Agent 是否可用。</p>
+      <p>现在更可行的原因有两个。模型判断更好，更能读懂意图，也更知道何时该回来确认；成本更低，长周期任务受益尤其明显。原文给出的数字是：Opus 5.5 在长周期编程任务上，每个已解决任务的成本比 Opus 5 低 78%；典型工作负载低 40%。</p>
       <div class="stat">
         <div><strong>78%</strong><span>长周期编程任务中，每个已解决任务的成本较 Opus 5 降低</span></div>
         <div><strong>40%</strong><span>典型工作负载的成本降低</span></div>
@@ -175,125 +185,170 @@
     </section>
 
     <section>
-      <h2>“常驻”描述的是体验，不是运行方式</h2>
-      <p>大多数时间，Agent 在睡觉。一个事件到达，它醒来启动一次运行（run），完成任务，把发生的事情记录下来，然后继续睡。运行之间可能有很长的空闲，期间不消耗 token。</p>
-      <div class="loop" role="list" aria-label="一次运行的循环">
-        <div class="loop-step" role="listitem"><span class="loop-n">1</span>事件到达</div>
-        <div class="loop-arrow" aria-hidden="true">→</div>
-        <div class="loop-step" role="listitem"><span class="loop-n">2</span>启动会话</div>
-        <div class="loop-arrow" aria-hidden="true">→</div>
-        <div class="loop-step" role="listitem"><span class="loop-n">3</span>Agent 执行</div>
-        <div class="loop-arrow" aria-hidden="true">→</div>
-        <div class="loop-step" role="listitem"><span class="loop-n">4</span>写回记忆</div>
-        <div class="loop-arrow" aria-hidden="true">→</div>
-        <div class="loop-step" role="listitem"><span class="loop-n">5</span>休眠等待</div>
+      <h2>先把“常驻”还原成一个事件循环</h2>
+      <p>常驻 Agent 不是一个永不退出的进程。更准确的图景是“可以被事件唤醒的短事务”：一次运行通常只做一件事，然后结束；空闲时不消耗推理成本。用户感知到的“一直在”，来自循环没有终点，而不是进程一直在跑。</p>
+      <p>整个设计的支点，是把运行当成无状态的计算单元，把状态放到外部存储。由此得到三个不变量：<strong>事件不丢、状态可恢复、行为可控</strong>。后面的五个构件，本质上是在分别维护这三个不变量。</p>
+      <div class="compare">
+        <div>
+          <h4>一次性 Agent</h4>
+          <ul>
+            <li>由用户请求触发</li>
+            <li>状态只活在会话里</li>
+            <li>逐步流式输出</li>
+            <li>失败由用户重试</li>
+            <li>成本按请求发生</li>
+          </ul>
+        </div>
+        <div>
+          <h4>常驻 Agent</h4>
+          <ul>
+            <li>由用户、webhook、定时器、后台任务触发</li>
+            <li>状态跨运行持久化</li>
+            <li>输出结果和少量摘要</li>
+            <li>失败由 worker 重试、会话恢复</li>
+            <li>空闲近乎为零，唤醒时付费</li>
+          </ul>
+        </div>
       </div>
-      <p class="loop-note">定时器到期或用户回复，都会变成下一次运行的事件，循环继续。</p>
-      <p>围绕这个循环，文章拆出五个基础原语：<strong>事件收件箱、定时器、记忆、权限、发件箱</strong>。前两个决定何时醒来，中间两个决定保留什么、能做什么，最后一个决定结果如何送达。</p>
-      <nav class="toc" aria-label="五个原语">
-        <a href="#inbox"><b>01</b>事件收件箱</a>
-        <a href="#timers"><b>02</b>定时器</a>
-        <a href="#memory"><b>03</b>记忆</a>
-        <a href="#permissions"><b>04</b>权限</a>
-        <a href="#outbox"><b>05</b>发件箱</a>
-      </nav>
-    </section>
-
-    <section class="primitive" id="inbox">
-      <h2><span class="num">01</span>事件收件箱</h2>
-      <p>普通 Agent 只对用户消息作出反应。常驻 Agent 还会被 webhook、定时任务和后台任务触发。如果让这些来源直接调用 Agent，两个同时到达的事件可能启动两个互相竞争的运行，进程崩溃还可能直接丢掉事件。</p>
-      <p>解法是加一个收件箱：所有来源先把事件写进去，再由 worker 从里面取。它由三部分组成——持久化的事件列表（通常是一张关系库表）、往列表里写事件的处理程序（通常是一个 HTTP 端点）、从列表里读事件的 worker（通常是一个后台服务）。每个事件带状态字段，用来源提供的标识去重；起步阶段建议每个用户一个收件箱，需要更多并行时再拆。</p>
-      <p>具体流程是：handler 写入事件并唤醒 worker；worker 读取待处理事件，启动一次运行；如果这是此前工作的延续（比如用户回复），就续接已有会话，否则新建会话；worker 等待运行结束，再把事件标记为完成。</p>
-      <h3>实践要点</h3>
-      <ul>
-        <li><strong>快速响应 handler。</strong>webhook 提供方会把慢响应当成失败。handler 可以做轻量检查，但耗时的检查（例如提示注入筛查）应该放进运行里。</li>
-        <li><strong>以收件箱为准。</strong>worker 醒来时应重新读取最新事件，这样替换后的 worker 才能重试被中断的运行。</li>
-        <li><strong>每个收件箱只允许一个活跃 worker。</strong>避免重复工作和互相覆盖。运行中又来了事件，有三种处理方式：推到下一轮、合并进当前运行、打断并重新开始。</li>
-        <li><strong>把事件批量合并。</strong>用户连着发几条消息时，可以合成一次运行，只回复一次。</li>
-      </ul>
-    </section>
-
-    <section class="primitive" id="timers">
-      <h2><span class="num">02</span>定时器</h2>
-      <p>定时器和收件箱一起，让 Agent 具备主动性。定时器分两类：<strong>follow-up</strong> 是 Agent 给自己设的截止时间，比如过一会儿回来检查某个回复；<strong>schedule</strong> 是按固定节奏重复的任务，比如每天生成一份简报。</p>
-      <p>定时器有自己独立的持久表，与收件箱分开；收件箱里只应该放“现在就该做”的工作。两类定时器可以共用一套结构，但 schedule 还要记录重复规则。</p>
-      <p>定时器本身不会启动运行。一个 scheduler（通常也是后台服务）按固定间隔轮询这张表，每一轮做三件事：找出到期项；按类型更新（follow-up 标记完成，schedule 推到下一次）；写入一条收件箱事件并唤醒 worker。</p>
-      <div class="callout"><p>scheduler 可以自己写，也可以交给持久化执行引擎。关键分工不变：定时器存储负责“以后”，收件箱负责“现在”。</p></div>
-    </section>
-
-    <section class="primitive" id="memory">
-      <h2><span class="num">03</span>记忆</h2>
-      <p>记忆负责让不同的运行之间保持连续，因此需要独立存储。Anthropic 自己的做法（Claude Code 的 auto memory、Messages API 的 memory tool）是用一个文件目录；对常驻 Agent 来说，这些目录应该放在数据库或对象存储这类持久存储里，这样 worker 重启后记忆还在。</p>
-      <p>一条实用原则：<strong>只保留无法重新取回的东西。</strong>数据本来就在别处（比如 issue tracker）时，存一个指针就够了。</p>
-      <h3>四类记忆</h3>
-      <ul>
-        <li><strong>用户指令。</strong>放在单独文件里，每次运行开头加载。用户不一定总在场，指令必须在。</li>
-        <li><strong>用户笔记。</strong>关于用户的事实：角色、偏好、纠正。可以先从一个文件开始，内容多了再拆分；拆开后每次只加载索引，按需读取具体文件。</li>
-        <li><strong>过往消息。</strong>Agent 已经告诉过用户什么，避免重复。可以存一个每次运行都加载的文件，也可以由 worker 加载最近几条消息。</li>
-        <li><strong>任务进度。</strong>每个进行中的任务一个文件，写清已完成和剩余的工作，让下一次运行能接着做。和笔记一样，先加载索引，需要时再取详情。</li>
-      </ul>
-      <p>示例布局是：<code>instructions.md</code>、<code>index.md</code>、<code>reported.md</code> 每次运行都加载；<code>notes/</code> 和 <code>progress/</code> 按需加载；运行过程中，Agent 把新信息写回记忆。</p>
-      <h3>整理与上下文</h3>
-      <p>可选的 “dreaming” 过程会回看过去的会话，整理记忆：替换过期条目，发现只有跨多次运行才会浮现的模式。</p>
-      <p>上下文开销要特别注意。每次运行开始都要加载系统提示、工具定义和记忆文件，这份固定成本每轮都会重复，所以要让它保持精简，并用 prompt caching 降低成本。新会话只包含这份开销加上触发它的事件；续接的会话还会恢复之前的消息和工具调用。会话太长时，可以压缩旧消息或直接开新会话，但两种办法都会丢细节——重要信息要在工作过程中就写进记忆，不能等到最后。</p>
-    </section>
-
-    <section class="primitive" id="permissions">
-      <h2><span class="num">04</span>权限</h2>
-      <p>这是风险最高的部分：一次运行持有用户的访问权限，又预期在无人监督下工作。每个工具调用，Agent 都有三种选择：执行、阻止，或者等待批准。</p>
-      <h3>三套机制</h3>
-      <ul>
-        <li><strong>凭证存储。</strong>Agent 经常需要密码或 token。推荐把凭证放在 Agent 之外的代理里，由代理把凭证注入出站请求，Agent 本身从不持有凭证。</li>
-        <li><strong>自动模式。</strong>让 Agent 不必每一步都等人。在 Claude Code 中，分类器会审查风险较高的动作，阻止危险操作，并让 Claude 寻找更安全的路径；最重要的决定仍然需要用户确认。</li>
-        <li><strong>延迟工具调用。</strong>Claude Code 的 hook 可以挂起一次调用，直到用户提供更多输入。放到常驻 Agent 里，流程是：运行结束，会话在调用中途被保存；请求送达用户，例如用 MCP Apps 构建的交互卡片；用户的回答作为收件箱事件返回，启动新的运行并恢复之前保存的会话。等待期间，worker 可以继续处理其他事件，Agent 不会卡死。</li>
-      </ul>
-      <blockquote><p>无人值守不等于无人把关。把“现在必须问”设计成一次可以暂停、保存、再恢复的调用，而不是让 Agent 猜。</p></blockquote>
-    </section>
-
-    <section class="primitive" id="outbox">
-      <h2><span class="num">05</span>发件箱</h2>
-      <p>普通 Agent 会边生成边把内容流式推给用户；常驻 Agent 大多在后台工作，用户看到的应该是结果和少量关键细节，而不是每一步。</p>
-      <p>一次运行有三种结束方式：向发件箱发一条消息；判断没有需要发送的内容；发起一次延迟调用，请求输入或批准。</p>
-      <p>多数 Agent 一个简单的 send 工具就够了。只有当需要控制消息节奏或从错误中恢复时，才需要正式的发件箱。它和收件箱一样是一张表；dispatcher（通常也是后台服务）读取待发消息，决定发什么，再投递给用户。</p>
-      <h3>消息量要用 eval 调</h3>
-      <p>发太多是噪音，发太少会漏掉重要事项。文章的建议是用 eval 找到平衡，并且从安静开始：</p>
-      <blockquote><p>让 Agent 先保持安静，再逐步赢得用户的注意力。</p></blockquote>
+      <p>把系统按职责分层，会比按功能罗列更容易落地：入口层决定什么算一个事件，时间层决定什么时候再来，状态层决定记住什么，安全层决定能做什么，出口层决定怎么让人知道。</p>
+      <div class="layers">
+        <div class="layer"><b>入口</b><span>事件收件箱：把外部触发落成持久记录，再交给 worker。</span></div>
+        <div class="layer"><b>时间</b><span>定时器与 scheduler：把“以后再做”转成新的入口事件。</span></div>
+        <div class="layer"><b>状态</b><span>记忆：跨运行保存指令、笔记、已发送内容和任务进度。</span></div>
+        <div class="layer"><b>安全</b><span>权限：凭证代理、风险分类、延迟调用。</span></div>
+        <div class="layer"><b>出口</b><span>发件箱与 dispatcher：决定发什么、何时发、发多少。</span></div>
+      </div>
     </section>
 
     <section>
-      <h2>五个部分怎样串起来</h2>
-      <p>每次运行都始于收件箱里的一条事件，来源可能是用户消息、webhook 或定时器。worker 新建或续接一个会话；Agent 读取记忆作为基线，在权限范围内行动，并保存学到的东西；运行把输出写进发件箱，dispatcher 完成投递。</p>
-      <p>这五个部分构成一个闭环：一次运行可以设置定时器，在未来唤醒自己；用户的回复又会从收件箱进入，成为下一次运行。单次运行很短，但循环没有终点——这就是“常驻”的感觉来源。</p>
+      <h2><span class="num">01</span> 入口层：事件收件箱</h2>
+      <p>收件箱解决“事件来了，谁来接”。不要让 webhook 或定时任务直接调用 Agent。直接调用有两个问题：并发事件会启动互相竞争的运行；进程崩溃会丢事件。</p>
+      <p>更稳的做法是先把事件落成一行持久记录，再让 worker 从记录里取。三件套是：一张事件表、一个写入端点、一个后台 worker。每个事件带状态，按来源提供的标识去重。起步阶段一个用户一个收件箱；需要更高并行时，再按用户或租户拆分。</p>
+      <p>运行中又来了事件，有三种策略：推迟到下一轮、合并进当前运行、打断并重启。没有一种永远正确；关键是显式选择，并把它写进状态机，而不是留给 worker 的临场判断。</p>
       <div class="callout">
-        <p><strong>一句话概括：</strong>收件箱解决“何时开始”，定时器解决“以后再来”，记忆解决“上次做到哪”，权限解决“能做什么”，发件箱解决“怎么让用户知道”。</p>
+        <p><strong>二次解读：</strong>这实际上是一条 at-least-once 队列。它意味着接收端必须幂等。来源 ID 去重只是第一层；工具调用也要幂等，或者把“已执行”写进事件状态。否则 worker 重试会重复发消息、重复扣款、重复改数据。</p>
+        <p>另外，handler 要快速返回。webhook 提供方通常按响应时间判断成功；把重检查放进 handler 会拖慢确认。轻量鉴权、入队、返回；内容检查留给运行。</p>
+      </div>
+      <h3>入口层要定下的四件事</h3>
+      <div class="kv">
+        <div class="kv-row"><div>收件箱粒度</div><div>按用户、按租户，还是全局一个。粒度决定并发隔离和重试范围。</div></div>
+        <div class="kv-row"><div>事件状态</div><div>至少要有待处理、处理中、完成、失败、死信。状态是恢复和观测的基础。</div></div>
+        <div class="kv-row"><div>去重键</div><div>用来源提供的稳定 ID，而不是时间戳或自增序号。</div></div>
+        <div class="kv-row"><div>运行中事件</div><div>推迟、合并、打断，三选一，写进实现和文档。</div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="num">02</span> 时间层：定时器</h2>
+      <p>定时器解决“以后再做”。它有两种语义：一次性的 follow-up，是 Agent 给自己设的检查点；周期性的 schedule，是按固定节奏重复的任务。</p>
+      <p>把定时器放进收件箱，会污染“现在可做”的语义。更清晰的做法是独立一张表。定时器到期不直接启动运行，而是由 scheduler 转成收件箱事件。这样入口只有一个，重试、去重、并发控制都复用同一套逻辑。</p>
+      <p>scheduler 的每一轮只做三件事：找出到期项；按类型更新（follow-up 标记完成，schedule 推到下一次）；写入收件箱事件并唤醒 worker。它可以自己写，也可以交给持久化执行引擎。</p>
+      <div class="callout"><p><strong>二次解读：</strong>定时器最容易出问题的地方，不是“到点没触发”，而是“重复触发”和“补触发”。进程停了一段时间，恢复后要不要补跑错过的周期？补跑几次？时区、夏令时、时钟漂移怎么处理？这些要在表结构里写清楚，而不是留给 scheduler 的实现细节。</p></div>
+    </section>
+
+    <section>
+      <h2><span class="num">03</span> 状态层：记忆</h2>
+      <p>记忆解决“上次做到哪”。它不是聊天记录的别名，而是跨运行的工作状态。一条实用原则是：<strong>只存无法重新取回的东西。</strong>能从 CRM、工单、文档里查到的，存指针，不存副本。</p>
+      <p>按用途分，常驻 Agent 至少有四类记忆：</p>
+      <div class="kv">
+        <div class="kv-row"><div>用户指令</div><div>角色、边界、风格。放在单独文件，每次运行开头加载。用户不一定总在场，指令必须在。</div></div>
+        <div class="kv-row"><div>用户笔记</div><div>角色、偏好、纠正。先一个文件，内容多了再拆；每次只加载索引，按需读取具体文件。</div></div>
+        <div class="kv-row"><div>已发送内容</div><div>Agent 已经告诉过用户什么，避免重复。可以每次加载，也可以只取最近几条。</div></div>
+        <div class="kv-row"><div>任务进度</div><div>每个进行中的任务一个文件，写清已完成和剩余工作，让下一次运行能接着做。</div></div>
+      </div>
+      <p>一个可用的目录布局：</p>
+      <pre><code>agent-state/
+├── policy/
+│   └── instructions.md      # 每次运行加载
+├── memory/
+│   ├── index.md             # 笔记索引，每次加载
+│   ├── notes/&lt;topic&gt;.md     # 按需读取
+│   └── delivered.md         # 已告知用户的内容
+└── tasks/
+    └── &lt;task-id&gt;.md         # 单任务进度，按需读取</code></pre>
+      <p>可选的整理过程会回看历史运行，合并重复、淘汰过期条目，发现只有跨多次运行才浮现的模式。它本身也应该是一次受权限和成本约束的运行，而不是隐形的后台魔法。</p>
+      <h3>上下文是固定成本</h3>
+      <p>每次运行开始，都要加载系统提示、工具定义和常驻记忆。这份开销每轮重复，所以要精简，并用 prompt caching 降低成本。新会话只包含这份开销加上触发事件；续接的会话还会恢复之前的消息和工具调用。会话太长时，可以压缩旧消息或开新会话，但两种办法都会丢细节，因此重要信息要在工作过程中就写进记忆。</p>
+      <div class="callout"><p><strong>二次解读：</strong>记忆是产品界面，不只是存储。用户应该能看见、纠正、删除记忆；否则一个错误会跨运行放大。工程上至少要有版本、来源、过期时间和删除路径，还要明确哪些内容永远不写入记忆。</p></div>
+    </section>
+
+    <section>
+      <h2><span class="num">04</span> 安全层：权限</h2>
+      <p>权限解决“它能做什么”。这是五个构件里风险最高的，因为运行持有用户的访问权限，又预期在无人监督下工作。每个工具调用，Agent 都有三种选择：执行、阻止、等待批准。</p>
+      <div class="kv">
+        <div class="kv-row"><div>凭证代理</div><div>凭证放在 Agent 之外的代理里，由代理注入出站请求。Agent 本身不持有密码或 token。</div></div>
+        <div class="kv-row"><div>自动模式</div><div>分类器审查风险较高的动作，阻止危险操作，并让 Agent 寻找更安全的路径；最重要的决定仍需用户确认。</div></div>
+        <div class="kv-row"><div>延迟调用</div><div>挂起一次工具调用，保存会话，把请求送到用户；用户的回答作为新事件返回，恢复会话继续执行。</div></div>
+      </div>
+      <p>延迟调用值得单独设计。它不是超时重试，而是把“等人”变成一个一等状态：运行结束、会话快照保存、请求送达用户、回答进入收件箱、新运行恢复会话。等待期间 worker 不被占用。实现上要保证快照可恢复，并且恢复后不会重复执行已经产生副作用的步骤。</p>
+      <div class="callout"><p><strong>二次解读：</strong>权限设计要同时防两类失败。一类是过度自治：做了不该做的。另一类是审批疲劳：该问的不问，或者用户闭眼点同意。前者靠最小权限、凭证隔离和分类器；后者靠分级——低风险自动执行，中风险批量确认，高风险单次确认。</p></div>
+    </section>
+
+    <section>
+      <h2><span class="num">05</span> 出口层：发件箱</h2>
+      <p>发件箱解决“怎么让用户知道”。常驻 Agent 在后台工作，用户不需要看每一步；他们需要的是结果、影响和下一步。一次运行有三种结束方式：发一条消息；判断没有需要发送的内容；发起延迟调用，请求输入或批准。</p>
+      <p>多数 Agent 一个简单的 send 工具就够了。只有当需要控制消息节奏或从错误中恢复时，才需要正式的发件箱。它和收件箱一样是一张表；dispatcher 读取待发消息，决定发什么，再投递给用户。</p>
+      <p>消息量是产品参数，不是实现细节。发太多是噪音，发太少会漏掉重要事项。原文的建议是用 eval 找平衡，并且从安静开始，让 Agent 逐步赢得用户的注意力。</p>
+      <div class="callout"><p><strong>二次解读：</strong>出口至少要做三件事：去重，同一事件重试不能重复通知；分级，紧急事项走单独通道，低优先级结果可以合并成摘要；留痕，发送记录本身也是记忆的一部分，下一次运行要能知道“已经说过什么”。</p></div>
+    </section>
+
+    <section>
+      <h2>把五层放进一次完整运行</h2>
+      <p>假设一个续约跟进 Agent，服务客户成功团队。它有三类触发：CRM 的续约日期 webhook、用户回复、Agent 自己设的 follow-up。</p>
+      <ol class="steps">
+        <li>CRM 的 webhook 写入收件箱，事件类型是 <code>renewal.due</code>，带账户 ID 和续约日期。handler 只做签名校验和入队，立即返回。</li>
+        <li>worker 取到事件，发现没有进行中的会话，新建一次运行。</li>
+        <li>运行加载指令文件（只能读 CRM，不能改折扣）、该账户的笔记、以及这个任务的进度文件。</li>
+        <li>Agent 通过凭证代理读取 CRM 和最近工单，生成跟进计划。它没有直接接触 CRM 的凭证。</li>
+        <li>计划里需要给客户发一封带折扣的邮件，超出权限。Agent 发起延迟调用，会话保存，请求送到客户成功经理。</li>
+        <li>经理批准，回答作为新事件进入收件箱。新的运行恢复之前的会话，发送邮件，写入任务进度，并设置 7 天后的 follow-up。</li>
+        <li>发件箱记录“已通知经理”，dispatcher 投递摘要。一次运行结束，worker 去处理下一条事件。</li>
+        <li>7 天后定时器到期，scheduler 把事件写进收件箱。新一轮运行检查客户是否回复；如果没有，继续跟进或升级。</li>
+      </ol>
+      <p>这条链路里，五个构件各司其职：收件箱接住 webhook，定时器接住“7 天后再看”，记忆接住“上次做到哪”，权限接住“能不能发折扣”，发件箱接住“让经理知道”。任何一层缺失，Agent 都会退化成一次性脚本。</p>
+    </section>
+
+    <section>
+      <h2>落地时的取舍</h2>
+      <div class="tradeoffs">
+        <div class="tradeoff"><h4>至少一次 vs 恰好一次</h4><p>大多数队列表只能做到至少一次。与其追求恰好一次，不如把运行和工具调用做成幂等，再用去重表兜底。</p></div>
+        <div class="tradeoff"><h4>并发 vs 顺序</h4><p>同一收件箱只允许一个活跃 worker，避免重复工作和覆盖；需要并行时按用户或租户分区，而不是放宽单箱并发。</p></div>
+        <div class="tradeoff"><h4>实时 vs 批量</h4><p>handler 快速返回，运行内把连续事件合并成一次处理。用户连发三条消息，不应该换来三次回答。</p></div>
+        <div class="tradeoff"><h4>记忆丰富 vs 上下文成本</h4><p>索引常驻，详情按需。记忆越全，每轮固定开销越大；用 prompt caching 和分层加载控制成本。</p></div>
+        <div class="tradeoff"><h4>自治 vs 审批疲劳</h4><p>不是所有动作都值得问。按风险分级，把用户的注意力留给真正不可逆的决定。</p></div>
+        <div class="tradeoff"><h4>消息量 vs 信任</h4><p>先用 eval 找到“不漏重要事项”的下限，再从安静开始。频繁打扰会消耗信任，而信任很难恢复。</p></div>
+        <div class="tradeoff"><h4>自建 vs 执行引擎</h4><p>先自建最小闭环，把事件、状态、重试跑通；当定时器和恢复逻辑开始变复杂，再评估持久化执行引擎。</p></div>
+        <div class="tradeoff"><h4>功能 vs 可观测性</h4><p>事件积压、运行时长、失败率、重复发送、审批等待时长，这些指标比多一个工具更能决定系统能不能长期运行。</p></div>
       </div>
     </section>
 
     <section class="checklist">
-      <h2>落地检查清单</h2>
+      <h2>落地顺序</h2>
       <ul>
-        <li>先建收件箱表，把所有“直接调用 Agent”改成“写一条事件”。</li>
-        <li>每个用户一个收件箱、一个活跃 worker；明确运行中事件是推迟、合并还是打断。</li>
-        <li>handler 只做鉴权和快速入队，重检查放进运行。</li>
-        <li>定时器单独存储，scheduler 只负责把到期项转成事件。</li>
-        <li>记忆只存无法重新取回的信息；每次加载索引，详情按需读取。</li>
-        <li>凭证放在代理里，Agent 不持有；高风险动作走分类器或延迟调用。</li>
-        <li>输出从“流式每一步”改成“结果加少量细节”，用 eval 调消息量。</li>
+        <li>建事件表和状态机，把所有“直接调用 Agent”改成“写一条事件”。</li>
+        <li>确定收件箱粒度：一个用户一个，还是一个租户一个；每个收件箱只放一个活跃 worker。</li>
+        <li>handler 只做鉴权、入队、快速返回；重检查放进运行。</li>
+        <li>定时器独立存储，scheduler 只负责把到期项转成事件，并明确补触发策略。</li>
+        <li>记忆先做指令和任务进度两类；索引常驻，详情按需，重要信息随做随写。</li>
+        <li>凭证放进代理；工具按风险分级，高风险动作走延迟调用。</li>
+        <li>输出先做简单 send，并记录已发送内容；出现节奏或恢复问题再上正式发件箱。</li>
+        <li>加观测：事件积压、运行时长、失败率、重复发送、审批等待时长。</li>
+        <li>用 eval 调消息量和主动性，从安静开始。</li>
       </ul>
     </section>
 
     <aside class="source">
-      <p class="source-label">原文信息</p>
+      <p class="source-label">原文与边界</p>
       <h2>Building always-on agents</h2>
-      <p>Anthropic · Best practices · 作者 William Hu · 2026 年 11 月 13 日 · 约 14 分钟阅读</p>
+      <p>Anthropic · Best practices · 作者 William Hu · 2026 年 11 月 13 日</p>
       <p><a href="https://claude.com/resources/articles/building-always-on-agents">claude.com/resources/articles/building-always-on-agents</a></p>
-      <p>致谢：Rodrigo Olivares、Michael Segner。</p>
-      <p class="fineprint">本文是面向中文读者的摘要与整理，不是原文全文，也不是官方译文。观点、数据与原文措辞归原作者及 Anthropic 所有；完整内容请阅读原文。</p>
+      <p>原文致谢：Rodrigo Olivares、Michael Segner。</p>
+      <p class="fineprint">本文为独立二次整理：抽取原文思想、事实与数据，重新组织并加入工程分析；不是译文，不是原文全文，也不代表原作者观点。原文内容版权归 Anthropic 所有，完整论述请阅读原文。</p>
     </aside>
   </main>
 
   <footer>
-    <p>整理于 2026-11-25 · 仅作阅读参考</p>
+    <p>整理于 2026-11-25 · 仅作技术参考</p>
   </footer>
 </div>
 

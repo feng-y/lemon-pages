@@ -125,15 +125,15 @@
       "description": "Anthropic《Building always-on agents》中文摘要：事件收件箱、定时器、记忆、权限、发件箱五个原语，以及它们如何组成一个持续运行的 Agent。",
       "id": "reports/building-always-on-agents",
       "project": "Claude Platform",
-      "title": "构建常驻 Agent",
+      "title": "常驻 Agent 的工程结构",
       "versions": [
         {
-          "digest": "2be1f91cd195e2196c2f27e9f6836a183a446490ce831fb9d6f61922fcc142d3",
+          "digest": "10b17bb63b9079acb714b74adfb6400f691180231c26af74fbe1abe1b8456f60",
           "label": "v1",
           "path": "reports/building-always-on-agents",
           "published_at": "2026-11-25T14:10:13.365022Z",
-          "summary": "Anthropic《Building always-on agents》中文摘要：五个原语与落地清单",
-          "updated_at": "2026-11-25T14:10:13.365022Z"
+          "summary": "基于 Anthropic《Building always-on agents》的二次整理：五层结构、一次完整运行与落地取舍",
+          "updated_at": "2026-11-25T14:21:32.271864Z"
         }
       ]
     },
