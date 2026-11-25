@@ -117,6 +117,14 @@
           "published_at": "2026-11-25T14:19:18.508774Z",
           "summary": "v2：加入常驻 Agent 五原语对照与两张图、阶段 0 智能体定义、6 项待决定",
           "updated_at": "2026-11-25T14:19:18.508774Z"
+        },
+        {
+          "digest": "5036761ca80941cbe26174d3382db9226a4a953b899519649b05978491c646f6",
+          "label": "v3",
+          "path": "reports/rook-superagent-plan-v3",
+          "published_at": "2026-11-25T14:41:58.958575Z",
+          "summary": "v3：触发词定为智能体名称，系统 skill 全部可见，待决定剩 5 项",
+          "updated_at": "2026-11-25T14:41:58.958575Z"
         }
       ]
     },
