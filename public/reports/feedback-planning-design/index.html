@@ -1,0 +1,889 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>负反馈进入 Kanban 待规划</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+/* ▼ 报告专用样式：只用 token，不重定义 base.css 已有的 class ▼ */
+
+.decisions {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  margin-bottom: 18px;
+}
+.decision {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px;
+}
+.decision h3 { margin: 0 0 8px; font-size: 15px; }
+.decision p { margin: 0 0 8px; font-size: 14px; }
+.decision p:last-child { margin-bottom: 0; }
+.decision .choice { font-weight: 650; color: var(--accent-strong); }
+.flow-note {
+  display: flex; flex-wrap: wrap; gap: 18px;
+  margin-top: 10px; font-size: 12.5px; color: var(--muted);
+}
+.flow-note span { display: inline-flex; align-items: center; gap: 7px; }
+.flow-note i {
+  width: 10px; height: 10px; border-radius: 3px;
+  background: var(--accent-tint); border: 1.5px solid var(--accent);
+}
+.flow-note i.neutral { background: var(--line-soft); border-color: var(--line); }
+.small { font-size: 13px; color: var(--muted); }
+.table-wrap table { min-width: 560px; }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-title">On this page</div>
+  <a href="#tldr">TL;DR</a>
+  <a href="#answers">四个答案</a>
+  <a href="#flow">流程</a>
+  <a href="#model">数据模型</a>
+  <a href="#grouping">分组与标签</a>
+  <a href="#boundaries">边界与权限</a>
+  <a href="#implementation">实现与验证</a>
+</nav>
+
+<main>
+
+  <header>
+    <div class="head-top">
+      <h1>负反馈进入 Kanban 待规划</h1>
+      <span class="pill-auto">design synthesis</span>
+    </div>
+    <p class="subtitle">Rook · 增量通路设计 · 2026-11-25 · 零 DDL · 分支 <code>release_fix/feedback-optimize-20261125</code></p>
+  </header>
+
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">TL;DR</div>
+    <p>现有链路不变：点踩后反馈照常进入「用户反馈」页。这次在它上面加一条通路，同时创建一条无处理人的 Task，直接进入 Kanban 待规划。</p>
+    <p>看板项就是 Task，不新增实体。反馈管理员在板上分诊，填处理人、标题、背景、需求类型和业务标签；处理人确认计划后进入待办；无效需求由反馈管理员关闭。用户反馈页保留，等新通路稳定后再移除。</p>
+    <p>Task 的背景自动来自分享快照的同一段对话，完整快照不复制。待规划期间背景只对反馈管理员、处理人和验收人可见，确认计划后对默认组公开，快照链接始终受限。这次不改表结构。</p>
+  </div>
+
+  <section id="answers">
+    <h2>四个答案</h2>
+    <hr class="rule">
+    <p class="lede">先回答实体、入口、分组和标签，再看流程和边界。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>问题</th><th>结论</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>看板项是什么</td>
+            <td><strong>Task（需求）。</strong>不新增实体。一条消息反馈最多对应一条 Task，现有唯一键 <code>uk_feedback_request(feedback_id, manual_request_key='')</code> 已经能表达 1:1。</td>
+          </tr>
+          <tr>
+            <td>差评怎么进看板</td>
+            <td>在现有反馈保存链路上<strong>加一条通路</strong>：保存后同时创建无处理人的 Task。数据库里 <code>status='todo'</code>，创建活动 <code>planning_created</code>，UI 派生为「待规划」。<code>planning</code> 不是新的数据库状态。用户反馈页继续可用。</td>
+          </tr>
+          <tr>
+            <td>分组怎么分</td>
+            <td><strong>默认组不变</strong>，仍是全部已准入启用的 RD。看板列表新增「按创建方式」分组：反馈 / 手动。可选筛选 <code>origin=feedback|manual</code>，可保存成「反馈待规划」视图。不新增组成员或路由模型。</td>
+          </tr>
+          <tr>
+            <td>标签用哪些</td>
+            <td><strong>沿用现有两维</strong>：需求类型 <code>task_type</code>（feature / bugfix / analysis）和业务标签 <code>business_mask</code>（online / sample / training）。分诊时由人填写，不自动猜。创建方式由 <code>feedback_id</code> 派生。</td>
+          </tr>
+          <tr>
+            <td>正文是什么</td>
+            <td>分享快照的同一段对话生成的摘要：<strong>反馈描述 + 提问 + 回答摘要</strong>，总长不超过 1000 字。完整快照不复制，Task 只存 <code>share_id</code> 并链接过去。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="small">「分诊」是这次新起的词，指反馈管理员在待规划里填处理人、标题、背景和标签，任务仍留在待规划。拟写入 <code>CONTEXT.md</code>，和现有「移交处理」区分开。</p>
+  </section>
+
+  <section id="flow">
+    <h2>流程</h2>
+    <hr class="rule">
+    <p class="lede">点踩保存是入口，分诊是规划阶段，确认计划才进入待办。</p>
+
+    <figure>
+      <div class="chart wide">
+        <svg viewBox="0 0 880 210" role="img" aria-label="差评进入待规划的四步主流程：用户点踩、自动创建 Task、反馈管理员分诊、处理人确认计划">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/>
+            </marker>
+          </defs>
+
+          <text x="110" y="28" text-anchor="middle" style="font: 11px var(--mono)" fill="var(--faint)">系统</text>
+          <text x="330" y="28" text-anchor="middle" style="font: 11px var(--mono)" fill="var(--faint)">系统</text>
+          <text x="550" y="28" text-anchor="middle" style="font: 11px var(--mono)" fill="var(--faint)">反馈管理员</text>
+          <text x="770" y="28" text-anchor="middle" style="font: 11px var(--mono)" fill="var(--faint)">处理人</text>
+
+          <rect x="20" y="46" width="180" height="92" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="110" y="78" text-anchor="middle" style="font: 600 14px var(--sans)" fill="var(--ink-strong)">用户点踩</text>
+          <text x="110" y="100" text-anchor="middle" style="font: 12.5px var(--sans)" fill="var(--muted)">反馈保存</text>
+          <text x="110" y="122" text-anchor="middle" style="font: 11px var(--mono)" fill="var(--faint)">rating = dislike</text>
+
+          <rect x="240" y="46" width="180" height="92" rx="10" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/>
+          <text x="330" y="78" text-anchor="middle" style="font: 600 14px var(--sans)" fill="var(--ink-strong)">自动建 Task</text>
+          <text x="330" y="100" text-anchor="middle" style="font: 12.5px var(--sans)" fill="var(--muted)">无处理人</text>
+          <text x="330" y="122" text-anchor="middle" style="font: 11px var(--mono)" fill="var(--accent-strong)">待规划</text>
+
+          <rect x="460" y="46" width="180" height="92" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="550" y="78" text-anchor="middle" style="font: 600 14px var(--sans)" fill="var(--ink-strong)">分诊</text>
+          <text x="550" y="100" text-anchor="middle" style="font: 12.5px var(--sans)" fill="var(--muted)">定人、标题、标签</text>
+          <text x="550" y="122" text-anchor="middle" style="font: 11px var(--mono)" fill="var(--accent-strong)">待规划</text>
+
+          <rect x="680" y="46" width="180" height="92" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="770" y="78" text-anchor="middle" style="font: 600 14px var(--sans)" fill="var(--ink-strong)">确认计划</text>
+          <text x="770" y="100" text-anchor="middle" style="font: 12.5px var(--sans)" fill="var(--muted)">背景对默认组公开</text>
+          <text x="770" y="122" text-anchor="middle" style="font: 11px var(--mono)" fill="var(--muted)">待办</text>
+
+          <line x1="200" y1="92" x2="232" y2="92" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <line x1="420" y1="92" x2="452" y2="92" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/>
+          <line x1="640" y1="92" x2="672" y2="92" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+          <rect x="20" y="168" width="180" height="32" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="4 4"/>
+          <text x="110" y="189" text-anchor="middle" style="font: 12px var(--sans)" fill="var(--muted)">用户反馈页（保留）</text>
+          <line x1="110" y1="138" x2="110" y2="164" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="4 4"/>
+
+          <rect x="460" y="168" width="180" height="32" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="4 4"/>
+          <text x="550" y="189" text-anchor="middle" style="font: 12px var(--sans)" fill="var(--muted)">旁路：关闭无效需求</text>
+          <line x1="550" y1="138" x2="550" y2="164" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="4 4"/>
+        </svg>
+      </div>
+      <figcaption>自动创建到确认计划之间，背景只对反馈管理员、处理人和验收人可见。确认计划后背景对默认组公开；关闭是待规划上的旁路，背景保持受限。用户反馈页在过渡期继续保留，新通路稳定后移除。</figcaption>
+    </figure>
+
+    <div class="flow-note">
+      <span><i></i> 反馈创建的 Task</span>
+      <span><i class="neutral"></i> 现有 Task 与动作</span>
+      <span>虚线 = 过渡期保留</span>
+      <span>待规划 = 数据库 <code>status='todo'</code> 加创建活动 <code>planning_created</code></span>
+    </div>
+
+    <h3>谁在哪一步做什么</h3>
+    <ul class="points">
+      <li><strong>用户点踩。</strong><code>saveFeedback</code> 保存反馈并返回反馈 id。这条反馈同时进入用户反馈页和看板，客户端不需要改。</li>
+      <li><strong>系统创建 Task。</strong><code>chatApi</code> 调 <code>Kanban.ensureFeedbackTask</code>。事务里锁反馈行，创建 Task，写一条 <code>feedback-auto</code> 的 <code>planning_created</code> 活动。Task 没有处理人，<code>created_by=''</code>。</li>
+      <li><strong>反馈管理员分诊。</strong>在需求详情提交 <code>triage</code>，一次写处理人、标题、背景、类型和业务标签。Task 留在待规划，处理人收到一条企业微信。</li>
+      <li><strong>处理人确认计划。</strong>现有 PATCH 把状态改为 <code>todo</code>，服务端清除 <code>planning_created</code> 标记，Task 进入待办。</li>
+      <li><strong>反馈管理员关闭。</strong>无效需求执行 <code>dismiss</code>，Task 置为已完成，保留 <code>planning_created</code> 标记，所以背景不公开。</li>
+    </ul>
+  </section>
+
+  <section id="model">
+    <h2>数据模型与可见性</h2>
+    <hr class="rule">
+    <p class="lede">Task、活动、唯一键和快照全部复用现有结构。新代码只扩展取值和读视图。</p>
+
+    <h3>不变量</h3>
+    <ul class="points">
+      <li><strong>一条反馈一条 Task。</strong>唯一键 <code>uk_feedback_request(feedback_id, manual_request_key='')</code> 保证。</li>
+      <li><strong>待规划是派生状态。</strong><code>status='todo'</code> 且创建活动 <code>activity_kind='planning_created'</code>。</li>
+      <li><strong>没有处理人不能离开待规划。</strong><code>planning → todo</code> 要求 <code>assignee_id != ''</code>，否则返回 409 <code>kanban_task_unassigned</code>。</li>
+      <li><strong>不自动回滚。</strong>改好评、重复点踩都不删除或完成 Task；无效需求由人关闭。</li>
+      <li><strong>快照不复制。</strong>Task 只存 <code>share_id</code>，正文是同一段对话的摘要。</li>
+      <li><strong>创建幂等。</strong>反馈行 <code>FOR UPDATE</code> 串行化，唯一键兜底，<code>feedback-auto</code> 活动只写一次。</li>
+    </ul>
+
+    <h3>Task 的内容</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>字段</th><th>自动创建时</th><th>分诊后</th><th>谁可见</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>title</code></td>
+            <td><code>反馈 #&lt;id&gt;</code>，中性占位</td>
+            <td>分诊者写的标题</td>
+            <td>默认组、Agent</td>
+          </tr>
+          <tr>
+            <td><code>description</code></td>
+            <td>反馈描述 + 提问 + 回答摘要，≤1000 字</td>
+            <td>分诊者可编辑</td>
+            <td>待规划期间：反馈管理员、处理人、验收人；确认计划后：默认组、Agent</td>
+          </tr>
+          <tr>
+            <td><code>shareUrl</code></td>
+            <td><code>/share/&lt;share_id&gt;.html</code></td>
+            <td>不变</td>
+            <td>反馈管理员、处理人、验收人</td>
+          </tr>
+          <tr>
+            <td>快照 HTML</td>
+            <td>BOSS 密文</td>
+            <td>不变</td>
+            <td>持有链接的公司 SSO 加准入用户</td>
+          </tr>
+          <tr>
+            <td><code>feedbackId</code></td>
+            <td>反馈 ID</td>
+            <td>不变</td>
+            <td>默认组，显示「来源 反馈 #id」</td>
+          </tr>
+          <tr>
+            <td><code>createdBy</code></td>
+            <td><code>''</code>，显示「反馈自动创建」</td>
+            <td>不变</td>
+            <td>默认组</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>可见性</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>角色</th><th>标题</th><th>背景</th><th>快照链接</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>默认组，待规划</td><td>看得到</td><td>看不到</td><td>看不到</td></tr>
+          <tr><td>反馈管理员、处理人、验收人，待规划</td><td>看得到</td><td>看得到</td><td>看得到</td></tr>
+          <tr><td>默认组，确认计划后</td><td>看得到</td><td>看得到</td><td>看不到</td></tr>
+          <tr><td>关闭后</td><td>看得到</td><td>看不到</td><td>看不到</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-title">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        读视图必须先拆开两个含义
+      </div>
+      <p>当前 <code>taskView</code> 把「创建来源」和「背景是否对默认组公开」混在 <code>h.id AS shared_description</code> 里。只把 <code>feedback-auto</code> 加进旧 JOIN，会把受限背景泄露给默认组。设计改成单一两表 JOIN，同时取 <code>h.request_id AS initial_source</code> 和 <code>h.activity_kind AS initial_activity</code>，在 <code>task()</code> 里分别判断。不写子查询，不做三表 JOIN，符合 <code>RDS.md</code> 的读规则。</p>
+    </div>
+
+    <details class="fold">
+      <summary>关键代码形状：创建、读视图和分诊权限</summary>
+      <div class="fold-body">
+        <p><strong>ensureFeedbackTask 的事务顺序。</strong>锁反馈行，只处理 <code>dislike</code>；按唯一键复用或插入 Task；只有 <code>created_by=''</code> 且无处理人时才写 <code>feedback-auto</code> 活动；仍在待规划、未指派时才刷新标题、背景和 <code>share_id</code>。旧 handoff Task 走早退，不追加自动活动。</p>
+        <pre><code>// 1. 锁反馈行
+SELECT rating,share_id,detail,handled_at
+  FROM rook_chat_feedback_v1 WHERE id=? LIMIT 1 FOR UPDATE
+// 2. 唯一键复用或插入
+INSERT INTO rook_kanban_task_v1 (...)
+  VALUES (?, '', ?, ?, ?, '', '', '', 'todo', 1, ...)
+  ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)
+// 3. 只有自动创建的 Task 才写创建活动
+INSERT INTO rook_kanban_activity_v1
+  (task_id,request_id,activity_kind,author_kind,author_id)
+  VALUES (?,'feedback-auto','planning_created','agent','Rook')
+// 4. 仍在待规划且未指派时刷新
+UPDATE rook_kanban_task_v1
+  SET title=?,description=?,share_id=?,revision=revision+1 WHERE id=?</code></pre>
+        <p><strong>读视图。</strong>创建来源加入 <code>feedback-auto</code>，背景公开判断留在 JS。</p>
+        <pre><code>const creationSources = "('shared-handoff','manual-create','feedback-auto')";
+const publicBackgroundSources = new Set(['manual-create', 'shared-handoff']);
+
+const sharedDescription = publicBackgroundSources.has(row.initial_source) ||
+  (row.initial_source === 'feedback-auto' && row.initial_activity !== planningCreated);
+description: canViewSnapshot || sharedDescription ? row.description : '',</code></pre>
+        <p><strong>分诊权限。</strong>只对反馈来源的待规划任务开放；管理员可以分诊所有反馈来源任务，反馈管理员不能分诊手动创建的任务。</p>
+        <pre><code>const canTriage = actor.kind === 'rd' && Number(row.feedback_id) &gt; 0 &&
+  state.status === 'planning' &amp;&amp;
+  (('admin' in viewer &amp;&amp; viewer.admin) ||
+   ('canViewFeedback' in viewer &amp;&amp; viewer.canViewFeedback));</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section id="grouping">
+    <h2>分组与标签</h2>
+    <hr class="rule">
+    <p class="lede">不新建权限组，也不新建标签维度。看板列还是状态，新增的是列表视图。</p>
+
+    <h3>分组</h3>
+    <ul class="points">
+      <li><strong>默认组保持不变。</strong>全部已准入启用的 RD。自动 Task 进入默认组。</li>
+      <li><strong>列表新增「按创建方式」。</strong>反馈（<code>feedbackId &gt; 0</code>）/ 手动创建（<code>feedbackId = 0</code>）。来源派生，不落库。</li>
+      <li><strong>卡片显示「反馈」标记。</strong>条件同样是 <code>feedbackId &gt; 0</code>。</li>
+      <li><strong>保存视图。</strong>筛选 <code>origin=feedback|manual</code> 加入 <code>kanban-views.ts</code> 白名单、<code>matchesFilters</code> 和保存视图回放，<code>listGroups</code> 增加分组项。漏掉任何一处，保存的「反馈待规划」视图会静默失效。</li>
+      <li><strong>不按 Chat 工作区分组。</strong>Chat Project 和 Kanban Project 是两套身份，自动映射会暴露工作区名，也会制造空项目。</li>
+      <li><strong>不新建组成员或路由模型。</strong>需要团队路由时，用处理人和现有标签表达。</li>
+    </ul>
+
+    <h3>标签</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>维度</th><th>存储</th><th>取值</th><th>写入时机</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>创建方式</td><td>派生 <code>feedback_id</code></td><td>反馈 / 手动</td><td>创建时确定，不可改</td></tr>
+          <tr><td>需求类型</td><td><code>task_type</code></td><td>空 / feature / bugfix / analysis</td><td>分诊表单</td></tr>
+          <tr><td>业务标签</td><td><code>business_mask</code></td><td>空 / online / sample / training，可多选</td><td>分诊表单</td></tr>
+          <tr><td>状态</td><td><code>status</code> 加活动</td><td>待规划 / 待办 / 进行中 / 审核中 / 已完成</td><td>流程</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>自动创建不猜标签。同一个「回答不对」可能是知识错误、skill 缺失或新需求，自动打标会把错误固化成统计口径。不新增问题分类维度；没有数据源，新增要新列和 RDS 审批。</p>
+  </section>
+
+  <section id="boundaries">
+    <h2>边界、权限与兼容</h2>
+    <hr class="rule">
+    <p class="lede">创建、重试、旧数据、旧 handoff 和空处理人都在这里收敛。</p>
+
+    <h3>幂等与失败</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>场景</th><th>行为</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>重复点踩、改描述</td><td><code>saveFeedback</code> upsert；<code>ensureFeedbackTask</code> 返回同一 Task；仍在待规划且未指派时刷新背景和 <code>share_id</code>。</td></tr>
+          <tr><td>先赞后踩 / 先踩后赞</td><td>先赞后踩创建或复用 Task。先踩后赞保留 Task，不自动完成，由管理员判断是否关闭。</td></tr>
+          <tr><td>自动创建失败</td><td>反馈仍返回 200；记录 <code>feedback_task_failed</code>；用户反馈页显示「创建需求」。</td></tr>
+          <tr><td>并发创建</td><td>反馈行 <code>FOR UPDATE</code> 串行化；唯一键兜底。</td></tr>
+          <tr><td>旧 handoff Task</td><td>不迁移、不删除。<code>ensure</code> 命中已有 <code>feedback_id</code> 时直接返回，不写 <code>feedback-auto</code> 活动。旧 <code>shared-handoff</code> 背景仍公开，旧 <code>handoff</code> 背景仍受限。</td></tr>
+          <tr><td>已有自动 Task 的反馈再移交</td><td>反馈页隐藏移交；直接调 <code>/handoff</code> 会因标题、描述或处理人不一致返回 409 <code>feedback_already_handed_off</code>。</td></tr>
+          <tr><td>旧反馈</td><td>不自动批量补建。用户反馈页逐条「创建需求」，避免部署时把历史积压灌进待规划。</td></tr>
+          <tr><td>会话或消息已删除</td><td>背景只用反馈描述；快照链接仍在。</td></tr>
+          <tr><td>Kanban 未配置</td><td>不创建；反馈照常保存；补建返回 503。</td></tr>
+          <tr><td>任务完成后再次点踩</td><td>唯一键阻止新建 Task；用户反馈页仍可见。是否重开留待后续设计。</td></tr>
+          <tr><td>同一条回复多个用户点踩</td><td>每个用户一条反馈行，各建一条 Task。首版接受多张卡片，分诊时关闭重复。</td></tr>
+          <tr><td>没有反馈管理员</td><td>只有管理员能分诊和关闭；待规划仍会创建。</td></tr>
+          <tr><td><code>created_by=''</code></td><td><code>accept</code> 通知必须判空，否则会给空用户写收件箱；详情页显示「反馈自动创建」。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>权限矩阵</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>操作</th><th>谁</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>提交点踩、修改评价</td><td>会话所有者（现有）</td></tr>
+          <tr><td>自动创建 Task</td><td>Rook，活动作者 <code>agent</code> / <code>Rook</code></td></tr>
+          <tr><td>看标题</td><td>默认组全体已准入 RD、Agent</td></tr>
+          <tr><td>看背景</td><td>待规划期间：反馈管理员、处理人、验收人；确认计划后：默认组全体、Agent</td></tr>
+          <tr><td>看分享快照链接</td><td>反馈管理员、处理人、验收人（现有 <code>canViewSnapshot</code>）</td></tr>
+          <tr><td>分诊：标题、背景、处理人、标签</td><td>反馈管理员、管理员；仅反馈来源、待规划</td></tr>
+          <tr><td>确认计划、移入待办</td><td>处理人或管理员（现有 <code>canManage</code>）</td></tr>
+          <tr><td>关闭无效需求</td><td>反馈管理员、管理员；仅反馈来源、待规划</td></tr>
+          <tr><td>标记反馈已处理</td><td>反馈管理员（现有）</td></tr>
+          <tr><td>补建旧反馈 Task</td><td>反馈管理员、管理员</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <div class="callout-title">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        过渡期两个队列
+      </div>
+      <p>自动创建不标记 <code>handled_at</code>。反馈仍在用户反馈页的待处理列表，页面显示「已进入看板」和需求链接；每日摘要继续按 <code>handled_at=0</code> 计数；管理员确认后手动标记已处理。新通路稳定、用户反馈页移除后，看板成为唯一队列，再决定 <code>handled_at</code> 和摘要的去留。</p>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-title">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        旧链路先保留
+      </div>
+      <p>这次不删 handoff，也不删用户反馈页。反馈页对已有 Task 的差评显示「查看需求」，隐藏「移交处理」，避免旧 handoff 和自动 Task 抢同一条反馈。旧 handoff Task 行照旧显示，不迁移。新通路稳定后再移除用户反馈页，届时再决定 handoff 的去留。</p>
+    </div>
+  </section>
+
+  <section id="implementation">
+    <h2>实现、迁移与验证</h2>
+    <hr class="rule">
+    <p class="lede">改动集中在一个新建纯函数、一个 Kanban 方法、两个动作和一处读视图。</p>
+
+    <h3>改动文件</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>文件</th><th>改动</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>src/feedback-task.ts</code>（新）</td><td><code>FeedbackTaskInput</code>、<code>feedbackTaskCopy</code>：中性标题、三段背景、≤1000 字。</td></tr>
+          <tr><td><code>src/kanban-types.ts</code></td><td><code>triage</code> / <code>dismiss</code>、<code>assigned</code> / <code>dismissed</code>、<code>canTriage</code>。</td></tr>
+          <tr><td><code>src/kanban-actions.ts</code></td><td>字段解析、<code>TaskCommand</code> / <code>TaskWorkflow</code> / <code>TaskRights</code>、<code>transitionTask</code>、<code>actionKind</code>。</td></tr>
+          <tr><td><code>src/kanban.ts</code></td><td><code>ensureFeedbackTask</code>；<code>taskView</code> 拆分；<code>read(lock)</code> / <code>update</code> 泛化；<code>canTriage</code>；<code>triage</code> / <code>dismiss</code> 落库与通知；<code>created_by</code> 判空；<code>handoff</code> 保留。</td></tr>
+          <tr><td><code>src/chat/store.ts</code></td><td><code>saveFeedback</code> 用 <code>LAST_INSERT_ID(id)</code> 返回反馈 <code>id</code>。</td></tr>
+          <tr><td><code>src/chat/api.ts</code></td><td>新增可选 <code>feedbackTask</code> 参数；差评时读取提问和回答；响应加 <code>taskId</code>。</td></tr>
+          <tr><td><code>src/server.ts</code></td><td>把 <code>options.kanban.ensureFeedbackTask</code> 传给 <code>chatApi</code>。</td></tr>
+          <tr><td><code>src/feedback-admin.ts</code></td><td><code>/handoff</code> 保留；新增 <code>POST /api/admin/feedback/:id/task</code>；已有 Task 的反馈隐藏移交。</td></tr>
+          <tr><td><code>src/wecom.ts</code></td><td>新增 <code>feedbackTriageNotice</code>；<code>feedbackHandoffNotices</code> 保留。</td></tr>
+          <tr><td><code>src/kanban-views.ts</code></td><td>保存视图白名单加 <code>origin</code>。</td></tr>
+          <tr><td><code>web/kanban.tsx</code></td><td>分诊表单、关闭需求、<code>actionText</code> / <code>activityText</code> 新值、<code>listGroups</code>、<code>matchesFilters</code> 与保存视图回放、反馈标记、空创建人文案。</td></tr>
+          <tr><td><code>web/feedback-admin.tsx</code></td><td>保留移交弹窗；已有 Task 时隐藏移交；新增「创建需求」；显示「查看需求」。</td></tr>
+          <tr><td><code>web/message-actions.tsx</code></td><td>差评弹窗说明反馈会进入看板，以及背景何时公开。</td></tr>
+          <tr><td><code>web/main.tsx</code></td><td>错误文案。</td></tr>
+          <tr><td><code>deploy/schema.sql</code></td><td>不改。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>零 DDL</h3>
+    <p>所有新取值都落在现有字段里：<code>request_id='feedback-auto'</code> 放进 <code>CHAR(36)</code>；<code>activity_kind='assigned'</code> 和 <code>'dismissed'</code> 放进 <code>VARCHAR(24)</code>；<code>author_kind='agent'</code>、<code>author_id='Rook'</code> 沿用现有用法；<code>created_by=''</code>、<code>assignee_id=''</code>、<code>manual_request_key=''</code> 沿用现有空值。不新增表、列、索引。</p>
+    <p>仍然要按 <code>RDS.md</code> 执行 <code>npm run rds:check</code> 和目标库实时 <code>sql_check</code>，因为改了数据库读写。没有 DDL，不需要建表或改表审批。</p>
+
+    <h3>验证</h3>
+    <ul class="points">
+      <li><strong>单元与集成。</strong><code>tests/feedback-task.test.ts</code> 覆盖中性标题、控制字符、三段背景和截断；<code>tests/kanban.test.ts</code> 覆盖幂等、可见性、分诊、确认计划、关闭、旧 handoff 兼容、补建路由、<code>origin</code> 筛选和空 <code>created_by</code>。</li>
+      <li><strong>构建与规范。</strong><code>npm run check</code>、<code>npm test</code>、<code>npm run build</code>、<code>npm run rds:check</code>。目标库实时 <code>sql_check</code>，保存 SQL 的 SHA-256 和结果到 <code>.scratch/feedback-planning-design/</code>。</li>
+      <li><strong>手工走一遍。</strong>点踩 → 待规划 → 分诊 → 处理人确认 → 待办 → 关闭。</li>
+    </ul>
+
+    <h3>迁移路径</h3>
+    <div class="decisions">
+      <div class="decision">
+        <h3>Phase 1 · 本次</h3>
+        <p>在现有反馈链路上增加看板通路。用户反馈页、handoff、现有企业微信通知都不动。反馈页对已有 Task 的差评显示「查看需求」，隐藏「移交处理」。</p>
+      </div>
+      <div class="decision">
+        <h3>Phase 2 · 稳定后</h3>
+        <p>移除用户反馈页。看板成为唯一队列；再决定 handoff、<code>handled_at</code> 和每日摘要的去留。移除前保留反馈页，不删除旧数据。</p>
+      </div>
+    </div>
+
+    <h3>两个默认值</h3>
+    <div class="decisions">
+      <div class="decision">
+        <h3>背景什么时候对默认组公开</h3>
+        <p><span class="choice">默认：确认计划后公开。</span>待规划期间只有反馈管理员、处理人和验收人可见。这样默认组在计划确认前只看到中性标题。</p>
+        <p>要改成分诊时即公开，把 <code>feedback-auto</code> 加进 <code>publicBackgroundSources</code> 一处即可。</p>
+      </div>
+      <div class="decision">
+        <h3>旧差评怎么补建</h3>
+        <p><span class="choice">默认：逐条「创建需求」。</span>避免部署时突然生成大量 Task。补建失败或未创建时，用户反馈页保留入口。</p>
+        <p>要一次性批量补建，需要另定水位、名单和关闭重复的规则。</p>
+      </div>
+    </div>
+
+    <details class="fold">
+      <summary>Open questions 与已接受的取舍</summary>
+      <div class="fold-body">
+        <p><strong>待产品决定。</strong>任务完成后同一条回答再次被点踩，是否重开或新建第二条；用户反馈页的待处理是否排除已有 Task 的反馈；是否给反馈管理员批量分诊或按项目路由；每条差评的实时企业微信是否长期保留；同一条回复的 N 条反馈是否在分诊时合并；没有反馈管理员的部署是否给某个默认角色放开分诊；用户反馈页移除后，<code>handled_at</code> 和每日摘要是否保留。</p>
+        <p><strong>已接受。</strong>背景确认计划后才对默认组公开，换取不把未经确认的反馈原文直接摊开；摘要而非快照全文，换取零 DDL 和不复制会话正文；分诊和确认两步，换取「待规划 = 计划未确认」的现有语义；不自动回滚 Task，换取不删除可能已被认领的工作；不自动把反馈标为已处理，过渡期两个队列各自表达状态；不自动补建旧反馈，换取部署时不会灌入历史积压；过渡期保留用户反馈页和 handoff，换取旧入口不中断，新通路稳定后再移除。</p>
+        <p><strong>已否决。</strong>新实体 <code>FeedbackTask</code>；待规划列直接渲染反馈行；自动创建直接进 <code>todo</code>；自动指派给提交人或会话所有者；把快照全文写进 <code>description</code>；按工作区或团队新建组；把问题分类塞进 <code>business_mask</code>。</p>
+      </div>
+    </details>
+
+    <div class="callout ok">
+      <div class="callout-title">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>
+        下一步
+      </div>
+      <p>先写 <code>feedbackTaskCopy</code> 和 <code>ensureFeedbackTask</code> 的失败用例：重复点踩、旧 handoff 兼容、指派后或确认计划后不刷新。再改 <code>taskView</code> 的 <code>initial_source</code> 和 <code>publicBackgroundSources</code>，最后接 <code>triage</code> / <code>dismiss</code> 和 UI。验证通过后先观察新通路；稳定后再移除用户反馈页。</p>
+    </div>
+  </section>
+
+  <footer>
+    Sources: Rook 仓库 <code>release_fix/feedback-optimize-20261125</code>，HEAD <code>13537f8</code>；设计合成稿 <code>.scratch/feedback-planning-design/synthesis.md</code>；三方候选与交叉评审在 <code>/tmp/arena-feedback-planning/</code>。 &nbsp;—&nbsp; generated 2026-11-25
+  </footer>
+
+</main>
+
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

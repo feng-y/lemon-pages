@@ -128,6 +128,23 @@
           "updated_at": "2026-11-25T14:10:13.365022Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/feedback-planning-design",
+      "project": "Rook",
+      "title": "负反馈进入 Kanban 待规划",
+      "versions": [
+        {
+          "digest": "a4ded27a40ab6b2d52228d03691b3445abf4331946f52170c3e3eed26596869e",
+          "label": "v1",
+          "path": "reports/feedback-planning-design",
+          "published_at": "2026-11-25T14:14:17.960529Z",
+          "summary": "增量通路：反馈保存后创建看板待规划 Task；用户反馈页保留，稳定后移除。",
+          "updated_at": "2026-11-25T14:14:17.960529Z"
+        }
+      ]
     }
   ]
 }
