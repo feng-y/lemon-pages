@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Magpie statechart 样式一致性验证</title>
+<style>
+:root{color-scheme:light dark;--bg:#f5f6f8;--surface:#fff;--ink:#18242f;--muted:#52606c;--line:#d7dde4;--accent:#0c6473}
+@media(prefers-color-scheme:dark){:root{--bg:#14181b;--surface:#1d2328;--ink:#eef2f4;--muted:#b4c0c9;--line:#38434c;--accent:#8cd7df}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 system-ui,sans-serif}
+main{width:min(100% - 36px,1060px);margin:0 auto;padding:64px 0 44px}
+h1,h2,h3,p,figure{margin:0}
+h1{font-size:clamp(1.75rem,4.8vw,3.2rem);line-height:1.16;letter-spacing:-.035em}
+h2{font-size:1.55rem;line-height:1.3;margin-bottom:14px}
+h3{font-size:1.13rem;line-height:1.4;display:flex;gap:8px 20px;flex-wrap:wrap;align-items:baseline}
+h3 span,.fixture,figcaption,footer{color:var(--muted);font-size:.875rem;font-weight:500}
+header p{max-width:68ch;margin-top:16px;color:var(--muted)}
+.block{margin-top:36px}
+.example,.method,.matrix{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:14px}
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:12px}
+img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px}
+figcaption{margin-bottom:6px}
+a{color:var(--accent);text-underline-offset:3px}
+code{overflow-wrap:anywhere}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.93rem;text-align:left;min-width:540px}
+td,th{padding:7px 10px;border-bottom:1px solid var(--line)}
+tbody th{font-weight:500}
+tbody tr:last-child>*{border-bottom:none}
+td a+a{margin-left:8px}
+.method p+p{margin-top:10px}
+footer{border-top:1px solid var(--line);margin-top:36px;padding-top:14px}
+@media(max-width:590px){main{padding-top:38px}.pair{grid-template-columns:1fr}.example,.method,.matrix{padding:14px}td,th{padding-inline:7px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>Magpie statechart 样式一致性验证</h1>
+<p>同一份 Mermaid 在有无安装 <code>statechart</code> 的两个 Magpie 环境中生成了逐字节一致的 SVG。两张状态图与 pstack 0.9.155 基准的 16 组截图对比均为零像素差异。</p>
+</header>
+<section class="block" aria-labelledby="comparison-heading">
+<h2 id="comparison-heading">截图对比</h2>
+
+    <section class="example">
+      <h3>分组配色<span>HTML 内联 · 960 px · 浅色</span></h3>
+      <p class="fixture"><code>Phases.mmd</code></p>
+      <div class="pair">
+        <figure><figcaption>pstack 基准</figcaption><img src="screenshots/groups-pstack-960-light.png" width="960" height="600" alt="pstack 的分组配色截图"></figure>
+        <figure><figcaption>Magpie 输出</figcaption><img src="screenshots/groups-magpie-960-light.png" width="960" height="600" alt="Magpie 的分组配色截图"></figure>
+      </div>
+    </section>
+    <section class="example">
+      <h3>反例标记<span>独立 SVG · 400 px · 深色</span></h3>
+      <p class="fixture"><code>TypeGuard/chart.mmd</code></p>
+      <div class="pair">
+        <figure><figcaption>pstack 基准</figcaption><img src="screenshots/failure-pstack-400-dark-standalone.png" width="400" height="600" alt="pstack 的反例标记截图"></figure>
+        <figure><figcaption>Magpie 输出</figcaption><img src="screenshots/failure-magpie-400-dark-standalone.png" width="400" height="600" alt="Magpie 的反例标记截图"></figure>
+      </div>
+    </section>
+</section>
+<section class="block" aria-labelledby="matrix-heading">
+<h2 id="matrix-heading">全部对比</h2>
+<div class="matrix"><div class="table-wrap" tabindex="0" aria-label="截图对比表">
+<table><thead><tr><th scope="col">图</th><th scope="col">载体</th><th scope="col">视口与主题</th><th scope="col">差异像素</th><th scope="col">原尺寸截图</th></tr></thead>
+<tbody>
+<tr><th scope="row">分组配色</th><td>HTML 内联</td><td>960 px · 浅色</td><td>0</td><td><a href="screenshots/groups-pstack-960-light.png" aria-label="pstack 分组配色 HTML 内联 960 像素 浅色截图">pstack</a> <a href="screenshots/groups-magpie-960-light.png" aria-label="Magpie 分组配色 HTML 内联 960 像素 浅色截图">Magpie</a></td></tr>
+<tr><th scope="row">分组配色</th><td>HTML 内联</td><td>960 px · 深色</td><td>0</td><td><a href="screenshots/groups-pstack-960-dark.png" aria-label="pstack 分组配色 HTML 内联 960 像素 深色截图">pstack</a> <a href="screenshots/groups-magpie-960-dark.png" aria-label="Magpie 分组配色 HTML 内联 960 像素 深色截图">Magpie</a></td></tr>
+<tr><th scope="row">分组配色</th><td>HTML 内联</td><td>400 px · 浅色</td><td>0</td><td><a href="screenshots/groups-pstack-400-light.png" aria-label="pstack 分组配色 HTML 内联 400 像素 浅色截图">pstack</a> <a href="screenshots/groups-magpie-400-light.png" aria-label="Magpie 分组配色 HTML 内联 400 像素 浅色截图">Magpie</a></td></tr>
+<tr><th scope="row">分组配色</th><td>HTML 内联</td><td>400 px · 深色</td><td>0</td><td><a href="screenshots/groups-pstack-400-dark.png" aria-label="pstack 分组配色 HTML 内联 400 像素 深色截图">pstack</a> <a href="screenshots/groups-magpie-400-dark.png" aria-label="Magpie 分组配色 HTML 内联 400 像素 深色截图">Magpie</a></td></tr>
+<tr><th scope="row">分组配色</th><td>独立 SVG</td><td>960 px · 浅色</td><td>0</td><td><a href="screenshots/groups-pstack-960-light-standalone.png" aria-label="pstack 分组配色 独立 SVG 960 像素 浅色截图">pstack</a> <a href="screenshots/groups-magpie-960-light-standalone.png" aria-label="Magpie 分组配色 独立 SVG 960 像素 浅色截图">Magpie</a></td></tr>
+<tr><th scope="row">分组配色</th><td>独立 SVG</td><td>960 px · 深色</td><td>0</td><td><a href="screenshots/groups-pstack-960-dark-standalone.png" aria-label="pstack 分组配色 独立 SVG 960 像素 深色截图">pstack</a> <a href="screenshots/groups-magpie-960-dark-standalone.png" aria-label="Magpie 分组配色 独立 SVG 960 像素 深色截图">Magpie</a></td></tr>
+<tr><th scope="row">分组配色</th><td>独立 SVG</td><td>400 px · 浅色</td><td>0</td><td><a href="screenshots/groups-pstack-400-light-standalone.png" aria-label="pstack 分组配色 独立 SVG 400 像素 浅色截图">pstack</a> <a href="screenshots/groups-magpie-400-light-standalone.png" aria-label="Magpie 分组配色 独立 SVG 400 像素 浅色截图">Magpie</a></td></tr>
+<tr><th scope="row">分组配色</th><td>独立 SVG</td><td>400 px · 深色</td><td>0</td><td><a href="screenshots/groups-pstack-400-dark-standalone.png" aria-label="pstack 分组配色 独立 SVG 400 像素 深色截图">pstack</a> <a href="screenshots/groups-magpie-400-dark-standalone.png" aria-label="Magpie 分组配色 独立 SVG 400 像素 深色截图">Magpie</a></td></tr>
+<tr><th scope="row">反例标记</th><td>HTML 内联</td><td>960 px · 浅色</td><td>0</td><td><a href="screenshots/failure-pstack-960-light.png" aria-label="pstack 反例标记 HTML 内联 960 像素 浅色截图">pstack</a> <a href="screenshots/failure-magpie-960-light.png" aria-label="Magpie 反例标记 HTML 内联 960 像素 浅色截图">Magpie</a></td></tr>
+<tr><th scope="row">反例标记</th><td>HTML 内联</td><td>960 px · 深色</td><td>0</td><td><a href="screenshots/failure-pstack-960-dark.png" aria-label="pstack 反例标记 HTML 内联 960 像素 深色截图">pstack</a> <a href="screenshots/failure-magpie-960-dark.png" aria-label="Magpie 反例标记 HTML 内联 960 像素 深色截图">Magpie</a></td></tr>
+<tr><th scope="row">反例标记</th><td>HTML 内联</td><td>400 px · 浅色</td><td>0</td><td><a href="screenshots/failure-pstack-400-light.png" aria-label="pstack 反例标记 HTML 内联 400 像素 浅色截图">pstack</a> <a href="screenshots/failure-magpie-400-light.png" aria-label="Magpie 反例标记 HTML 内联 400 像素 浅色截图">Magpie</a></td></tr>
+<tr><th scope="row">反例标记</th><td>HTML 内联</td><td>400 px · 深色</td><td>0</td><td><a href="screenshots/failure-pstack-400-dark.png" aria-label="pstack 反例标记 HTML 内联 400 像素 深色截图">pstack</a> <a href="screenshots/failure-magpie-400-dark.png" aria-label="Magpie 反例标记 HTML 内联 400 像素 深色截图">Magpie</a></td></tr>
+<tr><th scope="row">反例标记</th><td>独立 SVG</td><td>960 px · 浅色</td><td>0</td><td><a href="screenshots/failure-pstack-960-light-standalone.png" aria-label="pstack 反例标记 独立 SVG 960 像素 浅色截图">pstack</a> <a href="screenshots/failure-magpie-960-light-standalone.png" aria-label="Magpie 反例标记 独立 SVG 960 像素 浅色截图">Magpie</a></td></tr>
+<tr><th scope="row">反例标记</th><td>独立 SVG</td><td>960 px · 深色</td><td>0</td><td><a href="screenshots/failure-pstack-960-dark-standalone.png" aria-label="pstack 反例标记 独立 SVG 960 像素 深色截图">pstack</a> <a href="screenshots/failure-magpie-960-dark-standalone.png" aria-label="Magpie 反例标记 独立 SVG 960 像素 深色截图">Magpie</a></td></tr>
+<tr><th scope="row">反例标记</th><td>独立 SVG</td><td>400 px · 浅色</td><td>0</td><td><a href="screenshots/failure-pstack-400-light-standalone.png" aria-label="pstack 反例标记 独立 SVG 400 像素 浅色截图">pstack</a> <a href="screenshots/failure-magpie-400-light-standalone.png" aria-label="Magpie 反例标记 独立 SVG 400 像素 浅色截图">Magpie</a></td></tr>
+<tr><th scope="row">反例标记</th><td>独立 SVG</td><td>400 px · 深色</td><td>0</td><td><a href="screenshots/failure-pstack-400-dark-standalone.png" aria-label="pstack 反例标记 独立 SVG 400 像素 深色截图">pstack</a> <a href="screenshots/failure-magpie-400-dark-standalone.png" aria-label="Magpie 反例标记 独立 SVG 400 像素 深色截图">Magpie</a></td></tr>
+</tbody></table>
+</div></div>
+</section>
+<section class="block" aria-labelledby="method-heading">
+<h2 id="method-heading">验证方法</h2>
+<div class="method">
+<p>基准使用 pstack 0.9.155 的 <code>skills/statechart/references/render.md</code>。用该文档的参数及样式调 Pele 1.9.0 渲染原版 <code>Phases.mmd</code> 和 <code>TypeGuard/chart.mmd</code>。</p>
+<p>用 Chrome 149 在 960 px 和 400 px 的视口分别渲染浅色与深色主题，逐像素比较独立 SVG 和 HTML 内联截图。</p>
+<p>把 <code>diagram-render</code> 安装到两个独立环境，只在其中一个环境安装 pstack <code>statechart</code>。用相同的 Mermaid、Pele 版本和输出文件名离线渲染，逐字节比较 Magpie 的 SVG 文件。</p>
+<p><code>commit_check.sh</code> 通过。像素一致性针对相同浏览器和视口。Magpie 的 SVG 还携带无障碍标签、作用域和许可证元数据。</p>
+</div>
+</section>
+<footer>渲染环境为 Node.js 22.23.2、Pele 1.9.0 和 Chrome 149.0.7827.155。</footer>
+</main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

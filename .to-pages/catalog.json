@@ -60,6 +60,23 @@
           "updated_at": "2026-11-25T08:00:59Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/magpie-statechart-parity",
+      "project": "Magpie",
+      "title": "Magpie statechart 样式一致性验证",
+      "versions": [
+        {
+          "digest": "eb254243bfdaf62d1ea3a68eb7cd8055465d5ae849d376514cb6e1e4b810f9a0",
+          "label": "v1",
+          "path": "reports/magpie-statechart-parity",
+          "published_at": "2026-11-25T10:04:37.010272Z",
+          "summary": "16 组截图对比零像素差异，有无 statechart 安装时 SVG 逐字节一致",
+          "updated_at": "2026-11-25T10:04:37.010272Z"
+        }
+      ]
     }
   ]
 }
