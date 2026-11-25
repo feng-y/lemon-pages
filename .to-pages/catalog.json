@@ -194,6 +194,23 @@
           "updated_at": "2026-11-25T16:07:12.181337Z"
         }
       ]
+    },
+    {
+      "category": "设计原型",
+      "description": "",
+      "id": "rook-board-v027",
+      "project": "rook",
+      "title": "Rook 看板线上效果",
+      "versions": [
+        {
+          "digest": "182cc04c3b86f67175807bff883794b7ea9a20140bde49fdb3dd32b3fafd1c88",
+          "label": "v1",
+          "path": "reports/rook-board-v027",
+          "published_at": "2026-11-25T22:57:40.119701Z",
+          "summary": "Rook v0.1.27 看板在 MacBook Pro 14 寸和 2K 视口下的线上截图与测量",
+          "updated_at": "2026-11-25T22:57:40.119701Z"
+        }
+      ]
     }
   ]
 }
