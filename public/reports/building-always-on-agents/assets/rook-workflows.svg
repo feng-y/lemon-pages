@@ -101,7 +101,7 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 <rect x="350" y="198" width="280" height="54" rx="10" class="box"/>
 <rect x="350" y="206" width="4" height="38" rx="2" class="bar-state"/>
 <text x="366" y="222" class="t" font-size="14">选择下游 Agent</text>
-<text x="366" y="240" class="s">Pi / Claude Code / Codex</text>
+<text x="366" y="240" class="s">Pi 优先 / CC / Codex</text>
 <rect x="350" y="268" width="280" height="54" rx="10" class="box"/>
 <rect x="350" y="276" width="4" height="38" rx="2" class="bar-state"/>
 <text x="366" y="292" class="t" font-size="14">分派任务</text>
@@ -129,7 +129,7 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 <rect x="660" y="198" width="280" height="54" rx="10" class="box"/>
 <rect x="660" y="206" width="4" height="38" rx="2" class="bar-exit"/>
 <text x="676" y="222" class="t" font-size="14">Durable Inbox</text>
-<text x="676" y="240" class="s">状态 · 去重 · 来源 ID</text>
+<text x="676" y="240" class="s">Phase 3 · 状态 · 去重</text>
 <rect x="660" y="268" width="280" height="54" rx="10" class="box"/>
 <rect x="660" y="276" width="4" height="38" rx="2" class="bar-exit"/>
 <text x="676" y="292" class="t" font-size="14">Worker</text>
@@ -146,6 +146,6 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 <line x1="800" y1="252" x2="800" y2="268" class="arrow-muted" marker-end="url(#head)"/>
 <line x1="800" y1="322" x2="800" y2="338" class="arrow-muted" marker-end="url(#head)"/>
 <line x1="800" y1="392" x2="800" y2="408" class="arrow-muted" marker-end="url(#head)"/>
-<text x="40" y="512" class="note" text-anchor="start" font-size="11.5">三条链路共用同一套 Session / Task / 审核闸门；区别只在入口，以及是否把开发分派给下游 Agent。</text>
+<text x="40" y="512" class="note" text-anchor="start" font-size="11.5">三条链路共用同一套 Session / Task / 审核闸门；Phase 1 先复用 Session Queue，Phase 3 再上 Durable Inbox。</text>
 </g>
 </svg>

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rook：Kanban 里的常驻 Agent</title>
-<meta name="description" content="Rook 的常驻智能体设计参考：处理 Kanban 问题、调起下游 Agent 开发、响应事件。基于 Anthropic《Building always-on agents》的二次整理。">
+<title>Rook：Kanban 里的常驻智能体</title>
+<meta name="description" content="对照 Rook SuperAgent 方案 v2：处理 Kanban 问题、调起下游 Agent 开发、响应事件。基于 Anthropic《Building always-on agents》的二次整理。">
 <style>
   :root {
     color-scheme: light dark;
@@ -74,6 +74,7 @@
   strong { font-weight: 650; }
 
   .lead { font-size: 1.06rem; }
+  .num { color: var(--accent); font-family: "SFMono-Regular", Consolas, monospace; font-size: .72em; letter-spacing: .08em; margin-right: 4px; }
 
   .stat {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px;
@@ -170,27 +171,40 @@
 
 <div class="wrap">
   <header class="hero">
-    <p class="kicker">技术解读 · 二次理解 · Rook / SuperAgent</p>
-    <h1>Rook：Kanban 里的常驻 Agent</h1>
-    <p class="dek">处理 Kanban 问题、调起下游 Agent 开发、响应事件——用五个原语把 Rook 从一次会话变成持续在线的同事。</p>
+    <p class="kicker">技术解读 · 二次理解 · Rook SuperAgent v2</p>
+    <h1>Rook：Kanban 里的常驻智能体</h1>
+    <p class="dek">处理 Kanban 问题、调起下游 Agent 开发、响应事件——用五个原语对照 Rook SuperAgent 方案 v2，看看哪些已经就位，哪些还是缺口。</p>
     <p class="meta">
       <span>基于 <a href="https://claude.com/resources/articles/building-always-on-agents">Anthropic《Building always-on agents》</a></span>
       <span>作者 William Hu</span>
       <span>原文 2026-11-13</span>
-      <span>参考 <a href="https://lemon-pages.lemonsun224.workers.dev/reports/rook-tabs-design-v2/">Rook 工作台设计 v0.4</a></span>
+      <span>参考 <a href="https://lemon-pages.lemonsun224.workers.dev/reports/rook-superagent-plan-v2/">Rook SuperAgent 方案 v2</a></span>
+      <span><a href="https://lemon-pages.lemonsun224.workers.dev/reports/rook-tabs-design-v2/">Rook 工作台设计 v0.4</a></span>
     </p>
-    <p class="disclaimer"><strong>说明：</strong>本文是独立的中文二次整理，不是译文，也不是原文全文。它抽取 Anthropic 文章的思想、事实和数据，并与 Rook 的设计草案做映射；Rook 相关部分是设计参考，不是产品规格，最终以 Rook 词汇表和实现为准。原文观点与数据归 William Hu 及 Anthropic 所有。</p>
+    <p class="disclaimer"><strong>说明：</strong>本文是独立的中文二次整理，不是译文，也不是原文全文。它抽取 Anthropic 文章的思想、事实和数据，并与 Rook SuperAgent 方案 v2 做映射。Rook 相关部分是设计参考，不是产品规格；最终以 v2 方案和词汇表为准。词汇上，本文用“智能体”指用户创建的 Rook 这类定义，用“Agent”指外部凭证持有者或 Runtime，与 v2 的区分保持一致。</p>
   </header>
 
   <main>
     <section class="lead">
-      <p>Rook 是一个住在项目管理工作台里的 Agent。它出现在处理人、任务时间线和运行记录里，可以接任务、做计划、调下游 Agent 开发，再把结果送到审核闸门。它和普通聊天 Agent 的差别不在推理循环，而在循环外面的系统：<strong>什么时候被唤醒、两次运行之间留下什么、结果怎样到达人和看板</strong>。</p>
-      <p>Rook 的设计已经给出了一个很好的起点：会话是通用执行单元，任务页是评审现场，Kanban 列表达承诺，自动化是可重复的会话。真正要补的是常驻化所需的持久层——事件、定时器、记忆、权限和投递。</p>
+      <p>Rook 是一个住在项目管理工作台里的智能体。它作为处理人出现在任务、时间线和运行记录里，可以接 Kanban 问题、做计划、调起下游 Agent 开发，再把结果送到审核闸门。它和普通聊天智能体的差别不在推理循环，而在循环外面的系统：<strong>什么时候被唤醒、两次运行之间留下什么、结果怎样到达人和看板</strong>。</p>
+      <p>v2 方案已经给出了一个很务实的起点：不另造一套 Ticket 和 Mandate，而是复用 Task、claim 和 Agent 凭证；不新建一张收件箱表，而是复用 Session 的持久 Queue；Phase 1 只响应显式的 <code>@智能体</code>，不需要模型判断意图。真正要补的是常驻化所需的持久层——跨任务事件、定时器、跨运行记忆、权限边界和投递节奏。</p>
       <p>现在更可行的原因有两个。模型判断更好，更能读懂意图，也更知道何时该回来确认；成本更低，长周期任务受益尤其明显。Anthropic 文章给出的数字是：Opus 5.5 在长周期编程任务上，每个已解决任务的成本比 Opus 5 低 78%；典型工作负载低 40%。</p>
       <div class="stat">
         <div><strong>78%</strong><span>长周期编程任务中，每个已解决任务的成本较 Opus 5 降低</span></div>
         <div><strong>40%</strong><span>典型工作负载的成本降低</span></div>
       </div>
+    </section>
+
+    <section>
+      <h2>v2 方案速览：从智能体定义到事件驱动</h2>
+      <p>v2 把工作拆成四个阶段，每个阶段以一个可验收的用户结果收尾，通过后再进入下一阶段。</p>
+      <div class="kv">
+        <div class="kv-row"><div>Phase 0 · 智能体定义</div><div>用户创建、编辑、停用智能体；定义包含名称和 @handle、指令、Runtime 与模型、技能、可见性和负责人，存加密配置文档，不新建表。第一个内置智能体是 Rook。</div></div>
+        <div class="kv-row"><div>Phase 1 · 自动答复</div><div>需求评论里 <code>@智能体</code> → 目标 Session 的持久 Queue → Run → 回复写成时间线 activity。Task 状态不变。先跑 Pi；缺的是 @Rook 解析和触发人校验。</div></div>
+        <div class="kv-row"><div>Phase 2 · 下游开发</div><div>智能体以 Agent 身份 claim / accept Task → 在会话仓库根目录改代码 → 提交 MR 链接作为交付 → 验收人退回或通过。</div></div>
+        <div class="kv-row"><div>Phase 3 · 事件驱动</div><div>MR 评论、告警、定时事件唤醒 Task；Durable Inbox 落表，Worker 领取，Scheduler 写入同一入口。</div></div>
+      </div>
+      <div class="callout"><p><strong>关键取舍：</strong>Phase 1 不新建收件箱。评论直接写入目标 Session 的持久 Queue，复用已有的 <code>requestId</code> 去重、暂停和恢复规则；Durable Inbox 是 Phase 3 为跨任务事件准备的，不是重复造一套 Queue。</p></div>
     </section>
 
     <section>
@@ -221,114 +235,121 @@
       </div>
       <p>把系统按职责分层，会比按功能罗列更容易落地：</p>
       <div class="layers">
-        <div class="layer"><b>入口</b><span>事件收件箱：Kanban 评论、会话、自动化和手动运行，先落成持久记录，再交给 Worker。</span></div>
-        <div class="layer"><b>时间</b><span>Automation + Scheduler：时间触发、事件触发和 follow-up，到期转成新的入口事件。</span></div>
-        <div class="layer"><b>状态</b><span>Task ↔ Session 绑定与 Memory：任务上下文、计划、进度、证据和已回复内容。</span></div>
-        <div class="layer"><b>安全</b><span>权限：工作区角色、Agent 凭证、工具边界，以及计划确认和评审闸门。</span></div>
-        <div class="layer"><b>出口</b><span>Review Gate 与通知：任务时间线、MR、证据、收件箱和频道消息。</span></div>
+        <div class="layer"><b>入口</b><span>Session Queue（Phase 1）或 Durable Inbox（Phase 3）：评论、会话、自动化和手动运行，先落成持久记录，再交给 Worker / Run。</span></div>
+        <div class="layer"><b>时间</b><span>Automation + Scheduler（Phase 3）：时间触发、事件触发和 follow-up，到期转成新的入口事件。</span></div>
+        <div class="layer"><b>状态</b><span>Task ↔ Session 绑定、智能体定义和 Memory：任务上下文、计划、进度、证据和已回复内容。</span></div>
+        <div class="layer"><b>安全</b><span>权限：触发人 SSO、Agent 凭证、工作区角色、技能可见性，以及评审闸门。</span></div>
+        <div class="layer"><b>出口</b><span>时间线 activity 与通知：回复、MR、证据、WeCom 通知和收件箱。</span></div>
       </div>
       <nav class="toc" aria-label="五个构件">
-        <a href="#inbox"><b>01</b>事件收件箱</a>
-        <a href="#timers"><b>02</b>定时器与自动化</a>
-        <a href="#memory"><b>03</b>记忆</a>
-        <a href="#permissions"><b>04</b>权限</a>
-        <a href="#outbox"><b>05</b>发件箱</a>
+        <a href="#inbox"><b>01</b>入口层：Queue</a>
+        <a href="#timers"><b>02</b>时间层：Scheduler</a>
+        <a href="#memory"><b>03</b>状态层：记忆</a>
+        <a href="#permissions"><b>04</b>安全层：权限</a>
+        <a href="#outbox"><b>05</b>出口层：投递</a>
         <a href="#runtime"><b>06</b>Rook 运行时</a>
       </nav>
     </section>
 
     <section class="primitive" id="inbox">
-      <h2><span class="num">01</span> 入口层：事件收件箱</h2>
-      <p>Rook 的触发面比聊天 Agent 宽：Kanban 卡片和评论里的 <code>@Rook</code>、新会话、自动化触发、手动“立即运行”，以后还会包括 MR 评论、告警和外部 webhook。不要让这些来源直接调用 Agent。直接调用有两个问题：并发事件会启动互相竞争的运行；进程崩溃会丢事件。</p>
-      <p>更稳的做法是先把事件落成一行持久记录，再让 Worker 从记录里取。三件套是：一张事件表、一个写入端点、一个后台 Worker。每个事件带状态，按来源提供的标识去重。起步阶段可以一个任务或一个用户一个收件箱；需要更高并行时再拆。</p>
-      <p>运行中又来了事件，有三种策略：推迟到下一轮、合并进当前运行、打断并重启。没有一种永远正确；关键是显式选择，并把它写进状态机，而不是留给 Worker 的临场判断。</p>
+      <h2><span class="num">01</span> 入口层：Session Queue 与 Durable Inbox</h2>
+      <p>Rook 的触发面比聊天智能体宽：Kanban 卡片和评论里的 <code>@Rook</code>、新会话、自动化触发、手动“立即运行”，Phase 3 还会包括 MR 评论、告警和外部 webhook。不要让这些来源直接调用智能体。直接调用有两个问题：并发事件会启动互相竞争的运行；进程崩溃会丢事件。</p>
+      <h3>Phase 1：复用 Session Queue</h3>
+      <p>v2 没有为 Phase 1 新建收件箱表，而是把评论写进目标 Session 的持久 Queue。已有链路是六步：</p>
+      <ol class="steps">
+        <li>写入 Queue，用 <code>requestId</code> 去重。</li>
+        <li>唤醒并派发。</li>
+        <li>在同一个事务里出队，并创建 Run。</li>
+        <li>执行 Turn：Agent Loop 里的多个 Step。</li>
+        <li>把回复写成时间线 activity。</li>
+        <li>出错时暂停，由人恢复。</li>
+      </ol>
+      <p>这条链路已经覆盖了收件箱的大部分职责：持久化、去重、单活跃消费者、失败暂停。Phase 1 真正缺的是两件事：<strong>@Rook 解析</strong>和<strong>触发人校验</strong>。</p>
+      <h3>Phase 3：跨任务的 Durable Inbox</h3>
+      <p>当 MR 评论、告警、定时事件也要唤醒 Task 时，单个 Session 的 Queue 就不够了。这时才需要 Durable Inbox：一张事件表、一个 Worker、一套 Scheduler。Worker 领取事件，Scheduler 到期写入同一个入口；入口仍然只有一个。</p>
       <div class="callout">
-        <p><strong>Rook 的 Gate 不只是触发词。</strong>在写入收件箱之前，还要看触发人是谁、在不在允许的角色或默认 RD 组里、有没有这个工作区的权限。Phase 1 只响应显式的 <code>@Rook</code>，所以不需要模型判断意图；Eval 可以留到后续阶段。</p>
-        <p><strong>至少一次投递意味着幂等。</strong>来源 ID 去重只是第一层；工具调用也要幂等，或者把“已执行”写进事件状态。否则 Worker 重试会重复发评论、重复建 MR、重复改任务状态。</p>
+        <p><strong>不要把 Queue 和 Inbox 混成一套。</strong>Queue 是 Session 内部的请求队列，按 <code>requestId</code> 幂等；Inbox 是跨任务的事件入口，需要自己的状态、来源 ID 和重试策略。两者共享“先落持久记录，再交给执行单元”的原则，但不是同一张表。</p>
+        <p><strong>至少一次投递意味着幂等。</strong>Queue 的 <code>requestId</code> 去重是第一层；工具调用也要幂等，或者把“已执行”写进事件状态。否则重试会重复发评论、重复建 MR、重复改任务状态。</p>
       </div>
       <h3>入口层要定下的四件事</h3>
       <div class="kv">
-        <div class="kv-row"><div>收件箱粒度</div><div>按任务、按用户，还是按工作区。粒度决定并发隔离和重试范围。</div></div>
-        <div class="kv-row"><div>事件状态</div><div>至少要有待处理、处理中、完成、失败、死信。状态是恢复和观测的基础。</div></div>
-        <div class="kv-row"><div>去重键</div><div>用来源提供的稳定 ID，而不是时间戳或自增序号。</div></div>
+        <div class="kv-row"><div>Queue 粒度</div><div>一个 Session 一条 Queue；跨任务事件才进 Inbox。</div></div>
+        <div class="kv-row"><div>事件状态</div><div>至少要有待处理、处理中、完成、失败、暂停/死信。状态是恢复和观测的基础。</div></div>
+        <div class="kv-row"><div>去重键</div><div>Queue 用 <code>requestId</code>；Inbox 用来源提供的稳定 ID，而不是时间戳或自增序号。</div></div>
         <div class="kv-row"><div>运行中事件</div><div>推迟、合并、打断，三选一，写进实现和文档。</div></div>
       </div>
     </section>
 
     <section class="primitive" id="timers">
       <h2><span class="num">02</span> 时间层：定时器与自动化</h2>
-      <p>Rook 的自动化有两种触发语义：时间触发（每天 09:30、每小时整点）和事件触发。每次自动化运行本身也是一次会话，产生结果和用量；任务页上的“设为自动化”，就是把一次会话变成可重复的调度。</p>
-      <p>把定时器放进收件箱，会污染“现在可做”的语义。更清晰的做法是独立一张表。定时器到期不直接启动运行，而是由 Scheduler 转成收件箱事件。这样入口只有一个，重试、去重、并发控制都复用同一套逻辑。</p>
-      <p>Scheduler 的每一轮只做三件事：找出到期项；按类型更新（一次性 follow-up 标记完成，周期 schedule 推到下一次）；写入收件箱事件并唤醒 Worker。它可以自己写，也可以交给持久化执行引擎。</p>
-      <div class="callout"><p><strong>二次解读：</strong>定时器最容易出问题的地方，不是“到点没触发”，而是“重复触发”和“补触发”。进程停了一段时间，恢复后要不要补跑错过的周期？补跑几次？时区、夏令时、时钟漂移怎么处理？这些要在表结构里写清楚，而不是留给 Scheduler 的实现细节。</p></div>
+      <p>Rook 的自动化有两种触发语义：时间触发（每天 09:30、每小时整点）和事件触发。每次自动化运行本身也是一次会话，产生结果和用量；任务页上的“设为自动化”，就是把一次会话变成可重复的调度。这些在 v2 里属于 Phase 3。</p>
+      <p>把定时器放进 Session Queue 或 Inbox，会污染“现在可做”的语义。更清晰的做法是独立一张表。定时器到期不直接启动运行，而是由 Scheduler 转成入口事件。这样入口只有一个，重试、去重、并发控制都复用同一套逻辑。</p>
+      <p>Scheduler 的每一轮只做三件事：找出到期项；按类型更新（一次性 follow-up 标记完成，周期 schedule 推到下一次）；写入入口并唤醒 Worker。</p>
+      <div class="callout"><p><strong>v2 的缺口：</strong>一次性 follow-up 是否支持还没有确认。如果要做，需要独立的 Timer store 和补触发策略：进程停了一段时间，恢复后要不要补跑错过的周期？补跑几次？时区、夏令时、时钟漂移怎么处理？这些要在表结构里写清楚，而不是留给 Scheduler 的实现细节。</p></div>
     </section>
 
     <section class="primitive" id="memory">
       <h2><span class="num">03</span> 状态层：记忆</h2>
       <p>Rook 的记忆不是聊天记录的别名，而是跨运行的工作状态。它至少要让下一次运行知道：这个任务的背景和评审标准是什么、上次做到哪、已经告诉过谁什么、有哪些证据。一条实用原则是：<strong>只存无法重新取回的东西。</strong>能从任务、MR、仓库或工单里查到的，存指针，不存副本。</p>
       <div class="kv">
-        <div class="kv-row"><div>指令</div><div>角色、边界、工作区规则、输出风格。放在单独文件，每次运行开头加载。</div></div>
+        <div class="kv-row"><div>智能体指令</div><div>角色、边界、工作区规则、输出风格。每次运行开头加载；v2 要求有长度上限，因为它带来固定的 per-Turn 开销。</div></div>
         <div class="kv-row"><div>任务上下文</div><div>任务背景、评审标准、关联 MR、工作区路径。可以从 Task 读取，也可以缓存索引。</div></div>
         <div class="kv-row"><div>计划与进度</div><div>步骤、已完成和剩余工作、为什么改变范围。每个活跃任务一份，让下一次运行能接着做。</div></div>
         <div class="kv-row"><div>证据</div><div>测试结果、diff 大小、staging 观察、步骤数、token 用量、耗时。评审时要能直接引用。</div></div>
         <div class="kv-row"><div>已回复内容</div><div>Rook 已经在时间线或评论里说过什么，避免重复；也是投递去重的依据。</div></div>
       </div>
-      <p>一个可用的目录布局：</p>
-      <pre><code>rook-state/
-├── policy/
-│   └── instructions.md      # 每次运行加载
-├── tasks/
-│   └── &lt;task-id&gt;/
-│       ├── index.md         # 背景、评审标准、计划索引
-│       ├── progress.md      # 已完成 / 剩余
-│       └── evidence.md      # 测试、diff、运行记录
-└── delivered.md             # 已回复 / 已通知的内容</code></pre>
-      <p>可选的整理过程会回看历史运行，合并重复、淘汰过期条目，发现只有跨多次运行才浮现的模式。它本身也应该是一次受权限和成本约束的运行，而不是隐形的后台魔法。</p>
+      <p>v2 的一个硬约束是：跨运行笔记必须持久化到 MySQL，因为容器文件是临时的。一个可用的布局是：</p>
+      <pre><code>MySQL
+├── agent_definition         # 加密配置文档：指令 / Runtime / 技能
+├── task_session             # Task ↔ Session 绑定
+├── session_queue            # requestId 唯一，持久 Queue
+└── agent_notes              # 跨运行笔记：任务上下文 / 进度 / 已回复</code></pre>
+      <p>v2 明确把 dreaming 排除在当前范围之外。也就是说，目前不做“回看历史会话、自动整理记忆”的后台过程；记忆的写入和清理先靠显式规则。</p>
       <h3>上下文是固定成本</h3>
-      <p>每次运行开始，都要加载系统提示、工具定义和常驻记忆。这份开销每轮重复，所以要精简，并用 prompt caching 降低成本。新会话只包含这份开销加上触发事件；续接的会话还会恢复之前的消息和工具调用。会话太长时，可以压缩旧消息或开新会话，但两种办法都会丢细节，因此重要信息要在工作过程中就写进记忆。</p>
-      <div class="callout"><p><strong>二次解读：</strong>记忆是产品界面，不只是存储。用户应该能看见、纠正、删除记忆；否则一个错误会跨运行放大。工程上至少要有版本、来源、过期时间和删除路径，还要明确哪些内容永远不写入记忆。</p></div>
+      <p>每次运行开始，都要加载系统提示、工具定义、智能体指令和常驻记忆。这份开销每轮重复，所以要精简，并用 prompt caching 降低成本。新会话只包含这份开销加上触发事件；续接的会话还会恢复之前的消息和工具调用。会话太长时，可以压缩旧消息或开新会话，但两种办法都会丢细节，因此重要信息要在工作过程中就写进记忆。</p>
+      <div class="callout"><p><strong>二次解读：</strong>记忆是产品界面，不只是存储。用户应该能看见、纠正、删除记忆；否则一个错误会跨运行放大。v2 还没有定记忆的可见性、过期和删除策略，这是落地前要补的。</p></div>
     </section>
 
     <section class="primitive" id="permissions">
       <h2><span class="num">04</span> 安全层：权限</h2>
-      <p>Rook 是 Kanban 里的一等 assignee，这意味着它会以自己的 Agent 身份出现在处理人、时间线和运行记录里。它持有工作区授予的访问权限，又要在无人逐步指挥下工作，所以权限是五个构件里风险最高的。每个工具调用，Rook 都有三种选择：执行、阻止、等待批准。</p>
+      <p>Rook 在 Kanban 里是一等 assignee，会出现在处理人、时间线和运行记录里。但这不等于它有一个独立的服务账号：v2 的默认执行身份是<strong>触发人的公司 SSO 与 Provider</strong>，与自动交付保持一致；Task 的 claim / accept 这类归属动作使用 Agent 凭证。</p>
       <div class="kv">
+        <div class="kv-row"><div>执行身份</div><div>默认沿用触发人的 SSO 与 Provider，不设独立服务账号。跨用户、跨工作区时，这条规则要重新评估。</div></div>
+        <div class="kv-row"><div>Agent 凭证</div><div>负责 Task 的 claim / accept、交付归属等动作；仓库和 MR 的访问仍受工作区权限约束。</div></div>
         <div class="kv-row"><div>工作区角色</div><div>Rook 能看到哪些任务、仓库、成员和模型；这是第一层边界。</div></div>
-        <div class="kv-row"><div>Agent 凭证</div><div>执行身份、仓库访问、MR 权限。凭证放在 Agent 之外的代理里，由代理注入出站请求。</div></div>
-        <div class="kv-row"><div>计划确认</div><div>Rook 先给计划和范围，用户确认或调整后才执行；这是一次可以暂停、保存、恢复的调用。</div></div>
+        <div class="kv-row"><div>技能可见性</div><div>只允许系统技能和创建者绑定的技能，且不超出智能体的可见性范围。</div></div>
         <div class="kv-row"><div>评审闸门</div><div>结果进入“审核中”，人可以选择退回或通过并完成；通过之前不合并、不结单。</div></div>
-        <div class="kv-row"><div>下游 Agent</div><div>Rook 调起下游 Agent 时，要限定它的工作区、仓库、分支和工具，不把 Rook 的全部权限透传下去。</div></div>
       </div>
-      <p>延迟调用值得单独设计。它不是超时重试，而是把“等人”变成一个一等状态：运行结束、会话快照保存、请求送达用户、回答进入收件箱、新运行恢复会话。等待期间 Worker 不被占用。实现上要保证快照可恢复，并且恢复后不会重复执行已经产生副作用的步骤。</p>
-      <div class="callout"><p><strong>二次解读：</strong>权限设计要同时防两类失败。一类是过度自治：Rook 做了不该做的。另一类是审批疲劳：该问的不问，或者用户闭眼点同意。前者靠最小权限、凭证隔离和下游 Agent 的边界；后者靠分级——低风险自动执行，中风险批量确认，高风险单次确认。</p></div>
+      <p>延迟调用值得单独设计。它不是超时重试，而是把“等人”变成一个一等状态：运行结束、会话快照保存、请求送达用户、回答进入 Queue、新运行恢复会话。等待期间 Worker 不被占用。实现上要保证快照可恢复，并且恢复后不会重复执行已经产生副作用的步骤。</p>
+      <div class="callout"><p><strong>v2 的缺口：</strong>当前没有高风险动作分类器。权限主要靠执行身份、工作区角色、技能可见性和评审闸门；如果 Rook 以后能直接操作生产、财务或对外发布，需要补一层自动阻断或强制升级审批。另一个风险是审批疲劳：评审闸门不能变成“闭眼点通过”。</p></div>
     </section>
 
     <section class="primitive" id="outbox">
       <h2><span class="num">05</span> 出口层：发件箱</h2>
-      <p>Rook 在后台工作，用户不需要看每一步；他们需要的是结果、影响和下一步。一次运行有三种结束方式：发一条消息；判断没有需要发送的内容；发起延迟调用，请求计划确认、输入或评审。</p>
-      <p>Rook 的输出面不止一个：任务时间线的活动、评论回复、关联 MR、证据块、自动化运行记录、收件箱通知，必要时还有频道消息。多数场景一个简单的 send 工具就够了；只有当需要控制消息节奏或从错误中恢复时，才需要正式的发件箱。它和收件箱一样是一张表；Dispatcher 读取待发消息，决定发什么，再投递给用户。</p>
-      <p>消息量是产品参数，不是实现细节。发太多是噪音，发太少会漏掉重要事项。文章的建议是用 eval 找平衡，并且从安静开始，让 Agent 逐步赢得用户的注意力。</p>
-      <div class="callout"><p><strong>二次解读：</strong>出口至少要做三件事：去重，同一事件重试不能重复通知；分级，评审结果、阻塞问题和普通进度走不同通道；留痕，发送记录本身也是记忆的一部分，下一次运行要能知道“已经说过什么”。</p></div>
+      <p>Rook 在后台工作，用户不需要看每一步；他们需要的是结果、影响和下一步。v2 的出口很直接：回复写成时间线 activity；WeCom 通知记录发送状态。目前没有独立的 Outbox 表，也没有显式的“无需回复”结果。</p>
+      <p>多数场景一个简单的 send 工具就够了；只有当需要控制消息节奏或从错误中恢复时，才需要正式的发件箱。它和入口一样是一张表；Dispatcher 读取待发消息，决定发什么，再投递给用户。</p>
+      <p>消息量是产品参数，不是实现细节。发太多是噪音，发太少会漏掉重要事项。文章的建议是用 eval 找平衡，并且从安静开始，让智能体逐步赢得用户的注意力。</p>
+      <div class="callout"><p><strong>v2 的缺口：</strong>没有显式的“这次不需要回复”状态，也没有消息量 eval。对评论型入口，这意味着每条 @ 都可能换来一条回复；任务一多，噪音会很快累积。建议先补 no-reply 判定和投递去重，再补 eval。</p></div>
     </section>
 
     <section id="runtime">
       <h2>Rook 的运行时结构</h2>
-      <p>把五个构件落到 Rook 上，会得到一条完整的链路：Kanban 事件、会话和自动化从入口进来；Rook 在 Task 与 Session 的绑定里恢复上下文；Planner 做计划，必要时把开发分派给下游 Agent；结果经过评审闸门，回到任务时间线和通知。</p>
+      <p>把五个构件落到 Rook 上，会得到一条完整的链路：评论、会话和自动化从入口进来；Rook 在 Task 与 Session 的绑定里恢复上下文；Planner 做计划，必要时把开发分派给下游 Agent；结果经过评审闸门，回到任务时间线和通知。</p>
       <figure class="wide">
         <div class="figure-scroll">
           <img src="assets/rook-architecture.svg" alt="Rook 运行时结构：入口层、时间层、状态层、执行层、出口层，以及 Rook Session、下游 Agent 和 Review Gate 之间的关系。">
         </div>
-        <figcaption>图 1 · Rook 的运行时结构。Rook 作为一等 assignee，把 Kanban 事件、会话和自动化接到同一条执行链上。<a href="assets/rook-architecture.svg">查看原图</a></figcaption>
+        <figcaption>图 1 · Rook 的运行时结构。Phase 1 复用 Session Queue；Phase 3 才引入跨任务的 Durable Inbox 和 Scheduler。<a href="assets/rook-architecture.svg">查看原图</a></figcaption>
       </figure>
       <div class="kv">
-        <div class="kv-row"><div>入口层</div><div>事件源 → Trigger + Gate → Durable Inbox → Worker。Gate 负责触发词、触发人角色和工作区权限；Worker 负责领取、重试和恢复会话。</div></div>
-        <div class="kv-row"><div>时间层</div><div>Automation + Scheduler。时间触发、事件触发和 follow-up 到期后，转成收件箱事件；每次自动化运行都是一次会话。</div></div>
+        <div class="kv-row"><div>入口层</div><div>事件源 → Trigger + Gate → Session Queue（Phase 1）/ Durable Inbox（Phase 3）→ Worker / Run。Gate 负责触发词、触发人角色和工作区权限。</div></div>
+        <div class="kv-row"><div>时间层</div><div>Automation + Scheduler（Phase 3）。时间触发、事件触发和 follow-up 到期后，转成入口事件；每次自动化运行都是一次会话。</div></div>
         <div class="kv-row"><div>状态层</div><div>Kanban Task ↔ Rook Session ↔ Memory。Task 是承诺，Session 是执行，Memory 记录计划、进度、证据和已回复内容。</div></div>
-        <div class="kv-row"><div>执行层</div><div>Rook Planner → 下游 Agent。Rook 负责计划、分派、汇总；下游 Agent 在限定的工作区里改代码、跑测试、提 MR。</div></div>
-        <div class="kv-row"><div>安全层</div><div>工作区角色、Agent 凭证、审批和评审闸门。凭证由代理注入；高风险动作等待人或评审确认。</div></div>
+        <div class="kv-row"><div>执行层</div><div>Rook 智能体 / Planner → 下游 Agent。Rook 负责计划、分派、汇总；下游 Runtime 先跑 Pi，Claude Code / Codex 的接入或降级要单独说明和验收。</div></div>
+        <div class="kv-row"><div>安全层</div><div>触发人 SSO、Agent 凭证、工作区角色、技能可见性和评审闸门。凭证由代理注入；高风险动作等待评审确认。</div></div>
         <div class="kv-row"><div>出口层</div><div>Review Gate → Task 时间线 / MR → 通知 / 收件箱。结果、证据、用量和运行记录一起交付。</div></div>
       </div>
-      <div class="callout"><p><strong>待确认：</strong>触发词用 <code>@Rook</code> 还是 <code>@superagent</code>、执行身份是否沿用人触发时的工作区 SSO、Task ↔ Session 绑定是否命名为“Task 会话”，这些都还在设计草案的待决定项里。实现前以最终词汇表为准。</p></div>
+      <div class="callout"><p><strong>v2 的待决定项：</strong>触发词用 <code>@superagent</code> 还是 <code>@Rook</code>；是否支持一次性 follow-up；谁能创建智能体（默认 enabled RD，admin 可禁用）；可见性是默认组还是仅创建者；Multica 和需求页设计是否会改变 Phase 1 的形态。执行身份（触发人 SSO/Provider）和“Task 会话”命名已经作为默认方案。</p></div>
     </section>
 
     <section>
@@ -341,60 +362,75 @@
         <figcaption>图 2 · Rook 的三类工作：处理 Kanban 问题、调起下游 Agent 开发、响应事件。<a href="assets/rook-workflows.svg">查看原图</a></figcaption>
       </figure>
       <h3>处理 Kanban 问题</h3>
-      <p>卡片或评论里的 <code>@Rook</code> 是最直接的入口。Rook 读取任务背景、评审标准和历史评论，给出计划和范围；用户确认后，Rook 要么自己做，要么把开发分派出去。完成后，它把测试结果、diff 大小、staging 观察、步骤数、token 用量和耗时整理成证据，送进“审核中”。人可以选择退回或通过并完成。</p>
+      <p>卡片或评论里的 <code>@Rook</code> 是最直接的入口。Phase 1 里，Rook 读取任务背景和评论，把答复写回时间线，Task 状态不变；需要开发时进入 Phase 2，Rook 以 Agent 身份 claim / accept Task，在会话仓库根目录改代码，再把 MR 链接作为交付物提交给验收人。</p>
       <h3>调起下游 Agent 开发</h3>
-      <p>当任务需要改代码时，Rook 不必自己变成执行型 Agent。它可以选择下游 Agent（Pi、Claude Code、Codex 等），把工作区、分支、验收标准和证据要求一起分派下去。下游执行完，Rook 汇总 MR 链接和证据，再提交人审。这里的关键是边界：下游 Agent 只拿到完成任务所需的仓库和工具，不继承 Rook 的全部权限。</p>
+      <p>当任务需要改代码时，Rook 不必自己变成执行型 Agent。它可以选择下游 Agent（Runtime 先跑 Pi，Claude Code / Codex 按接入或降级方案处理），把工作区、分支、验收标准和证据要求一起分派下去。下游执行完，Rook 汇总 MR 链接和证据，再提交人审。这里的关键是边界：下游 Agent 只拿到完成任务所需的仓库和工具，不继承 Rook 的全部权限。</p>
       <h3>响应事件</h3>
-      <p>评论、MR 评论、告警和定时任务都可以唤醒 Rook。事件先进入 Durable Inbox，再由 Worker 领取；如果已经有 Task 会话，就恢复上下文，否则新建。Rook 的结果通过时间线、评论、收件箱或频道送达。一次会话还可以“设为自动化”，变成以后重复运行的调度。</p>
+      <p>评论、MR 评论、告警和定时任务都可以唤醒 Rook。Phase 1 的评论进入目标 Session 的 Queue；Phase 3 的跨任务事件才进入 Durable Inbox，再由 Worker 领取。如果已经有 Task 会话，就恢复上下文，否则新建。Rook 的结果通过时间线、评论、收件箱或频道送达。一次会话还可以“设为自动化”，变成以后重复运行的调度。</p>
       <blockquote><p>会话是入口，Kanban 是承诺，任务页是评审，自动化是重复。</p><cite>Rook 工作台设计 v0.4</cite></blockquote>
       <p>这句话已经把常驻化的骨架说清楚了：入口、承诺、评审和重复，分别对应上面的入口层、状态层、出口层和时间层。</p>
     </section>
 
     <section>
       <h2>一次 @Rook 运行</h2>
-      <p>以 Kanban 评论触发为例。用户在任务评论里 <code>@Rook</code>，要求修复一个问题；这条评论进入 Trigger + Gate，通过触发人和工作区权限检查后写入 Durable Inbox。Worker 领取事件，绑定对应的 Task 会话，启动一次运行。</p>
+      <p>以 Kanban 评论触发为例。用户在任务评论里 <code>@Rook</code>，要求修复一个问题；这条评论进入 Trigger + Gate，通过触发人和工作区权限检查后写入目标 Session 的 Queue。Queue 在同一个事务里出队并创建 Run，启动一次执行。</p>
       <figure class="wide">
         <div class="figure-scroll">
-          <img src="assets/rook-run.svg" alt="一次 Rook 运行：Kanban 评论触发、Gate 准入、收件箱、Rook 计划确认、分派下游 Agent、权限注入、提交评审和退回。">
+          <img src="assets/rook-run.svg" alt="一次 Rook 运行：Kanban 评论触发、Gate 准入、Session Queue、Rook 计划确认、分派下游 Agent、权限注入、提交评审和退回。">
         </div>
-        <figcaption>图 3 · 一次 @Rook 运行：计划确认、下游 Agent 开发、权限注入、人审与退回。<a href="assets/rook-run.svg">查看原图</a></figcaption>
+        <figcaption>图 3 · 一次 @Rook 运行：Phase 1 的 Queue 入口，Phase 2 的下游开发与人审。<a href="assets/rook-run.svg">查看原图</a></figcaption>
       </figure>
       <ol class="steps">
-        <li>Rook 加载指令、任务背景、计划与进度、已回复内容，避免重复劳动。</li>
-        <li>Rook 给出计划：要做哪些步骤、范围是什么、需要哪些权限。用户确认或调整；这是一次延迟调用，会话在等待期间保存。</li>
-        <li>需要开发时，Rook 把任务分派给下游 Agent。下游在限定的工作区里改代码、跑测试、提 MR；凭证由权限代理注入，不落到 Agent 里。</li>
-        <li>下游返回 MR 链接和证据：单测结果、diff 大小、staging 观察、步骤数、token 用量、耗时。</li>
-        <li>Rook 汇总后提交评审，任务进入“审核中”。人可以退回，也可以通过并完成；退回或评论都会变成新的收件箱事件。</li>
-        <li>Rook 写回时间线和任务状态。如果这次会话值得重复，用户或 Rook 可以把它设为自动化，交给 Scheduler 在未来再次唤醒。</li>
+        <li>Rook 加载智能体定义（指令、Runtime、技能）、任务背景、计划与进度、已回复内容，避免重复劳动。</li>
+        <li>Phase 1 直接生成答复，写成时间线 activity；Task 状态不变。如果这次运行来自会话，Rook 会先给计划并等待确认。</li>
+        <li>需要开发时进入 Phase 2：Rook 以 Agent 身份 claim / accept Task，在会话仓库根目录工作；需要分派时，把任务交给下游 Runtime。</li>
+        <li>下游返回 MR 链接和证据：单测结果、diff 大小、staging 观察、步骤数、token 用量、耗时。凭证由代理注入，不落到 Agent 里。</li>
+        <li>Rook 汇总后提交评审，任务进入“审核中”。验收人退回或通过；退回或评论都会变成新的 Queue 事件。</li>
+        <li>Rook 写回时间线和任务状态。如果这次会话值得重复，可以设为自动化，交给 Phase 3 的 Scheduler 在未来再次唤醒。</li>
       </ol>
-      <p>这条链路里，五个构件各司其职：收件箱接住评论，定时器接住“以后再看”，记忆接住“上次做到哪”，权限接住“能不能改这个仓库”，发件箱接住“让人知道结果”。任何一层缺失，Rook 都会退化成一次性脚本。</p>
+      <p>这条链路里，五个构件各司其职：Queue 接住评论，Scheduler 接住“以后再看”，记忆接住“上次做到哪”，权限接住“能不能改这个仓库”，出口接住“让人知道结果”。任何一层缺失，Rook 都会退化成一次性脚本。</p>
+    </section>
+
+    <section>
+      <h2>与 v2 方案的差距</h2>
+      <p>把五个原语逐项对照 v2，会得到一张比“功能清单”更有用的工作单：哪些已经就位，哪些是明确的缺口。</p>
+      <div class="kv">
+        <div class="kv-row"><div>入口</div><div>Phase 1 复用 Session Queue，Phase 3 才上 Durable Inbox / Worker / Scheduler。缺口：外部 webhook 未覆盖；Phase 1 只支持显式 @mention。</div></div>
+        <div class="kv-row"><div>时间</div><div>Automation / Scheduler 在 Phase 3。缺口：一次性 follow-up 是否支持未确认；补触发和去重策略未定。</div></div>
+        <div class="kv-row"><div>记忆</div><div>跨运行笔记落 MySQL；指令有长度上限；dreaming 不在范围。缺口：记忆的可见性、过期和删除策略未定。</div></div>
+        <div class="kv-row"><div>权限</div><div>触发人 SSO/Provider + Agent 凭证 + 评审闸门；没有高风险动作分类器。缺口：高风险动作的自动阻断或强制升级。</div></div>
+        <div class="kv-row"><div>出口</div><div>回复写成 activity，WeCom 通知记录发送状态。缺口：没有显式的“无需回复”，也没有消息量 eval。</div></div>
+        <div class="kv-row"><div>评估</div><div>Phase 1–2 不用 Eval / Mandate，显式 @mention 替代模型判断。缺口：意图判断和风险分级留到后续阶段。</div></div>
+      </div>
+      <div class="callout"><p><strong>这不是缺陷清单，是常驻化的下一步工作单。</strong>Phase 1–2 先把“能接、能答、能交付”跑通；Phase 3 再补跨任务事件、定时器和投递节奏。不要在第一阶段就把五层全部建完。</p></div>
     </section>
 
     <section>
       <h2>落地时的取舍</h2>
       <div class="tradeoffs">
-        <div class="tradeoff"><h4>复用 Task 还是另造授权模型</h4><p>如果 Task、claim 和 Agent 凭证已经能表达“谁授权 Rook 做什么”，就不要再造一套 Ticket 或 Mandate。两个名字指同一件事，后面一定会对不齐。</p></div>
-        <div class="tradeoff"><h4>Rook 自己做 vs 调下游 Agent</h4><p>规划、汇总和评审留在 Rook；重执行交给下游 Agent。边界要写清楚：工作区、分支、验收标准、证据格式和返回路径。</p></div>
-        <div class="tradeoff"><h4>至少一次 vs 恰好一次</h4><p>大多数队列表只能做到至少一次。与其追求恰好一次，不如把运行和工具调用做成幂等，再用去重表兜底。</p></div>
+        <div class="tradeoff"><h4>复用 Task 还是另造授权模型</h4><p>Task、claim 和 Agent 凭证已经能表达“谁授权 Rook 做什么”，就不要再造 Ticket 或 Mandate。两个名字指同一件事，后面一定会对不齐。</p></div>
+        <div class="tradeoff"><h4>Rook 自己做 vs 调下游 Agent</h4><p>规划、汇总和评审留在 Rook；重执行交给下游 Runtime。边界要写清楚：工作区、分支、验收标准、证据格式和返回路径。</p></div>
+        <div class="tradeoff"><h4>至少一次 vs 恰好一次</h4><p>Queue 用 <code>requestId</code> 幂等；Inbox 用来源 ID 去重。与其追求恰好一次，不如把运行和工具调用做成幂等，再用去重表兜底。</p></div>
         <div class="tradeoff"><h4>并发 vs 顺序</h4><p>同一任务同一时间只应该有一个活跃的 Rook 运行。用 Task claim 或租约避免两个运行同时改同一个任务。</p></div>
-        <div class="tradeoff"><h4>记忆丰富 vs 上下文成本</h4><p>索引常驻，详情按需。记忆越全，每轮固定开销越大；用 prompt caching 和分层加载控制成本。</p></div>
+        <div class="tradeoff"><h4>记忆丰富 vs 上下文成本</h4><p>索引常驻，详情按需。指令有长度上限；记忆越全，每轮固定开销越大，用 prompt caching 和分层加载控制成本。</p></div>
         <div class="tradeoff"><h4>自治 vs 审批疲劳</h4><p>计划确认和评审闸门是两次人机接触点。不是所有动作都值得问；按风险分级，把注意力留给不可逆的决定。</p></div>
         <div class="tradeoff"><h4>消息量 vs 信任</h4><p>先用 eval 找到“不漏重要事项”的下限，再从安静开始。频繁打扰会消耗信任，而信任很难恢复。</p></div>
-        <div class="tradeoff"><h4>自建 vs 执行引擎</h4><p>先自建最小闭环，把事件、状态、重试跑通；当定时器和恢复逻辑开始变复杂，再评估持久化执行引擎。</p></div>
+        <div class="tradeoff"><h4>自建 vs 执行引擎</h4><p>先自建最小闭环，把 Queue、状态、重试跑通；当定时器和恢复逻辑开始变复杂，再评估持久化执行引擎。</p></div>
       </div>
     </section>
 
     <section class="checklist">
       <h2>落地顺序</h2>
       <ul>
-        <li>先建立 Task ↔ Session 绑定，让 Rook 成为一等 assignee；没有这个绑定，后面的常驻化都是空中楼阁。</li>
-        <li>入口先做显式 <code>@Rook</code> 和 Gate（触发人、角色、工作区权限），再补 Durable Inbox 和 Worker。</li>
-        <li>自动化与 Scheduler 独立存储；每次运行都产生会话、结果和用量，到期只负责转成事件。</li>
-        <li>记忆先做指令、任务上下文、计划进度和证据；索引常驻，详情按需，重要信息随做随写。</li>
-        <li>凭证放进代理；计划确认和评审闸门做成可暂停、可恢复的延迟调用；下游 Agent 单独限定权限。</li>
-        <li>出口先写时间线活动、评论回复和 <code>run_finished</code>，再补收件箱通知和频道消息；同一事件不重复投递。</li>
-        <li>加观测：事件积压、运行时长、下游 Agent 失败率、评审等待时长、重复投递。</li>
-        <li>用 eval 调消息量和主动性，从安静开始；Eval 的意图判断可以留到后续阶段。</li>
+        <li>Phase 0：先做智能体定义（名称/@handle、指令、Runtime/模型、技能、可见性、负责人），存加密配置文档，不新建表；Rook 作为第一个内置智能体。</li>
+        <li>建立 Task ↔ Session 绑定（“Task 会话”）；没有这个绑定，后面的常驻化都是空中楼阁。</li>
+        <li>Phase 1：补 @Rook 解析和触发人校验；评论写入目标 Session 的持久 Queue，同一事务出队建 Run，回复写成 activity，Task 状态不变。</li>
+        <li>Phase 2：实现 Agent 身份的 claim / accept、会话仓库根目录开发、MR 交付和验收人退回/通过。</li>
+        <li>Phase 3：再引入 Durable Inbox、Worker 和 Scheduler，覆盖 MR 评论、告警、定时事件；明确 follow-up 和补触发策略。</li>
+        <li>记忆：跨运行笔记落 MySQL；指令设长度上限；先不做 dreaming。</li>
+        <li>权限：执行身份沿用触发人 SSO/Provider；Agent 凭证负责归属动作；评审闸门先行，高风险分类器后补。</li>
+        <li>出口：先写时间线 activity 和 WeCom 发送状态；补“无需回复”判定和投递去重，再做消息量 eval。</li>
+        <li>观测：Queue 积压、Run 时长、下游失败率、评审等待、重复投递。</li>
       </ul>
     </section>
 
@@ -402,9 +438,10 @@
       <p class="source-label">原文与边界</p>
       <h2>参考来源</h2>
       <p><a href="https://claude.com/resources/articles/building-always-on-agents">Anthropic · Building always-on agents</a> · 作者 William Hu · 2026 年 11 月 13 日</p>
+      <p><a href="https://lemon-pages.lemonsun224.workers.dev/reports/rook-superagent-plan-v2/">Rook SuperAgent 方案 v2</a> · Phase 0–3、Session Queue、Durable Inbox、执行身份与待决定项</p>
       <p><a href="https://lemon-pages.lemonsun224.workers.dev/reports/rook-tabs-design-v2/">Rook 工作台设计 v0.4</a> · 会话、Kanban、任务页、自动化四视图</p>
       <p>原文致谢：Rodrigo Olivares、Michael Segner。</p>
-      <p class="fineprint">本文为独立二次整理：抽取原文思想、事实与数据，并与 Rook 设计草案做映射；不是译文，不是原文全文，也不代表 Anthropic 或 Rook 产品团队的官方立场。原文内容版权归 Anthropic 所有；Rook 相关设计以产品词汇表和实现为准。</p>
+      <p class="fineprint">本文为独立二次整理：抽取原文思想、事实与数据，并与 Rook SuperAgent 方案 v2 做映射；不是译文，不是原文全文，也不代表 Anthropic 或 Rook 产品团队的官方立场。原文内容版权归 Anthropic 所有；Rook 相关设计以 v2 方案和产品词汇表为准。</p>
     </aside>
   </main>
 
