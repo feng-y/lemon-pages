@@ -169,6 +169,23 @@
           "updated_at": "2026-11-25T14:14:17.960529Z"
         }
       ]
+    },
+    {
+      "category": "设计原型",
+      "description": "",
+      "id": "rook-kanban-lanes",
+      "project": "Rook",
+      "title": "Rook 看板全高泳道",
+      "versions": [
+        {
+          "digest": "5e7d2ae6cce4f439c29dcd0569eadc13172c8fac89caa6818328e470a3993823",
+          "label": "v1",
+          "path": "reports/rook-kanban-lanes",
+          "published_at": "2026-11-25T15:31:22.008330Z",
+          "summary": "复刻 Multica 看板泳道：全高列、列内滚动、80% 宽度；含 2K 与 MBP 14 寸实测",
+          "updated_at": "2026-11-25T15:31:22.008330Z"
+        }
+      ]
     }
   ]
 }
