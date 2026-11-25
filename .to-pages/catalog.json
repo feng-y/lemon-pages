@@ -109,6 +109,14 @@
           "published_at": "2026-11-25T13:55:30.539644Z",
           "summary": "首版草案：与 dsh-superagent-prototype 对照、三阶段、待决定项",
           "updated_at": "2026-11-25T13:55:30.539644Z"
+        },
+        {
+          "digest": "630c0c903d57ba7107a47ba6b93a0e3444c0eabdfa699c78464239cf21e21a56",
+          "label": "v2",
+          "path": "reports/rook-superagent-plan-v2",
+          "published_at": "2026-11-25T14:19:18.508774Z",
+          "summary": "v2：加入常驻 Agent 五原语对照与两张图、阶段 0 智能体定义、6 项待决定",
+          "updated_at": "2026-11-25T14:19:18.508774Z"
         }
       ]
     },
