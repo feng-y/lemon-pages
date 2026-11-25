@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>构建常驻 Agent · Building always-on agents</title>
+<meta name="description" content="Anthropic《Building always-on agents》中文摘要：事件收件箱、定时器、记忆、权限、发件箱五个原语，以及它们如何组成一个持续运行的 Agent。">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f1e8;
+    --surface: #fffdf7;
+    --ink: #24211c;
+    --muted: #6d665b;
+    --line: #ddd4c4;
+    --accent: #b04e2d;
+    --accent-ink: #8f3d21;
+    --accent-soft: #f2e4da;
+    --code: #efe9dd;
+    --shadow: 0 1px 2px rgba(60, 45, 30, .04), 0 10px 30px rgba(60, 45, 30, .05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513;
+      --surface: #1f1d19;
+      --ink: #ece7dd;
+      --muted: #a9a195;
+      --line: #37322a;
+      --accent: #e4936c;
+      --accent-ink: #f0a986;
+      --accent-soft: #2e231d;
+      --code: #28241e;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 12px 32px rgba(0, 0, 0, .22);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 17px;
+    line-height: 1.85;
+    text-rendering: optimizeLegibility;
+  }
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { color: var(--accent); }
+
+  .wrap { width: min(100% - 40px, 780px); margin: 0 auto; }
+  header.hero { padding: clamp(48px, 9vw, 92px) 0 36px; }
+  .kicker {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+    margin: 0 0 22px; color: var(--accent-ink);
+    font-size: .78rem; font-weight: 650; letter-spacing: .09em; text-transform: uppercase;
+  }
+  .kicker::before { content: ""; width: 26px; height: 2px; background: var(--accent); }
+  h1, h2, h3 { font-family: "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif CJK SC", Georgia, serif; font-weight: 600; }
+  h1 { margin: 0 0 20px; font-size: clamp(2.15rem, 6vw, 3.4rem); line-height: 1.16; letter-spacing: -.02em; }
+  .dek { margin: 0 0 28px; max-width: 40em; color: var(--muted); font-size: clamp(1.02rem, 2.4vw, 1.2rem); line-height: 1.75; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 18px 0 0; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+  .meta span { display: inline-flex; align-items: center; gap: 8px; }
+  .meta span + span::before { content: ""; width: 3px; height: 3px; border-radius: 50%; background: var(--muted); opacity: .6; }
+
+  main { padding-bottom: 20px; }
+  section { margin: 0 0 44px; }
+  h2 { margin: 0 0 18px; font-size: clamp(1.38rem, 3.4vw, 1.72rem); line-height: 1.35; letter-spacing: -.01em; }
+  h3 { margin: 30px 0 10px; font-size: 1.08rem; line-height: 1.5; }
+  p { margin: 0 0 16px; }
+  strong { font-weight: 650; }
+
+  .lead { font-size: 1.06rem; }
+  .lead p:first-child::first-letter { float: left; margin: .12em .12em 0 0; color: var(--accent); font-family: "Iowan Old Style", "Songti SC", Georgia, serif; font-size: 3.15em; line-height: .82; font-weight: 600; }
+
+  .stat {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px;
+    margin: 24px 0 8px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px;
+    background: var(--line); box-shadow: var(--shadow);
+  }
+  .stat div { padding: 20px 22px; background: var(--surface); }
+  .stat strong { display: block; color: var(--accent-ink); font-family: "Iowan Old Style", Georgia, serif; font-size: clamp(1.7rem, 4vw, 2.2rem); line-height: 1.1; }
+  .stat span { display: block; margin-top: 6px; color: var(--muted); font-size: .88rem; line-height: 1.55; }
+
+  .loop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 20px 0 10px; }
+  .loop-step {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 13px 8px 9px; border: 1px solid var(--line); border-radius: 999px;
+    background: var(--surface); font-size: .88rem; white-space: nowrap;
+  }
+  .loop-n { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-size: .72rem; font-weight: 700; }
+  .loop-arrow { color: var(--accent); font-size: .95rem; }
+  .loop-note { margin-top: 12px; color: var(--muted); font-size: .9rem; }
+
+  .toc { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 22px 0 6px; }
+  .toc a {
+    display: block; padding: 10px 8px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface); color: var(--ink); text-align: center; text-decoration: none;
+    font-size: .76rem; line-height: 1.4;
+  }
+  .toc a:hover { border-color: var(--accent); color: var(--accent-ink); }
+  .toc b { display: block; margin-bottom: 2px; color: var(--accent-ink); font-size: .68rem; letter-spacing: .08em; }
+
+  .primitive { margin: 0 0 20px; padding: 26px clamp(20px, 4vw, 30px); border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+  .primitive h2 { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; font-size: clamp(1.3rem, 3vw, 1.55rem); }
+  .num { color: var(--accent); font-family: "SFMono-Regular", Consolas, monospace; font-size: .72em; letter-spacing: .08em; }
+  .primitive h3 { color: var(--ink); }
+  .primitive ul, .primitive ol { margin: 0 0 16px; padding-left: 1.25em; }
+  .primitive li { margin: 0 0 8px; padding-left: .15em; }
+  .primitive li::marker { color: var(--accent); }
+
+  .compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0 18px; }
+  .compare div { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--code); }
+  .compare h4 { margin: 0 0 4px; font-size: .82rem; letter-spacing: .06em; color: var(--muted); }
+  .compare p { margin: 0; font-size: .9rem; line-height: 1.6; }
+
+  .callout { margin: 18px 0; padding: 16px 18px; border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; background: var(--accent-soft); }
+  .callout p { margin: 0; }
+  .callout p + p { margin-top: 8px; }
+
+  blockquote { margin: 22px 0; padding: 4px 0 4px 20px; border-left: 2px solid var(--line); color: var(--muted); font-family: "Iowan Old Style", "Songti SC", Georgia, serif; font-size: 1.06rem; }
+  blockquote p { margin: 0; }
+
+  code { padding: .12em .38em; border-radius: 5px; background: var(--code); font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .86em; }
+  pre { margin: 14px 0 18px; padding: 14px 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--code); font-size: .84rem; line-height: 1.65; }
+  pre code { padding: 0; background: none; }
+
+  .checklist { padding: 22px clamp(20px, 4vw, 28px); border: 1px dashed var(--line); border-radius: 16px; background: var(--surface); }
+  .checklist ul { margin: 0; padding: 0; list-style: none; }
+  .checklist li { position: relative; margin: 0 0 10px; padding-left: 28px; }
+  .checklist li::before { content: ""; position: absolute; left: 0; top: .58em; width: 13px; height: 13px; border: 1.5px solid var(--accent); border-radius: 3px; }
+
+  .source { margin: 52px 0 0; padding: 26px clamp(20px, 4vw, 30px); border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+  .source-label { margin: 0 0 6px; color: var(--accent-ink); font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  .source h2 { margin: 0 0 8px; font-size: 1.3rem; }
+  .source p { margin: 0 0 8px; color: var(--muted); font-size: .9rem; line-height: 1.65; }
+  .source .fineprint { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); font-size: .82rem; }
+
+  footer { padding: 34px 0 56px; color: var(--muted); font-size: .82rem; }
+  footer p { margin: 0; }
+
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { width: min(100% - 32px, 780px); }
+    .stat, .compare { grid-template-columns: 1fr; }
+    .toc { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .loop-arrow { display: none; }
+    .loop-step { flex: 1 1 auto; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="hero">
+    <p class="kicker">Anthropic · Best practices · 中文整理</p>
+    <h1>构建常驻 Agent</h1>
+    <p class="dek">用事件收件箱、定时器、记忆、权限和发件箱，把一次性的 Agent 变成持续在线、能自己醒来的系统。</p>
+    <p class="meta">
+      <span>原文 <a href="https://claude.com/resources/articles/building-always-on-agents">Building always-on agents</a></span>
+      <span>作者 William Hu</span>
+      <span>2026-11-13</span>
+      <span>原文约 14 分钟</span>
+    </p>
+  </header>
+
+  <main>
+    <section class="lead">
+      <p>常驻 Agent（always-on agents）最近又流行起来。它们跨会话保留状态，并且能在没人逐步指挥的情况下行动。底层仍然是与其他 Agent 相同的推理循环，真正不同的是外围架构：<strong>什么时候醒来、两次运行之间保留什么、结果怎样送到用户手里</strong>。</p>
+      <p>这件事现在更可行，有两个原因。第一，模型判断更好：更能读懂用户意图，也更知道什么时候该回来确认。第二，成本更低，长周期任务受益尤其明显。文章给出的数字是：Opus 5.5 在长周期编程任务上，每个已解决任务的成本比 Opus 5 低 78%；在典型工作负载上，成本低 40%。</p>
+      <div class="stat">
+        <div><strong>78%</strong><span>长周期编程任务中，每个已解决任务的成本较 Opus 5 降低</span></div>
+        <div><strong>40%</strong><span>典型工作负载的成本降低</span></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>“常驻”描述的是体验，不是运行方式</h2>
+      <p>大多数时间，Agent 在睡觉。一个事件到达，它醒来启动一次运行（run），完成任务，把发生的事情记录下来，然后继续睡。运行之间可能有很长的空闲，期间不消耗 token。</p>
+      <div class="loop" role="list" aria-label="一次运行的循环">
+        <div class="loop-step" role="listitem"><span class="loop-n">1</span>事件到达</div>
+        <div class="loop-arrow" aria-hidden="true">→</div>
+        <div class="loop-step" role="listitem"><span class="loop-n">2</span>启动会话</div>
+        <div class="loop-arrow" aria-hidden="true">→</div>
+        <div class="loop-step" role="listitem"><span class="loop-n">3</span>Agent 执行</div>
+        <div class="loop-arrow" aria-hidden="true">→</div>
+        <div class="loop-step" role="listitem"><span class="loop-n">4</span>写回记忆</div>
+        <div class="loop-arrow" aria-hidden="true">→</div>
+        <div class="loop-step" role="listitem"><span class="loop-n">5</span>休眠等待</div>
+      </div>
+      <p class="loop-note">定时器到期或用户回复，都会变成下一次运行的事件，循环继续。</p>
+      <p>围绕这个循环，文章拆出五个基础原语：<strong>事件收件箱、定时器、记忆、权限、发件箱</strong>。前两个决定何时醒来，中间两个决定保留什么、能做什么，最后一个决定结果如何送达。</p>
+      <nav class="toc" aria-label="五个原语">
+        <a href="#inbox"><b>01</b>事件收件箱</a>
+        <a href="#timers"><b>02</b>定时器</a>
+        <a href="#memory"><b>03</b>记忆</a>
+        <a href="#permissions"><b>04</b>权限</a>
+        <a href="#outbox"><b>05</b>发件箱</a>
+      </nav>
+    </section>
+
+    <section class="primitive" id="inbox">
+      <h2><span class="num">01</span>事件收件箱</h2>
+      <p>普通 Agent 只对用户消息作出反应。常驻 Agent 还会被 webhook、定时任务和后台任务触发。如果让这些来源直接调用 Agent，两个同时到达的事件可能启动两个互相竞争的运行，进程崩溃还可能直接丢掉事件。</p>
+      <p>解法是加一个收件箱：所有来源先把事件写进去，再由 worker 从里面取。它由三部分组成——持久化的事件列表（通常是一张关系库表）、往列表里写事件的处理程序（通常是一个 HTTP 端点）、从列表里读事件的 worker（通常是一个后台服务）。每个事件带状态字段，用来源提供的标识去重；起步阶段建议每个用户一个收件箱，需要更多并行时再拆。</p>
+      <p>具体流程是：handler 写入事件并唤醒 worker；worker 读取待处理事件，启动一次运行；如果这是此前工作的延续（比如用户回复），就续接已有会话，否则新建会话；worker 等待运行结束，再把事件标记为完成。</p>
+      <h3>实践要点</h3>
+      <ul>
+        <li><strong>快速响应 handler。</strong>webhook 提供方会把慢响应当成失败。handler 可以做轻量检查，但耗时的检查（例如提示注入筛查）应该放进运行里。</li>
+        <li><strong>以收件箱为准。</strong>worker 醒来时应重新读取最新事件，这样替换后的 worker 才能重试被中断的运行。</li>
+        <li><strong>每个收件箱只允许一个活跃 worker。</strong>避免重复工作和互相覆盖。运行中又来了事件，有三种处理方式：推到下一轮、合并进当前运行、打断并重新开始。</li>
+        <li><strong>把事件批量合并。</strong>用户连着发几条消息时，可以合成一次运行，只回复一次。</li>
+      </ul>
+    </section>
+
+    <section class="primitive" id="timers">
+      <h2><span class="num">02</span>定时器</h2>
+      <p>定时器和收件箱一起，让 Agent 具备主动性。定时器分两类：<strong>follow-up</strong> 是 Agent 给自己设的截止时间，比如过一会儿回来检查某个回复；<strong>schedule</strong> 是按固定节奏重复的任务，比如每天生成一份简报。</p>
+      <p>定时器有自己独立的持久表，与收件箱分开；收件箱里只应该放“现在就该做”的工作。两类定时器可以共用一套结构，但 schedule 还要记录重复规则。</p>
+      <p>定时器本身不会启动运行。一个 scheduler（通常也是后台服务）按固定间隔轮询这张表，每一轮做三件事：找出到期项；按类型更新（follow-up 标记完成，schedule 推到下一次）；写入一条收件箱事件并唤醒 worker。</p>
+      <div class="callout"><p>scheduler 可以自己写，也可以交给持久化执行引擎。关键分工不变：定时器存储负责“以后”，收件箱负责“现在”。</p></div>
+    </section>
+
+    <section class="primitive" id="memory">
+      <h2><span class="num">03</span>记忆</h2>
+      <p>记忆负责让不同的运行之间保持连续，因此需要独立存储。Anthropic 自己的做法（Claude Code 的 auto memory、Messages API 的 memory tool）是用一个文件目录；对常驻 Agent 来说，这些目录应该放在数据库或对象存储这类持久存储里，这样 worker 重启后记忆还在。</p>
+      <p>一条实用原则：<strong>只保留无法重新取回的东西。</strong>数据本来就在别处（比如 issue tracker）时，存一个指针就够了。</p>
+      <h3>四类记忆</h3>
+      <ul>
+        <li><strong>用户指令。</strong>放在单独文件里，每次运行开头加载。用户不一定总在场，指令必须在。</li>
+        <li><strong>用户笔记。</strong>关于用户的事实：角色、偏好、纠正。可以先从一个文件开始，内容多了再拆分；拆开后每次只加载索引，按需读取具体文件。</li>
+        <li><strong>过往消息。</strong>Agent 已经告诉过用户什么，避免重复。可以存一个每次运行都加载的文件，也可以由 worker 加载最近几条消息。</li>
+        <li><strong>任务进度。</strong>每个进行中的任务一个文件，写清已完成和剩余的工作，让下一次运行能接着做。和笔记一样，先加载索引，需要时再取详情。</li>
+      </ul>
+      <p>示例布局是：<code>instructions.md</code>、<code>index.md</code>、<code>reported.md</code> 每次运行都加载；<code>notes/</code> 和 <code>progress/</code> 按需加载；运行过程中，Agent 把新信息写回记忆。</p>
+      <h3>整理与上下文</h3>
+      <p>可选的 “dreaming” 过程会回看过去的会话，整理记忆：替换过期条目，发现只有跨多次运行才会浮现的模式。</p>
+      <p>上下文开销要特别注意。每次运行开始都要加载系统提示、工具定义和记忆文件，这份固定成本每轮都会重复，所以要让它保持精简，并用 prompt caching 降低成本。新会话只包含这份开销加上触发它的事件；续接的会话还会恢复之前的消息和工具调用。会话太长时，可以压缩旧消息或直接开新会话，但两种办法都会丢细节——重要信息要在工作过程中就写进记忆，不能等到最后。</p>
+    </section>
+
+    <section class="primitive" id="permissions">
+      <h2><span class="num">04</span>权限</h2>
+      <p>这是风险最高的部分：一次运行持有用户的访问权限，又预期在无人监督下工作。每个工具调用，Agent 都有三种选择：执行、阻止，或者等待批准。</p>
+      <h3>三套机制</h3>
+      <ul>
+        <li><strong>凭证存储。</strong>Agent 经常需要密码或 token。推荐把凭证放在 Agent 之外的代理里，由代理把凭证注入出站请求，Agent 本身从不持有凭证。</li>
+        <li><strong>自动模式。</strong>让 Agent 不必每一步都等人。在 Claude Code 中，分类器会审查风险较高的动作，阻止危险操作，并让 Claude 寻找更安全的路径；最重要的决定仍然需要用户确认。</li>
+        <li><strong>延迟工具调用。</strong>Claude Code 的 hook 可以挂起一次调用，直到用户提供更多输入。放到常驻 Agent 里，流程是：运行结束，会话在调用中途被保存；请求送达用户，例如用 MCP Apps 构建的交互卡片；用户的回答作为收件箱事件返回，启动新的运行并恢复之前保存的会话。等待期间，worker 可以继续处理其他事件，Agent 不会卡死。</li>
+      </ul>
+      <blockquote><p>无人值守不等于无人把关。把“现在必须问”设计成一次可以暂停、保存、再恢复的调用，而不是让 Agent 猜。</p></blockquote>
+    </section>
+
+    <section class="primitive" id="outbox">
+      <h2><span class="num">05</span>发件箱</h2>
+      <p>普通 Agent 会边生成边把内容流式推给用户；常驻 Agent 大多在后台工作，用户看到的应该是结果和少量关键细节，而不是每一步。</p>
+      <p>一次运行有三种结束方式：向发件箱发一条消息；判断没有需要发送的内容；发起一次延迟调用，请求输入或批准。</p>
+      <p>多数 Agent 一个简单的 send 工具就够了。只有当需要控制消息节奏或从错误中恢复时，才需要正式的发件箱。它和收件箱一样是一张表；dispatcher（通常也是后台服务）读取待发消息，决定发什么，再投递给用户。</p>
+      <h3>消息量要用 eval 调</h3>
+      <p>发太多是噪音，发太少会漏掉重要事项。文章的建议是用 eval 找到平衡，并且从安静开始：</p>
+      <blockquote><p>让 Agent 先保持安静，再逐步赢得用户的注意力。</p></blockquote>
+    </section>
+
+    <section>
+      <h2>五个部分怎样串起来</h2>
+      <p>每次运行都始于收件箱里的一条事件，来源可能是用户消息、webhook 或定时器。worker 新建或续接一个会话；Agent 读取记忆作为基线，在权限范围内行动，并保存学到的东西；运行把输出写进发件箱，dispatcher 完成投递。</p>
+      <p>这五个部分构成一个闭环：一次运行可以设置定时器，在未来唤醒自己；用户的回复又会从收件箱进入，成为下一次运行。单次运行很短，但循环没有终点——这就是“常驻”的感觉来源。</p>
+      <div class="callout">
+        <p><strong>一句话概括：</strong>收件箱解决“何时开始”，定时器解决“以后再来”，记忆解决“上次做到哪”，权限解决“能做什么”，发件箱解决“怎么让用户知道”。</p>
+      </div>
+    </section>
+
+    <section class="checklist">
+      <h2>落地检查清单</h2>
+      <ul>
+        <li>先建收件箱表，把所有“直接调用 Agent”改成“写一条事件”。</li>
+        <li>每个用户一个收件箱、一个活跃 worker；明确运行中事件是推迟、合并还是打断。</li>
+        <li>handler 只做鉴权和快速入队，重检查放进运行。</li>
+        <li>定时器单独存储，scheduler 只负责把到期项转成事件。</li>
+        <li>记忆只存无法重新取回的信息；每次加载索引，详情按需读取。</li>
+        <li>凭证放在代理里，Agent 不持有；高风险动作走分类器或延迟调用。</li>
+        <li>输出从“流式每一步”改成“结果加少量细节”，用 eval 调消息量。</li>
+      </ul>
+    </section>
+
+    <aside class="source">
+      <p class="source-label">原文信息</p>
+      <h2>Building always-on agents</h2>
+      <p>Anthropic · Best practices · 作者 William Hu · 2026 年 11 月 13 日 · 约 14 分钟阅读</p>
+      <p><a href="https://claude.com/resources/articles/building-always-on-agents">claude.com/resources/articles/building-always-on-agents</a></p>
+      <p>致谢：Rodrigo Olivares、Michael Segner。</p>
+      <p class="fineprint">本文是面向中文读者的摘要与整理，不是原文全文，也不是官方译文。观点、数据与原文措辞归原作者及 Anthropic 所有；完整内容请阅读原文。</p>
+    </aside>
+  </main>
+
+  <footer>
+    <p>整理于 2026-11-25 · 仅作阅读参考</p>
+  </footer>
+</div>
+
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>
