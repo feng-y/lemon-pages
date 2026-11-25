@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 810" width="100%" role="img">
 <style>
 text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
-.t { fill: #24211c; font-size: 13px; font-weight: 600; }
-.s { fill: #6d665b; font-size: 10.5px; }
-.lbl { fill: #8f3d21; font-size: 10px; }
-.note { fill: #6d665b; font-size: 10.5px; }
-.band-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.t { fill: #24211c; font-size: 14px; font-weight: 600; }
+.s { fill: #6d665b; font-size: 11.5px; }
+.lbl { fill: #8f3d21; font-size: 11.5px; }
+.note { fill: #6d665b; font-size: 11.5px; }
+.band-label { font-size: 12px; font-weight: 700; letter-spacing: .08em; }
 .box { fill: #fffdf7; stroke: #d8cfbf; stroke-width: 1; }
 .box-accent { fill: #f7ece4; stroke: #c98b6f; stroke-width: 1; }
 .box-ghost { fill: #f6f1e8; stroke: #c9bfae; stroke-width: 1; stroke-dasharray: 5 4; }
@@ -79,105 +79,105 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 <text x="58" y="662" class="band-label c-exit">出口层</text>
 <rect x="60" y="70" width="220" height="56" rx="10" class="box"/>
 <rect x="60" y="78" width="4" height="40" rx="2" class="bar-entry"/>
-<text x="76" y="94" class="t" font-size="13">事件源</text>
-<text x="76" y="112" class="s">Kanban 评论 · 会话 · 自动化</text>
+<text x="76" y="94" class="t" font-size="14">事件源</text>
+<text x="76" y="112" class="s">评论 · 会话 · 自动化</text>
 <rect x="310" y="70" width="180" height="56" rx="10" class="box"/>
 <rect x="310" y="78" width="4" height="40" rx="2" class="bar-entry"/>
-<text x="326" y="94" class="t" font-size="13">Trigger + Gate</text>
-<text x="326" y="112" class="s">触发词 · 角色 · 工作区权限</text>
+<text x="326" y="94" class="t" font-size="14">Trigger + Gate</text>
+<text x="326" y="112" class="s">触发人 · 角色 · 权限</text>
 <rect x="520" y="70" width="190" height="56" rx="10" class="box"/>
 <rect x="520" y="78" width="4" height="40" rx="2" class="bar-entry"/>
-<text x="536" y="94" class="t" font-size="13">Durable Inbox</text>
+<text x="536" y="94" class="t" font-size="14">Durable Inbox</text>
 <text x="536" y="112" class="s">事件表 · 状态 · 去重</text>
 <rect x="740" y="70" width="200" height="56" rx="10" class="box"/>
 <rect x="740" y="78" width="4" height="40" rx="2" class="bar-entry"/>
-<text x="756" y="94" class="t" font-size="13">Worker</text>
+<text x="756" y="94" class="t" font-size="14">Worker</text>
 <text x="756" y="112" class="s">单活跃消费者 · 重试</text>
 <line x1="280" y1="98" x2="310" y2="98" class="arrow" marker-end="url(#head)"/>
-<rect x="280.0" y="77.0" width="30.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="295" y="88" class="lbl" text-anchor="middle" font-size="10">触发</text>
+<rect x="278.5" y="75.5" width="33.0" height="18.5" rx="3" class="lbl-bg"/>
+<text x="295" y="88.0" class="lbl" text-anchor="middle" font-size="11.5">触发</text>
 <line x1="490" y1="98" x2="520" y2="98" class="arrow" marker-end="url(#head)"/>
-<rect x="490.0" y="77.0" width="30.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="505" y="88" class="lbl" text-anchor="middle" font-size="10">入队</text>
+<rect x="488.5" y="75.5" width="33.0" height="18.5" rx="3" class="lbl-bg"/>
+<text x="505" y="88.0" class="lbl" text-anchor="middle" font-size="11.5">入队</text>
 <line x1="710" y1="98" x2="740" y2="98" class="arrow" marker-end="url(#head)"/>
-<rect x="710.0" y="77.0" width="30.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="725" y="88" class="lbl" text-anchor="middle" font-size="10">领取</text>
+<rect x="708.5" y="75.5" width="33.0" height="18.5" rx="3" class="lbl-bg"/>
+<text x="725" y="88.0" class="lbl" text-anchor="middle" font-size="11.5">领取</text>
 <rect x="520" y="240" width="190" height="50" rx="10" class="box"/>
 <rect x="520" y="248" width="4" height="34" rx="2" class="bar-time"/>
 <text x="536" y="264" class="t" font-size="12">Automation + Scheduler</text>
 <text x="536" y="282" class="s">时间/事件触发 · follow-up</text>
 <line x1="615" y1="240" x2="615" y2="126" class="arrow-muted dashed" marker-end="url(#head)"/>
-<rect x="620.0" y="177.0" width="55.6" height="17.0" rx="3" class="lbl-bg"/>
-<text x="625" y="188" class="lbl" text-anchor="start" font-size="10">到期/触发</text>
+<rect x="620.0" y="175.5" width="62.4" height="18.5" rx="3" class="lbl-bg"/>
+<text x="625" y="188.0" class="lbl" text-anchor="start" font-size="11.5">到期/触发</text>
 <text x="60" y="258" class="note" text-anchor="start">自动化 = 可重复的会话；</text>
 <text x="60" y="276" class="note" text-anchor="start">每次运行都产生会话、结果和用量。</text>
 <rect x="60" y="350" width="220" height="56" rx="10" class="box"/>
 <rect x="60" y="358" width="4" height="40" rx="2" class="bar-state"/>
-<text x="76" y="374" class="t" font-size="13">Kanban Task</text>
+<text x="76" y="374" class="t" font-size="14">Kanban Task</text>
 <text x="76" y="392" class="s">状态 · 审核中 · 关联 MR</text>
 <rect x="310" y="350" width="260" height="56" rx="10" class="box"/>
 <rect x="310" y="358" width="4" height="40" rx="2" class="bar-state"/>
-<text x="326" y="374" class="t" font-size="13">Rook Session / Task</text>
+<text x="326" y="374" class="t" font-size="14">Rook Session / Task</text>
 <text x="326" y="392" class="s">Task ↔ Session · assignee=Rook</text>
 <rect x="600" y="350" width="340" height="56" rx="10" class="box"/>
 <rect x="600" y="358" width="4" height="40" rx="2" class="bar-state"/>
-<text x="616" y="374" class="t" font-size="13">Memory</text>
+<text x="616" y="374" class="t" font-size="14">Memory</text>
 <text x="616" y="392" class="s">计划 · 进度 · 证据 · 已回复</text>
 <line x1="280" y1="378" x2="310" y2="378" class="arrow" marker-end="url(#head)" marker-start="url(#head)"/>
-<rect x="280.0" y="357.0" width="30.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="295" y="368" class="lbl" text-anchor="middle" font-size="10">绑定</text>
+<rect x="278.5" y="355.5" width="33.0" height="18.5" rx="3" class="lbl-bg"/>
+<text x="295" y="368.0" class="lbl" text-anchor="middle" font-size="11.5">绑定</text>
 <line x1="570" y1="378" x2="600" y2="378" class="arrow" marker-end="url(#head)" marker-start="url(#head)"/>
-<rect x="570.0" y="357.0" width="30.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="585" y="368" class="lbl" text-anchor="middle" font-size="10">读写</text>
+<rect x="568.5" y="355.5" width="33.0" height="18.5" rx="3" class="lbl-bg"/>
+<text x="585" y="368.0" class="lbl" text-anchor="middle" font-size="11.5">读写</text>
 <polyline points="840,126 840,305 440,305 440,350" class="arrow" marker-end="url(#head)"/>
-<rect x="612.2" y="287.0" width="75.6" height="17.0" rx="3" class="lbl-bg"/>
-<text x="650" y="298" class="lbl" text-anchor="middle" font-size="10">启动/恢复会话</text>
+<rect x="445.0" y="324.5" width="85.4" height="18.5" rx="3" class="lbl-bg"/>
+<text x="450" y="337.0" class="lbl" text-anchor="start" font-size="11.5">启动/恢复会话</text>
 <polyline points="570,390 590,390 590,300 615,300 615,290" class="arrow-muted dashed" marker-end="url(#head)"/>
-<rect x="591.0" y="329.0" width="60.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="596" y="340" class="lbl" text-anchor="start" font-size="10">设为自动化</text>
+<rect x="591.0" y="327.5" width="67.5" height="18.5" rx="3" class="lbl-bg"/>
+<text x="596" y="340.0" class="lbl" text-anchor="start" font-size="11.5">设为自动化</text>
 <rect x="60" y="510" width="220" height="56" rx="10" class="box"/>
 <rect x="60" y="518" width="4" height="40" rx="2" class="bar-sec"/>
-<text x="76" y="534" class="t" font-size="13">权限</text>
+<text x="76" y="534" class="t" font-size="14">权限</text>
 <text x="76" y="552" class="s">工作区角色 · Agent 凭证</text>
 <rect x="310" y="510" width="260" height="56" rx="10" class="box"/>
 <rect x="310" y="518" width="4" height="40" rx="2" class="bar-exec"/>
-<text x="326" y="534" class="t" font-size="13">Rook Planner</text>
+<text x="326" y="534" class="t" font-size="14">Rook Planner</text>
 <text x="326" y="552" class="s">计划 → 确认 → 分派</text>
 <rect x="600" y="510" width="340" height="56" rx="10" class="box"/>
 <rect x="600" y="518" width="4" height="40" rx="2" class="bar-exec"/>
-<text x="616" y="534" class="t" font-size="13">下游 Agent</text>
+<text x="616" y="534" class="t" font-size="14">下游 Agent</text>
 <text x="616" y="552" class="s">Pi / Claude Code / Codex · 仓库/MR/CI</text>
 <line x1="280" y1="538" x2="310" y2="538" class="arrow" marker-end="url(#head)" marker-start="url(#head)"/>
-<rect x="280.0" y="517.0" width="30.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="295" y="528" class="lbl" text-anchor="middle" font-size="10">授权</text>
+<rect x="278.5" y="515.5" width="33.0" height="18.5" rx="3" class="lbl-bg"/>
+<text x="295" y="528.0" class="lbl" text-anchor="middle" font-size="11.5">授权</text>
 <line x1="570" y1="538" x2="600" y2="538" class="arrow" marker-end="url(#head-strong)"/>
-<rect x="570.0" y="517.0" width="30.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="585" y="528" class="lbl" text-anchor="middle" font-size="10">分派</text>
+<rect x="568.5" y="515.5" width="33.0" height="18.5" rx="3" class="lbl-bg"/>
+<text x="585" y="528.0" class="lbl" text-anchor="middle" font-size="11.5">分派</text>
 <line x1="440" y1="406" x2="440" y2="510" class="arrow" marker-end="url(#head)"/>
-<rect x="445.0" y="451.0" width="30.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="450" y="462" class="lbl" text-anchor="start" font-size="10">计划</text>
+<rect x="445.0" y="449.5" width="33.0" height="18.5" rx="3" class="lbl-bg"/>
+<text x="450" y="462.0" class="lbl" text-anchor="start" font-size="11.5">计划</text>
 <rect x="60" y="670" width="260" height="56" rx="10" class="box"/>
 <rect x="60" y="678" width="4" height="40" rx="2" class="bar-exit"/>
-<text x="76" y="694" class="t" font-size="13">Review Gate · 审核中</text>
+<text x="76" y="694" class="t" font-size="14">Review Gate · 审核中</text>
 <text x="76" y="712" class="s">退回 / 通过并完成</text>
 <rect x="360" y="670" width="220" height="56" rx="10" class="box"/>
 <rect x="360" y="678" width="4" height="40" rx="2" class="bar-exit"/>
-<text x="376" y="694" class="t" font-size="13">Task 时间线 / MR</text>
+<text x="376" y="694" class="t" font-size="14">Task 时间线 / MR</text>
 <text x="376" y="712" class="s">证据 · 用量 · 运行记录</text>
 <rect x="620" y="670" width="320" height="56" rx="10" class="box"/>
 <rect x="620" y="678" width="4" height="40" rx="2" class="bar-exit"/>
-<text x="636" y="694" class="t" font-size="13">通知 / 收件箱</text>
+<text x="636" y="694" class="t" font-size="14">通知 / 收件箱</text>
 <text x="636" y="712" class="s">评论 · 自动化结果 · 频道</text>
 <line x1="320" y1="698" x2="360" y2="698" class="arrow" marker-end="url(#head)"/>
-<rect x="325.0" y="677.0" width="30.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="340" y="688" class="lbl" text-anchor="middle" font-size="10">通过</text>
+<rect x="323.5" y="675.5" width="33.0" height="18.5" rx="3" class="lbl-bg"/>
+<text x="340" y="688.0" class="lbl" text-anchor="middle" font-size="11.5">通过</text>
 <line x1="580" y1="698" x2="620" y2="698" class="arrow" marker-end="url(#head)"/>
-<rect x="585.0" y="677.0" width="30.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="600" y="688" class="lbl" text-anchor="middle" font-size="10">投递</text>
+<rect x="583.5" y="675.5" width="33.0" height="18.5" rx="3" class="lbl-bg"/>
+<text x="600" y="688.0" class="lbl" text-anchor="middle" font-size="11.5">投递</text>
 <polyline points="770,566 770,630 190,630 190,670" class="arrow" marker-end="url(#head)"/>
-<rect x="391.0" y="613.0" width="58.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="420" y="624" class="lbl" text-anchor="middle" font-size="10">MR / 证据</text>
+<rect x="387.4" y="611.5" width="65.2" height="18.5" rx="3" class="lbl-bg"/>
+<text x="420" y="624.0" class="lbl" text-anchor="middle" font-size="11.5">MR / 证据</text>
 <polyline points="60,698 20,698 20,98 60,98" class="arrow-muted dashed" marker-end="url(#head)"/>
-<text x="14" y="400" class="note" text-anchor="middle" font-size="10" transform="rotate(-90 14 400)">退回 / @Rook → 新事件</text>
+<text x="14" y="400" class="note" text-anchor="middle" font-size="11" transform="rotate(-90 14 400)">退回 / @Rook → 新事件</text>
 </g>
 </svg>

@@ -128,12 +128,12 @@
       "title": "Rook：Kanban 里的常驻 Agent",
       "versions": [
         {
-          "digest": "0eebbfd86c580ec359f7713abc8ab6fe98c0f9bb4f0fe003274b047c78e6d1c7",
+          "digest": "5364cc074e50abbb278443d1141192865550f33ef90b8194219bf17aa108e143",
           "label": "v1",
           "path": "reports/building-always-on-agents",
           "published_at": "2026-11-25T14:10:13.365022Z",
           "summary": "Rook 常驻智能体设计参考：Kanban 事件入口、下游 Agent 分派、记忆、权限与评审闸门；含三张原创架构图",
-          "updated_at": "2026-11-25T14:31:33.550409Z"
+          "updated_at": "2026-11-25T14:36:07.919189Z"
         }
       ]
     },

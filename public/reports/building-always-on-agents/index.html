@@ -122,6 +122,7 @@
   pre code { padding: 0; background: none; }
 
   figure { margin: 26px 0; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+  figure.wide { width: min(1040px, calc(100vw - 40px)); margin-left: 50%; transform: translateX(-50%); }
   .figure-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   figure img { display: block; width: 100%; height: auto; }
   figcaption { margin-top: 10px; padding: 0 4px; color: var(--muted); font-size: .82rem; line-height: 1.65; }
@@ -313,7 +314,7 @@
     <section id="runtime">
       <h2>Rook 的运行时结构</h2>
       <p>把五个构件落到 Rook 上，会得到一条完整的链路：Kanban 事件、会话和自动化从入口进来；Rook 在 Task 与 Session 的绑定里恢复上下文；Planner 做计划，必要时把开发分派给下游 Agent；结果经过评审闸门，回到任务时间线和通知。</p>
-      <figure>
+      <figure class="wide">
         <div class="figure-scroll">
           <img src="assets/rook-architecture.svg" alt="Rook 运行时结构：入口层、时间层、状态层、执行层、出口层，以及 Rook Session、下游 Agent 和 Review Gate 之间的关系。">
         </div>
@@ -333,7 +334,7 @@
     <section>
       <h2>Rook 的三类工作</h2>
       <p>Rook 的入口不止一个，但底下的执行单元是同一套：Session、Task 和审核闸门。区别只在入口，以及是否把开发分派给下游 Agent。</p>
-      <figure>
+      <figure class="wide">
         <div class="figure-scroll">
           <img src="assets/rook-workflows.svg" alt="Rook 的三类工作：处理 Kanban 问题、调起下游 Agent 开发、响应事件。">
         </div>
@@ -352,7 +353,7 @@
     <section>
       <h2>一次 @Rook 运行</h2>
       <p>以 Kanban 评论触发为例。用户在任务评论里 <code>@Rook</code>，要求修复一个问题；这条评论进入 Trigger + Gate，通过触发人和工作区权限检查后写入 Durable Inbox。Worker 领取事件，绑定对应的 Task 会话，启动一次运行。</p>
-      <figure>
+      <figure class="wide">
         <div class="figure-scroll">
           <img src="assets/rook-run.svg" alt="一次 Rook 运行：Kanban 评论触发、Gate 准入、收件箱、Rook 计划确认、分派下游 Agent、权限注入、提交评审和退回。">
         </div>

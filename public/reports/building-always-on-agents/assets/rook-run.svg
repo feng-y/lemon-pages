@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 820" width="100%" role="img">
 <style>
 text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
-.t { fill: #24211c; font-size: 13px; font-weight: 600; }
-.s { fill: #6d665b; font-size: 10.5px; }
-.lbl { fill: #8f3d21; font-size: 10px; }
-.note { fill: #6d665b; font-size: 10.5px; }
-.band-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.t { fill: #24211c; font-size: 14px; font-weight: 600; }
+.s { fill: #6d665b; font-size: 11.5px; }
+.lbl { fill: #8f3d21; font-size: 11.5px; }
+.note { fill: #6d665b; font-size: 11.5px; }
+.band-label { font-size: 12px; font-weight: 700; letter-spacing: .08em; }
 .box { fill: #fffdf7; stroke: #d8cfbf; stroke-width: 1; }
 .box-accent { fill: #f7ece4; stroke: #c98b6f; stroke-width: 1; }
 .box-ghost { fill: #f6f1e8; stroke: #c9bfae; stroke-width: 1; stroke-dasharray: 5 4; }
@@ -62,78 +62,78 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 </marker>
 </defs>
 <g id="fig2">
-<rect x="18" y="40" width="124" height="54" rx="10" class="box"/>
-<text x="34" y="64" class="t" font-size="12">事件源 / 时间线</text>
-<text x="34" y="82" class="s">评论 / 会话 / 自动化</text>
+<rect x="14" y="40" width="132" height="54" rx="10" class="box"/>
+<text x="30" y="64" class="t" font-size="13">事件源 / 时间线</text>
+<text x="30" y="82" class="s">评论 / 会话 / 自动化</text>
 <line x1="80" y1="94" x2="80" y2="720" class="lifeline"/>
-<rect x="158" y="40" width="124" height="54" rx="10" class="box"/>
-<text x="174" y="64" class="t" font-size="12">Trigger / Gate</text>
-<text x="174" y="82" class="s">触发人 / 角色</text>
+<rect x="154" y="40" width="132" height="54" rx="10" class="box"/>
+<text x="170" y="64" class="t" font-size="13">Trigger / Gate</text>
+<text x="170" y="82" class="s">触发人 / 角色</text>
 <line x1="220" y1="94" x2="220" y2="720" class="lifeline"/>
-<rect x="298" y="40" width="124" height="54" rx="10" class="box"/>
-<text x="314" y="64" class="t" font-size="12">Inbox / Worker</text>
-<text x="314" y="82" class="s">持久事件 · 领取</text>
+<rect x="294" y="40" width="132" height="54" rx="10" class="box"/>
+<text x="310" y="64" class="t" font-size="13">Inbox / Worker</text>
+<text x="310" y="82" class="s">持久事件 · 领取</text>
 <line x1="360" y1="94" x2="360" y2="720" class="lifeline"/>
-<rect x="438" y="40" width="124" height="54" rx="10" class="box"/>
-<text x="454" y="64" class="t" font-size="12">Rook</text>
-<text x="454" y="82" class="s">Session + Planner</text>
+<rect x="434" y="40" width="132" height="54" rx="10" class="box"/>
+<text x="450" y="64" class="t" font-size="13">Rook</text>
+<text x="450" y="82" class="s">Session + 计划</text>
 <line x1="500" y1="94" x2="500" y2="720" class="lifeline"/>
-<rect x="578" y="40" width="124" height="54" rx="10" class="box"/>
-<text x="594" y="64" class="t" font-size="12">下游 Agent</text>
-<text x="594" y="82" class="s">Pi / CC / Codex</text>
+<rect x="574" y="40" width="132" height="54" rx="10" class="box"/>
+<text x="590" y="64" class="t" font-size="13">下游 Agent</text>
+<text x="590" y="82" class="s">Pi / CC / Codex</text>
 <line x1="640" y1="94" x2="640" y2="720" class="lifeline"/>
-<rect x="718" y="40" width="124" height="54" rx="10" class="box"/>
-<text x="734" y="64" class="t" font-size="12">权限 / 工具</text>
-<text x="734" y="82" class="s">凭证 · 仓库 · MR</text>
+<rect x="714" y="40" width="132" height="54" rx="10" class="box"/>
+<text x="730" y="64" class="t" font-size="13">权限 / 工具</text>
+<text x="730" y="82" class="s">凭证 · 仓库 · MR</text>
 <line x1="780" y1="94" x2="780" y2="720" class="lifeline"/>
-<rect x="858" y="40" width="124" height="54" rx="10" class="box"/>
-<text x="874" y="64" class="t" font-size="12">人审 / 任务页</text>
-<text x="874" y="82" class="s">计划确认 · 评审</text>
+<rect x="854" y="40" width="132" height="54" rx="10" class="box"/>
+<text x="870" y="64" class="t" font-size="13">人审 / 任务页</text>
+<text x="870" y="82" class="s">确认 · 评审</text>
 <line x1="920" y1="94" x2="920" y2="720" class="lifeline"/>
 <line x1="80" y1="150" x2="220" y2="150" class="arrow" marker-end="url(#head)"/>
-<rect x="98.6" y="130.0" width="102.8" height="17.0" rx="3" class="lbl-bg"/>
-<text x="150" y="141" class="lbl" text-anchor="middle" font-size="10">Kanban 评论 @Rook</text>
+<rect x="91.6" y="128.5" width="116.7" height="18.5" rx="3" class="lbl-bg"/>
+<text x="150" y="141.0" class="lbl" text-anchor="middle" font-size="11.5">Kanban 评论 @Rook</text>
 <rect x="130" y="168" width="170" height="38" rx="8" class="box-accent"/>
-<text x="215" y="184" class="s" text-anchor="middle" font-size="10.5">触发人 / 角色准入</text>
-<text x="215" y="198" class="s" text-anchor="middle" font-size="9.5">Eval（后续阶段）判断意图</text>
+<text x="215" y="184" class="s" text-anchor="middle" font-size="11.5">触发人 / 角色准入</text>
+<text x="215" y="198" class="s" text-anchor="middle" font-size="10.5">Eval（后续阶段）判断意图</text>
 <line x1="220" y1="235" x2="360" y2="235" class="arrow" marker-end="url(#head)"/>
-<rect x="228.8" y="215.0" width="122.4" height="17.0" rx="3" class="lbl-bg"/>
-<text x="290" y="226" class="lbl" text-anchor="middle" font-size="10">写事件（来源 ID 去重）</text>
+<rect x="244.8" y="213.5" width="90.5" height="18.5" rx="3" class="lbl-bg"/>
+<text x="290" y="226.0" class="lbl" text-anchor="middle" font-size="11.5">写事件（去重）</text>
 <line x1="360" y1="280" x2="500" y2="280" class="arrow" marker-end="url(#head)"/>
-<rect x="360.2" y="260.0" width="139.6" height="17.0" rx="3" class="lbl-bg"/>
-<text x="430" y="271" class="lbl" text-anchor="middle" font-size="10">启动 / 恢复 Rook Session</text>
+<rect x="371.6" y="258.5" width="116.7" height="18.5" rx="3" class="lbl-bg"/>
+<text x="430" y="271.0" class="lbl" text-anchor="middle" font-size="11.5">恢复 Rook Session</text>
 <line x1="500" y1="325" x2="920" y2="325" class="arrow" marker-end="url(#head)"/>
-<rect x="660.0" y="305.0" width="100.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="710" y="316" class="lbl" text-anchor="middle" font-size="10">提交计划，等待确认</text>
+<rect x="653.2" y="303.5" width="113.5" height="18.5" rx="3" class="lbl-bg"/>
+<text x="710" y="316.0" class="lbl" text-anchor="middle" font-size="11.5">提交计划，等待确认</text>
 <line x1="920" y1="360" x2="500" y2="360" class="arrow-muted dashed" marker-end="url(#head)"/>
-<rect x="666.6" y="340.0" width="86.8" height="17.0" rx="3" class="lbl-bg"/>
-<text x="710" y="351" class="lbl" text-anchor="middle" font-size="10">确认 / 调整范围</text>
+<rect x="660.8" y="338.5" width="98.3" height="18.5" rx="3" class="lbl-bg"/>
+<text x="710" y="351.0" class="lbl" text-anchor="middle" font-size="11.5">确认 / 调整范围</text>
 <line x1="500" y1="405" x2="640" y2="405" class="arrow" marker-end="url(#head-strong)"/>
-<rect x="535.0" y="385.0" width="70.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="570" y="396" class="lbl" text-anchor="middle" font-size="10">分派开发任务</text>
+<rect x="530.5" y="383.5" width="79.0" height="18.5" rx="3" class="lbl-bg"/>
+<text x="570" y="396.0" class="lbl" text-anchor="middle" font-size="11.5">分派开发任务</text>
 <line x1="640" y1="450" x2="780" y2="450" class="arrow" marker-end="url(#head)"/>
-<rect x="668.2" y="430.0" width="83.6" height="17.0" rx="3" class="lbl-bg"/>
-<text x="710" y="441" class="lbl" text-anchor="middle" font-size="10">读仓库 / 推 MR</text>
+<rect x="662.7" y="428.5" width="94.6" height="18.5" rx="3" class="lbl-bg"/>
+<text x="710" y="441.0" class="lbl" text-anchor="middle" font-size="11.5">读仓库 / 推 MR</text>
 <line x1="780" y1="490" x2="640" y2="490" class="arrow-muted dashed" marker-end="url(#head)"/>
-<rect x="666.6" y="470.0" width="86.8" height="17.0" rx="3" class="lbl-bg"/>
-<text x="710" y="481" class="lbl" text-anchor="middle" font-size="10">凭证注入 / 允许</text>
+<rect x="660.8" y="468.5" width="98.3" height="18.5" rx="3" class="lbl-bg"/>
+<text x="710" y="481.0" class="lbl" text-anchor="middle" font-size="11.5">凭证注入 / 允许</text>
 <line x1="640" y1="535" x2="500" y2="535" class="arrow" marker-end="url(#head)"/>
-<rect x="528.2" y="515.0" width="83.6" height="17.0" rx="3" class="lbl-bg"/>
-<text x="570" y="526" class="lbl" text-anchor="middle" font-size="10">MR 链接 + 证据</text>
+<rect x="522.7" y="513.5" width="94.6" height="18.5" rx="3" class="lbl-bg"/>
+<text x="570" y="526.0" class="lbl" text-anchor="middle" font-size="11.5">MR 链接 + 证据</text>
 <line x1="500" y1="580" x2="920" y2="580" class="arrow" marker-end="url(#head)"/>
-<rect x="660.0" y="560.0" width="100.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="710" y="571" class="lbl" text-anchor="middle" font-size="10">提交评审（审核中）</text>
+<rect x="653.2" y="558.5" width="113.5" height="18.5" rx="3" class="lbl-bg"/>
+<text x="710" y="571.0" class="lbl" text-anchor="middle" font-size="11.5">提交评审（审核中）</text>
 <line x1="920" y1="625" x2="500" y2="625" class="arrow-muted dashed" marker-end="url(#head)"/>
-<rect x="676.6" y="605.0" width="66.8" height="17.0" rx="3" class="lbl-bg"/>
-<text x="710" y="616" class="lbl" text-anchor="middle" font-size="10">退回 / 通过</text>
+<rect x="672.3" y="603.5" width="75.3" height="18.5" rx="3" class="lbl-bg"/>
+<text x="710" y="616.0" class="lbl" text-anchor="middle" font-size="11.5">退回 / 通过</text>
 <line x1="500" y1="670" x2="80" y2="670" class="arrow" marker-end="url(#head)"/>
-<rect x="241.6" y="650.0" width="96.8" height="17.0" rx="3" class="lbl-bg"/>
-<text x="290" y="661" class="lbl" text-anchor="middle" font-size="10">写回时间线 / 状态</text>
+<rect x="235.1" y="648.5" width="109.8" height="18.5" rx="3" class="lbl-bg"/>
+<text x="290" y="661.0" class="lbl" text-anchor="middle" font-size="11.5">写回时间线 / 状态</text>
 <line x1="80" y1="710" x2="360" y2="710" class="arrow-muted dashed" marker-end="url(#head)"/>
-<rect x="161.0" y="690.0" width="118.0" height="17.0" rx="3" class="lbl-bg"/>
-<text x="220" y="701" class="lbl" text-anchor="middle" font-size="10">评论 / 退回 → 新事件</text>
+<rect x="152.9" y="688.5" width="134.2" height="18.5" rx="3" class="lbl-bg"/>
+<text x="220" y="701.0" class="lbl" text-anchor="middle" font-size="11.5">评论 / 退回 → 新事件</text>
 <rect x="80" y="748" width="840" height="44" rx="10" class="box-ghost"/>
-<text x="500" y="766" class="note" text-anchor="middle" font-size="10.5">自动化：Rook Session 可设为 automation；每次触发都是新会话；Scheduler 到期把事件送回 Inbox。</text>
-<text x="500" y="781" class="note" text-anchor="middle" font-size="10">虚线 = 延迟结果 / 跨运行；实线 = 当前运行。</text>
+<text x="500" y="766" class="note" text-anchor="middle" font-size="11.5">自动化：Rook Session 可设为 automation；每次触发都是新会话；Scheduler 到期把事件送回 Inbox。</text>
+<text x="500" y="781" class="note" text-anchor="middle" font-size="11">虚线 = 延迟结果 / 跨运行；实线 = 当前运行。</text>
 </g>
 </svg>

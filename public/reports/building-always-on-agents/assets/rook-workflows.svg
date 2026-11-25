@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 540" width="100%" role="img">
 <style>
 text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
-.t { fill: #24211c; font-size: 13px; font-weight: 600; }
-.s { fill: #6d665b; font-size: 10.5px; }
-.lbl { fill: #8f3d21; font-size: 10px; }
-.note { fill: #6d665b; font-size: 10.5px; }
-.band-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+.t { fill: #24211c; font-size: 14px; font-weight: 600; }
+.s { fill: #6d665b; font-size: 11.5px; }
+.lbl { fill: #8f3d21; font-size: 11.5px; }
+.note { fill: #6d665b; font-size: 11.5px; }
+.band-label { font-size: 12px; font-weight: 700; letter-spacing: .08em; }
 .box { fill: #fffdf7; stroke: #d8cfbf; stroke-width: 1; }
 .box-accent { fill: #f7ece4; stroke: #c98b6f; stroke-width: 1; }
 .box-ghost { fill: #f6f1e8; stroke: #c9bfae; stroke-width: 1; stroke-dasharray: 5 4; }
@@ -68,23 +68,23 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 <text x="56" y="82" class="s">卡片、评论、状态</text>
 <rect x="40" y="128" width="280" height="54" rx="10" class="box"/>
 <rect x="40" y="136" width="4" height="38" rx="2" class="bar-entry"/>
-<text x="56" y="152" class="t" font-size="13">Kanban 卡片 / 评论</text>
+<text x="56" y="152" class="t" font-size="14">Kanban 卡片 / 评论</text>
 <text x="56" y="170" class="s">@Rook · 背景 · 评审标准</text>
 <rect x="40" y="198" width="280" height="54" rx="10" class="box"/>
 <rect x="40" y="206" width="4" height="38" rx="2" class="bar-entry"/>
-<text x="56" y="222" class="t" font-size="13">Rook 计划</text>
+<text x="56" y="222" class="t" font-size="14">Rook 计划</text>
 <text x="56" y="240" class="s">步骤 · 范围 · 确认</text>
 <rect x="40" y="268" width="280" height="54" rx="10" class="box"/>
 <rect x="40" y="276" width="4" height="38" rx="2" class="bar-entry"/>
-<text x="56" y="292" class="t" font-size="13">执行 / 分派</text>
+<text x="56" y="292" class="t" font-size="14">执行 / 分派</text>
 <text x="56" y="310" class="s">自己做，或调下游</text>
 <rect x="40" y="338" width="280" height="54" rx="10" class="box"/>
 <rect x="40" y="346" width="4" height="38" rx="2" class="bar-entry"/>
-<text x="56" y="362" class="t" font-size="13">证据汇总</text>
+<text x="56" y="362" class="t" font-size="14">证据汇总</text>
 <text x="56" y="380" class="s">测试 · diff · 运行记录</text>
 <rect x="40" y="408" width="280" height="54" rx="10" class="box"/>
 <rect x="40" y="416" width="4" height="38" rx="2" class="bar-entry"/>
-<text x="56" y="432" class="t" font-size="13">审核中</text>
+<text x="56" y="432" class="t" font-size="14">审核中</text>
 <text x="56" y="450" class="s">退回 / 通过并完成</text>
 <line x1="180" y1="182" x2="180" y2="198" class="arrow-muted" marker-end="url(#head)"/>
 <line x1="180" y1="252" x2="180" y2="268" class="arrow-muted" marker-end="url(#head)"/>
@@ -96,23 +96,23 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 <text x="366" y="82" class="s">把开发交给执行型 Agent</text>
 <rect x="350" y="128" width="280" height="54" rx="10" class="box"/>
 <rect x="350" y="136" width="4" height="38" rx="2" class="bar-state"/>
-<text x="366" y="152" class="t" font-size="13">Rook 判断需要开发</text>
+<text x="366" y="152" class="t" font-size="14">Rook 判断需要开发</text>
 <text x="366" y="170" class="s">范围 · 仓库 · 风险</text>
 <rect x="350" y="198" width="280" height="54" rx="10" class="box"/>
 <rect x="350" y="206" width="4" height="38" rx="2" class="bar-state"/>
-<text x="366" y="222" class="t" font-size="13">选择下游 Agent</text>
+<text x="366" y="222" class="t" font-size="14">选择下游 Agent</text>
 <text x="366" y="240" class="s">Pi / Claude Code / Codex</text>
 <rect x="350" y="268" width="280" height="54" rx="10" class="box"/>
 <rect x="350" y="276" width="4" height="38" rx="2" class="bar-state"/>
-<text x="366" y="292" class="t" font-size="13">分派任务</text>
+<text x="366" y="292" class="t" font-size="14">分派任务</text>
 <text x="366" y="310" class="s">工作区 · 分支 · 验收标准</text>
 <rect x="350" y="338" width="280" height="54" rx="10" class="box"/>
 <rect x="350" y="346" width="4" height="38" rx="2" class="bar-state"/>
-<text x="366" y="362" class="t" font-size="13">下游执行</text>
+<text x="366" y="362" class="t" font-size="14">下游执行</text>
 <text x="366" y="380" class="s">改代码 · 跑测试 · 提 MR</text>
 <rect x="350" y="408" width="280" height="54" rx="10" class="box"/>
 <rect x="350" y="416" width="4" height="38" rx="2" class="bar-state"/>
-<text x="366" y="432" class="t" font-size="13">Rook 汇总</text>
+<text x="366" y="432" class="t" font-size="14">Rook 汇总</text>
 <text x="366" y="450" class="s">MR + 证据 → 人审</text>
 <line x1="490" y1="182" x2="490" y2="198" class="arrow-muted" marker-end="url(#head)"/>
 <line x1="490" y1="252" x2="490" y2="268" class="arrow-muted" marker-end="url(#head)"/>
@@ -124,28 +124,28 @@ text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC"
 <text x="676" y="82" class="s">评论、MR、告警、定时</text>
 <rect x="660" y="128" width="280" height="54" rx="10" class="box"/>
 <rect x="660" y="136" width="4" height="38" rx="2" class="bar-exit"/>
-<text x="676" y="152" class="t" font-size="13">事件源</text>
+<text x="676" y="152" class="t" font-size="14">事件源</text>
 <text x="676" y="170" class="s">评论 · MR · 告警 · 定时</text>
 <rect x="660" y="198" width="280" height="54" rx="10" class="box"/>
 <rect x="660" y="206" width="4" height="38" rx="2" class="bar-exit"/>
-<text x="676" y="222" class="t" font-size="13">Durable Inbox</text>
+<text x="676" y="222" class="t" font-size="14">Durable Inbox</text>
 <text x="676" y="240" class="s">状态 · 去重 · 来源 ID</text>
 <rect x="660" y="268" width="280" height="54" rx="10" class="box"/>
 <rect x="660" y="276" width="4" height="38" rx="2" class="bar-exit"/>
-<text x="676" y="292" class="t" font-size="13">Worker</text>
+<text x="676" y="292" class="t" font-size="14">Worker</text>
 <text x="676" y="310" class="s">领取 · 重试 · 恢复会话</text>
 <rect x="660" y="338" width="280" height="54" rx="10" class="box"/>
 <rect x="660" y="346" width="4" height="38" rx="2" class="bar-exit"/>
-<text x="676" y="362" class="t" font-size="13">Rook Session</text>
+<text x="676" y="362" class="t" font-size="14">Rook Session</text>
 <text x="676" y="380" class="s">计划 · 执行 · 记忆</text>
 <rect x="660" y="408" width="280" height="54" rx="10" class="box"/>
 <rect x="660" y="416" width="4" height="38" rx="2" class="bar-exit"/>
-<text x="676" y="432" class="t" font-size="13">Outbox / 通知</text>
+<text x="676" y="432" class="t" font-size="14">Outbox / 通知</text>
 <text x="676" y="450" class="s">时间线 · 收件箱 · 频道</text>
 <line x1="800" y1="182" x2="800" y2="198" class="arrow-muted" marker-end="url(#head)"/>
 <line x1="800" y1="252" x2="800" y2="268" class="arrow-muted" marker-end="url(#head)"/>
 <line x1="800" y1="322" x2="800" y2="338" class="arrow-muted" marker-end="url(#head)"/>
 <line x1="800" y1="392" x2="800" y2="408" class="arrow-muted" marker-end="url(#head)"/>
-<text x="40" y="512" class="note" text-anchor="start" font-size="10.5">三条链路共用同一套 Session / Task / 审核闸门；区别只在入口，以及是否把开发分派给下游 Agent。</text>
+<text x="40" y="512" class="note" text-anchor="start" font-size="11.5">三条链路共用同一套 Session / Task / 审核闸门；区别只在入口，以及是否把开发分派给下游 Agent。</text>
 </g>
 </svg>
