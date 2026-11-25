@@ -228,6 +228,23 @@
           "updated_at": "2026-11-25T23:07:52.204229Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/rook-release-v028",
+      "project": "Rook",
+      "title": "Rook v0.1.28 发布记录",
+      "versions": [
+        {
+          "digest": "a1fc1baeef6ed8e8ab0489a7525ddffcbe3f6c61377c7c282fc3d3b12efd7ab9",
+          "label": "v1",
+          "path": "reports/rook-release-v028",
+          "published_at": "2026-11-25T23:23:31.914216Z",
+          "summary": "Rook v0.1.28（main ea78401）发布记录：反馈需求标题与提交人、五类业务标签，发布链路与线上验收证据",
+          "updated_at": "2026-11-25T23:23:31.914216Z"
+        }
+      ]
     }
   ]
 }
