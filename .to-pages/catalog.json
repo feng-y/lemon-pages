@@ -1,0 +1,65 @@
+{
+  "output_dir": "public",
+  "schema": 1,
+  "topics": [
+    {
+      "category": "未分类",
+      "description": "DESIGN-003 AD Caster 接入 Inference",
+      "id": "legacy-ff91a472fbfc",
+      "project": "",
+      "title": "AD Caster 接入 Inference",
+      "versions": [
+        {
+          "digest": "8c7940e514aa2d618369b33b35354870370cd5d0bad0e3ee2b3345b626d202c0",
+          "label": "v1",
+          "path": "reports/inference-ad-caster",
+          "published_at": "2026-11-25T09:01:22Z",
+          "summary": "",
+          "updated_at": "2026-11-25T09:28:33Z"
+        }
+      ]
+    },
+    {
+      "category": "设计原型",
+      "description": "月度索引、内容分类、分页及版本打开规则的交互设计原型。",
+      "id": "lemon-pages-navigation",
+      "project": "Lemon Pages",
+      "title": "页面导航交互原型",
+      "versions": [
+        {
+          "digest": "36c5e22002af518ba69f7f606df397773fa10433924954ffee7867eb863f81ac",
+          "label": "v1",
+          "path": "reports/navigation-ui-prototype",
+          "published_at": "2026-11-25T08:25:20Z",
+          "summary": "月度索引交互原型",
+          "updated_at": "2026-11-25T09:03:43Z"
+        }
+      ]
+    },
+    {
+      "category": "设计原型",
+      "description": "Rook 的四个视图",
+      "id": "rook-workspace",
+      "project": "Rook",
+      "title": "Rook 工作台设计",
+      "versions": [
+        {
+          "digest": "a3cb4639a6240794b5756c057df7b45438c49ce1fb8a99641e312e532c239950",
+          "label": "v1",
+          "path": "reports/rook-tabs-design",
+          "published_at": "2026-11-25T06:28:11Z",
+          "summary": "工作台设计历史版本 v1",
+          "updated_at": "2026-11-25T08:00:59Z"
+        },
+        {
+          "digest": "a017db17457cbd9779e1f46c3efcbe7611b29a20d05bb21099e8fbf894df7d19",
+          "label": "v2",
+          "path": "reports/rook-tabs-design-v2",
+          "published_at": "2026-11-25T06:28:11Z",
+          "summary": "工作台设计历史版本 v2",
+          "updated_at": "2026-11-25T08:00:59Z"
+        }
+      ]
+    }
+  ]
+}

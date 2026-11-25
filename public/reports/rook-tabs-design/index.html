@@ -1036,8 +1036,12 @@
 <script>
 (() => {
   const link = document.getElementById("to-pages-back-link");
-  const sitePath = link.dataset.sitePath;
-  link.href = new URL(sitePath, window.location.href).href;
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
 })();
 </script>
 <!-- to-pages:back-link:end -->
