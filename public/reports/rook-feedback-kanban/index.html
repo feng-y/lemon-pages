@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rook 反馈看板验收</title>
+<meta name="description" content="生产看板截图：反馈需求标题、提交人与业务标签。">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --ink: #1c2128;
+    --muted: #5b6472;
+    --line: #dfe3e8;
+    --accent: #2f6fed;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171b;
+      --surface: #1c2026;
+      --ink: #e6e9ee;
+      --muted: #9aa4b2;
+      --line: #2c333c;
+      --accent: #6f9bff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.6; }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 1.5rem; line-height: 1.3; margin: 0 0 8px; }
+  h2 { font-size: 1.05rem; margin: 32px 0 8px; }
+  p { margin: 8px 0; }
+  .tldr { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; padding: 12px 16px; }
+  .tldr p { margin: 4px 0; }
+  figure { margin: 16px 0 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  figure img { display: block; width: 100%; height: auto; border-radius: 4px; border: 1px solid var(--line); }
+  figcaption { color: var(--muted); font-size: .875rem; margin-top: 8px; }
+  .meta { color: var(--muted); font-size: .875rem; }
+  footer { margin-top: 40px; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--line); padding-top: 12px; }
+  code { font-family: var(--mono); font-size: .85em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Rook 反馈看板验收（v2026.1125.019）</h1>
+  <p class="meta">生产环境 <code>multica.bilibili.co</code> · 2026-11-26 07:00 +08:00</p>
+
+  <div class="tldr">
+    <p>待规划 13 条反馈需求的标题取自反馈内容，提交人为反馈作者。</p>
+    <p>需求详情显示「业务标签 在线、特征、数据流」，分诊表单为五个业务标签复选框，可多选。</p>
+  </div>
+
+  <h2>全部任务看板</h2>
+  <figure>
+    <img src="kanban-final.png" alt="Rook 看板：待规划 13、待办 1、进行中 2、审核中 0">
+    <figcaption>四列泳道。待规划列标题为反馈正文的首个非空行，如「看着没有拉取到代码导致回答的不对」「增加重试功能」。</figcaption>
+  </figure>
+
+  <h2>需求详情</h2>
+  <figure>
+    <img src="kanban-task-labels.png" alt="需求 RK-21 详情：提交人、来源、需求类型与业务标签">
+    <figcaption>RK-21 为部署验收测试项，已关闭。右上属性显示提交人「yanfeng 提交于 11/25 07:27」、来源「反馈自动创建」、业务标签「在线、特征、数据流」。</figcaption>
+  </figure>
+
+  <footer>Sources: 生产 <code>multica.bilibili.co</code> 浏览器截图，Chromium，1512×982，2026-11-26 生成。</footer>
+</main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>
