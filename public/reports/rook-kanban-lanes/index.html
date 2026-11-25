@@ -403,14 +403,14 @@ footer {
   <header>
     <div class="head-top">
       <h1>Rook 看板全高泳道</h1>
-      <span class="pill-auto">v2026.1125.015 · 2026-11-25</span>
+      <span class="pill-auto">v2026.1125.018 · 2026-11-25</span>
     </div>
     <p class="subtitle">复刻 Multica 看板泳道：问题、实现与线上验收。依据 Multica 本地源码（c33158bf）、线上 Playwright 测量与发布记录。</p>
   </header>
 
   <div class="tldr" id="tldr">
     <div class="tldr-label">TL;DR</div>
-    <p>v2026.1125.015 已上线。看板从 1036px 居中窄条改为 Multica 式全高泳道：看板宽 <code>min(80vw, 100%)</code> 居中，2560 视口下 2048px、四列各 496px；1512 视口下 1204px、四列各 285px。</p>
+    <p>看板泳道随 v2026.1125.015 上线，当前线上 v2026.1125.018 沿用同一布局。看板从 1036px 居中窄条改为 Multica 式全高泳道：看板宽 <code>min(80vw, 100%)</code> 居中，2560 视口下 2048px、四列各 496px；1512 视口下 1204px、四列各 285px。</p>
     <p>列背景为浅灰圆角、列间距 16px、列高撑满内容区；卡片区在列内独立滚动、列头固定；空状态在列内居中。列表视图保持 1036px，已验收的需求页未改动。</p>
     <p>已知边界：视口窄于约 1450px 时列宽停在 280px，列区改为横向滚动；容器宽 ≤800px 沿用原两列网格。与 Multica 行为一致。</p>
   </div>
@@ -510,13 +510,20 @@ footer {
   <section id="effect">
     <h2>效果与测量</h2>
     <hr class="rule">
-    <p class="lede">MacBook Pro 14 寸等效视口（1512×982，Retina 2×）的线上截图；下方表格给出 2560 与 1512 两档的实测值。</p>
+    <p class="lede">截图取自当前线上 v2026.1125.018（构建 1526d2a，含反馈建需求）；布局与 v2026.1125.015 相同。下方表格给出 2560 与 1512 两档的实测值。</p>
 
     <figure>
       <div class="shot">
-        <img src="assets/board-mbp14.png" alt="Rook 看板在 1512×982 视口下的全高泳道布局">
+        <img src="assets/board-2k.png" alt="Rook 看板在 2560×1440 视口下的全高泳道布局">
       </div>
-      <figcaption>看板宽 1204px，四列各 285px 撑满视口高度，列间距 16px；截图中的人员姓名与任务标题已模糊处理。</figcaption>
+      <figcaption>2560×1440：看板宽 2048px 居中，四列各 496×1326，列间距 16px；待规划列 14 张卡片在列内滚动。</figcaption>
+    </figure>
+
+    <figure>
+      <div class="shot">
+        <img src="assets/board-mbp14.png" alt="Rook 看板在 MacBook Pro 14 寸视口下的全高泳道布局">
+      </div>
+      <figcaption>MacBook Pro 14 寸（1512×982，Retina 2×）：看板宽 1204px，四列各 285×868 撑满视口高度，列间距 16px；截图中的人员姓名与任务标题已模糊处理。</figcaption>
     </figure>
 
     <div class="table-wrap">
@@ -578,6 +585,7 @@ footer {
           <tr><td>发布</td><td>Caster 发布单 3051173（配置 528681、sh001、1 副本、rolling），23:16:00 创建，23:18:23 完成</td></tr>
           <tr><td>实例</td><td>新实例 23:16:18 启动，Running / healthy / discovery up</td></tr>
           <tr><td>线上核对</td><td><code>/healthz</code>、<code>/readyz</code>（blockers 为空）、<code>/chat</code>、<code>/api/me</code> 均 200；构建号出现在 <code>index-C57bKb2Y.js</code>；<code>index-CdkbsLCD.css</code> 含 10 条泳道规则</td></tr>
+          <tr><td>当前线上</td><td>v2026.1125.018（main <code>1526d2a</code>，MR !173：反馈建需求与本次布局合并）：复测全部通过，JS <code>index-ChtNc7Fy.js</code> 带构建号，CSS 10/10 泳道规则</td></tr>
           <tr><td>Paladin</td><td>发布前核对源与目标配置：无待发布 config 变更，无需同步</td></tr>
         </tbody>
       </table>
@@ -585,7 +593,7 @@ footer {
   </section>
 
   <footer>
-    Sources: Multica 本地 checkout c33158bf（board-view.tsx / board-column.tsx / board-card.tsx）；web/kanban.tsx、web/style.css；Playwright 线上核对（Chrome，2026-11-25）；Nyx / Caster / GitLab 发布记录 &nbsp;—&nbsp; generated 2026-11-25 23:30
+    Sources: Multica 本地 checkout c33158bf（board-view.tsx / board-column.tsx / board-card.tsx）；web/kanban.tsx、web/style.css；Playwright 线上核对（Chrome，2026-11-26）；Nyx / Caster / GitLab 发布记录 &nbsp;—&nbsp; generated 2026-11-26 00:10
   </footer>
 
 </main>
