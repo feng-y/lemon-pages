@@ -94,6 +94,23 @@
           "updated_at": "2026-11-25T12:40:46.271516Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/rook-superagent-plan",
+      "project": "Rook",
+      "title": "Rook SuperAgent 设计草案",
+      "versions": [
+        {
+          "digest": "94e84c86b30da365e5a36d97db725cc6eac9338ebe06262dc48394e2aedca6df",
+          "label": "v1",
+          "path": "reports/rook-superagent-plan",
+          "published_at": "2026-11-25T13:55:30.539644Z",
+          "summary": "首版草案：与 dsh-superagent-prototype 对照、三阶段、待决定项",
+          "updated_at": "2026-11-25T13:55:30.539644Z"
+        }
+      ]
     }
   ]
 }
