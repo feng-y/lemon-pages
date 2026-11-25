@@ -141,6 +141,14 @@
           "published_at": "2026-11-25T15:36:12.704624Z",
           "summary": "v5：阶段 0 只做内置 Rook，用户创建延后；Task 会话按触发者分开",
           "updated_at": "2026-11-25T15:36:12.704624Z"
+        },
+        {
+          "digest": "2584ddd4789510a328623752c045642a1b6cb53c760f119b33834c701ad7c095",
+          "label": "v6",
+          "path": "reports/rook-superagent-plan-v6",
+          "published_at": "2026-11-25T23:55:00.826998Z",
+          "summary": "v6：最小闭环（订阅、按需求合批、结构化结果、处置记录）与 MR !179 完成度",
+          "updated_at": "2026-11-25T23:55:00.826998Z"
         }
       ]
     },

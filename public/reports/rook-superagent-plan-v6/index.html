@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rook SuperAgent 最小闭环</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+
+
+/* ▼ 报告专用样式：components.md 没有的才写，只用 token，不重定义 base.css 已有的 class ▼ */
+
+</style>
+</head>
+<body>
+<nav class="toc">
+  <div class="toc-title">On this page</div>
+  <a href="#tldr">TL;DR</a>
+  <a href="#s1">当前完成度</a>
+  <a href="#s2">原型的闭环</a>
+  <a href="#s3">最小闭环设计</a>
+  <a href="#s4">关键决定</a>
+  <a href="#s5">风险</a>
+  <a href="#s6">验证与推迟</a>
+</nav>
+
+<main>
+
+  <header>
+    <div class="head-top">
+      <h1>Rook SuperAgent 最小闭环</h1>
+    </div>
+    <p class="subtitle">以 dsh-superagent-prototype 为目标，用 Rook agent 处理 Kanban 需求作为验证场景。本页是待确认的设计，闭环部分尚未实现。</p>
+  </header>
+
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">TL;DR</div>
+    <p>MR !179 只做了 super agent 的入口层：智能体定义、管理和评论里 <code>@名称</code> 触发，每次被 @ 就一定回复一条。原型的核心是被接受的工作会订阅它的 Thread，之后的消息不用再 @ 也会送到同一个 Executor，由它决定回复、沉默或请人处理。最小闭环补的就是这一层：订阅、按 Task 串行合批、Runtime 中立的结构化结果，以及每条评论都留下处置记录。闸门仍是确定性代码，<code>@名称</code> 是显式请求，原型对显式请求不跑模型评估，所以不需要在主 Run 之前加一次模型调用。存储沿用 ConfigurationStore 文档，不建新表，不需要 RDS 审批。实现前要先修一个可见范围问题：Run 以 owner 身份执行，但需求描述目前按评论者的权限取出。</p>
+  </div>
+
+  <section>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">5 / 8</div>
+        <div class="stat-label">原型闭环步骤</div>
+        <div class="stat-note">MR !179 覆盖 Source、去重、闸门、执行、写回；缺订阅、合批、处置。按第 3 节的 8 步计数</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">0</div>
+        <div class="stat-label">新表</div>
+        <div class="stat-note">沿用 ConfigurationStore 文档，外部事件接入时再申请表</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">0</div>
+        <div class="stat-label">真实模型 Run</div>
+        <div class="stat-note">至今所有验证都用替身模型，缺 Rook 的 SSO 调用方配置和模型 Token</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="s1">
+    <h2>当前完成度</h2>
+    <hr class="rule">
+    <p class="lede">已推送到 MR !179，分支 <code>release_fix/superagent-20261125</code>，最新提交 <code>5d924dc</code>。未合并，未发布。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>部分</th><th>状态</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>智能体目录与内置 Rook</td><td><span class="tag ok">已实现</span></td><td>一个加密配置文档，名称全局唯一，revision CAS</td></tr>
+          <tr><td>创建与管理</td><td><span class="tag ok">已实现</span></td><td>「设置 → 智能体」，接口对所有准入用户开放，创建权限 <code>canCreate</code> 目前只给管理员</td></tr>
+          <tr><td>可见范围</td><td><span class="tag ok">已实现</span></td><td>默认仅创建者可见可触发，管理员可查看管理，只有管理员能设为默认组</td></tr>
+          <tr><td>执行身份</td><td><span class="tag ok">已实现</span></td><td>Run 用智能体 owner 的 Provider、ClawSec 和 Session；内置 Rook 由管理员绑定</td></tr>
+          <tr><td>评论 <code>@名称</code> 触发与回复写回</td><td><span class="tag ok">已实现</span></td><td>评论事务内解析，Task 会话入队，回复写成智能体 activity，智能体回复不再触发</td></tr>
+          <tr><td><code>tools</code> 白名单</td><td><span class="tag warn">只保存</span></td><td>执行边界尚未拦截</td></tr>
+          <tr><td>订阅、合批、沉默、请人处理</td><td><span class="tag danger">未实现</span></td><td>本页的最小闭环</td></tr>
+          <tr><td>外部事件、Scheduler、模型评估、接开发</td><td><span class="tag danger">未实现</span></td><td>推迟，见第 6 节</td></tr>
+          <tr><td>真实模型、双账号、Claude Code 与 Codex</td><td><span class="tag warn">未验证</span></td><td>全量测试未跑完，<code>pi-attachments</code> 和 <code>pi-isolation</code> 各 1 项失败，未与 <code>main</code> 对比</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2>原型的闭环</h2>
+    <hr class="rule">
+    <p class="lede">原型的事件只存一次，然后先找订阅它的工作；没人认领才进评估。评估只有接受、停止、忽略、不可用四种结果。回复、沉默和请人处理分散在评估和执行两处。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>行为</th><th>原型里在哪</th><th>依据</th></tr></thead>
+        <tbody>
+          <tr><td>回复</td><td>评估接受后由 Executor 产出，主 Session 发出</td><td><code>prompts/replies.md</code></td></tr>
+          <tr><td>沉默</td><td>评估层是 ignore；已有工作上的普通讨论由 Executor 决定不回</td><td><code>admission.md:23</code>，<code>work.md:9</code></td></tr>
+          <tr><td>请人处理</td><td>评估失败记 <code>unavailable</code>；Executor 需要人拍板时发 <code>human_action</code></td><td><code>docs/002</code>，<code>handoff-worker.md:1</code></td></tr>
+          <tr><td>显式请求</td><td>只过确定性闸门，不跑模型评估</td><td><code>src/app/assessment.ts:39</code></td></tr>
+          <tr><td>跟进消息</td><td>有订阅时直接交给该工作，不进评估</td><td><code>src/core/intake.ts:58</code></td></tr>
+          <tr><td>并发</td><td>每个 Thread 同时一个评估，期间到达的消息合成下一批</td><td><code>docs/001</code> Thread 行</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <div class="callout-title">不照搬的部分</div>
+      <p>原型的 Executor 都以运营者的同一个系统用户运行，主 Session 能看到全部 Thread。Rook 有用户隔离，不能设跨用户的常驻主 Session，所以路由由 Rook Backend 的确定性代码完成。原型依赖 DSH 专有的 Session 钩子，Rook 改用最终回复里的约定 JSON，Pi、Claude Code 和 Codex 都能接入。</p>
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2>最小闭环设计</h2>
+    <hr class="rule">
+    <p class="lede">只有一个 Source：Kanban 需求评论。第一次 <code>@名称</code> 被接受后，该智能体订阅这条需求；之后的评论不用再 @，按顺序合批送进同一个 Task 会话，由智能体决定回复、沉默或请人处理。每条评论都留下处置记录。</p>
+
+    <div class="table-wrap">
+      <svg viewBox="0 0 760 300" role="img" aria-label="最小闭环的事件流" style="width:100%;min-width:640px;height:auto;font-family:var(--sans);font-size:13px">
+        <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--accent)"/></marker></defs>
+        <rect x="10" y="20" width="140" height="52" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+        <text x="80" y="42" text-anchor="middle" style="fill:var(--ink)">RD 评论</text>
+        <text x="80" y="60" text-anchor="middle" style="fill:var(--muted);font-size:11px">智能体回复不进入</text>
+        <path d="M150 46H186" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar)"/>
+        <rect x="190" y="10" width="170" height="72" rx="10" style="fill:var(--line-soft);stroke:var(--accent);stroke-width:1.5"/>
+        <text x="275" y="34" text-anchor="middle" style="fill:var(--ink);font-weight:600">闸门（评论事务内）</text>
+        <text x="275" y="53" text-anchor="middle" style="fill:var(--muted);font-size:11px">@名称 → 接受并订阅</text>
+        <text x="275" y="69" text-anchor="middle" style="fill:var(--muted);font-size:11px">有订阅 → 跟进；否则忽略</text>
+        <path d="M360 46H396" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar)"/>
+        <rect x="400" y="10" width="160" height="72" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+        <text x="480" y="34" text-anchor="middle" style="fill:var(--ink)">需求收件箱</text>
+        <text x="480" y="53" text-anchor="middle" style="fill:var(--muted);font-size:11px">pending 合批</text>
+        <text x="480" y="69" text-anchor="middle" style="fill:var(--muted);font-size:11px">每个需求同时一个 Run</text>
+        <path d="M560 46H596" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar)"/>
+        <rect x="600" y="10" width="150" height="72" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+        <text x="675" y="34" text-anchor="middle" style="fill:var(--ink)">Task 会话 Run</text>
+        <text x="675" y="53" text-anchor="middle" style="fill:var(--muted);font-size:11px">owner 身份</text>
+        <text x="675" y="69" text-anchor="middle" style="fill:var(--muted);font-size:11px">Session Queue 入队</text>
+        <path d="M675 82V128" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar)"/>
+        <rect x="560" y="132" width="190" height="56" rx="10" style="fill:var(--line-soft);stroke:var(--accent);stroke-width:1.5"/>
+        <text x="655" y="156" text-anchor="middle" style="fill:var(--ink);font-weight:600">解析结果 JSON</text>
+        <text x="655" y="174" text-anchor="middle" style="fill:var(--muted);font-size:11px">reply · attention · report</text>
+        <path d="M560 160H520V220" style="stroke:var(--accent);stroke-width:2;fill:none" marker-end="url(#ar)"/>
+        <rect x="20" y="224" width="170" height="56" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+        <text x="105" y="248" text-anchor="middle" style="fill:var(--ink)">回复</text>
+        <text x="105" y="266" text-anchor="middle" style="fill:var(--muted);font-size:11px">写入时间线，按 activity 去重</text>
+        <rect x="210" y="224" width="170" height="56" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+        <text x="295" y="248" text-anchor="middle" style="fill:var(--ink)">沉默</text>
+        <text x="295" y="266" text-anchor="middle" style="fill:var(--muted);font-size:11px">只记处置：已读未回复</text>
+        <rect x="400" y="224" width="170" height="56" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5"/>
+        <text x="485" y="248" text-anchor="middle" style="fill:var(--ink)">请人处理</text>
+        <text x="485" y="266" text-anchor="middle" style="fill:var(--muted);font-size:11px">通知处理人和验收人</text>
+        <rect x="590" y="224" width="160" height="56" rx="10" style="fill:var(--surface);stroke:var(--line);stroke-width:1.5;stroke-dasharray:5 4"/>
+        <text x="670" y="248" text-anchor="middle" style="fill:var(--ink)">结束订阅</text>
+        <text x="670" y="266" text-anchor="middle" style="fill:var(--muted);font-size:11px">report=dropped 或需求完成</text>
+        <path d="M520 220H105V222" style="stroke:var(--line);stroke-width:1.5;fill:none"/>
+        <path d="M295 220V222M485 220V222M670 188V220" style="stroke:var(--line);stroke-width:1.5;fill:none"/>
+      </svg>
+    </div>
+
+    <h3>数据形状</h3>
+    <p>每条需求一份配置文档，替换现在的 <code>agent-mentions</code>。全站一份 <code>agent-pending</code> 只保留「有待处理工作的需求 id」。</p>
+<pre><code>type AgentSubscription = {
+  agentId: string; runAs: string; sessionId: string;   // Task 会话
+  since: number;                                       // 接受它的评论 id
+  mandate: { triggeredBy: string; agentRevision: number; strength: 'explicit' };
+  ended?: { at: string; reason: 'task_done' | 'dropped' | 'agent_disabled' | 'owner_changed' };
+};
+type AgentInput = { activityId: number; author: string; kind: 'mention' | 'followup' };
+type Disposition = { kind: 'replied' | 'silent' | 'attention' | 'unavailable'; agentId: string; reason?: string };
+type TaskAgentInbox = {
+  subscriptions: Record&lt;string, AgentSubscription&gt;;   // 按 agentId
+  pending: Record&lt;string, AgentInput[]&gt;;              // 按 agentId，Run 进行中时累积
+  inFlight: Record&lt;string, { requestId: string; activityIds: number[] }&gt;;
+  dispositions: Record&lt;number, Disposition[]&gt;;        // 按评论 id
+};
+// Run 最终回复末尾的约定 JSON，由 Backend 解析
+type AgentResult = { reply: string | null; attention: string | null; report: 'progress' | 'ready' | 'dropped' };</code></pre>
+
+    <h3>步骤</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>步骤</th><th>现状</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Source：RD 在需求下评论。智能体写的 activity 不进入</td><td>已有</td></tr>
+          <tr><td>2</td><td>去重：评论 activity id 唯一，<code>requestId</code> 由需求和评论 id 确定</td><td>已有</td></tr>
+          <tr><td>3</td><td>闸门：<code>@名称</code> 解析到可触发的智能体则接受；该需求已有未结束订阅则作为跟进；其余忽略，不记录</td><td>前半已有，跟进是新的</td></tr>
+          <tr><td>4</td><td>接受：同一事务写订阅、mandate 和第一条输入</td><td>新</td></tr>
+          <tr><td>5</td><td>合批：同一 Task 会话有 Run 时，新输入留在 pending；Run 结束后把 pending 合成一条 Queue 消息，单批最多 20 条评论</td><td>新</td></tr>
+          <tr><td>6</td><td>执行：以 owner 身份入队 Session Queue，沿用现有单活和幂等</td><td>已有</td></tr>
+          <tr><td>7</td><td>处置：解析结果 JSON；reply 写时间线，null 记沉默，attention 通知处理人和验收人，dropped 结束订阅</td><td>新，现在每次都写一条回复</td></tr>
+          <tr><td>8</td><td>结束：需求完成、智能体停用或删除、owner 变更时结束订阅，之后的评论不再送达</td><td>新</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <div class="callout-title">解析失败时</div>
+      <p>结果 JSON 缺失或不合法时，由 <code>@名称</code> 触发的批次把整段回复当作 reply 写入，避免丢掉回答；只含跟进的批次记为沉默，原因 <code>unparsed</code>。Run 失败或 owner 的 SSO 会话失效时，<code>@名称</code> 触发的批次写一条「无法运行」并记 <code>unavailable</code>，跟进批次只记处置。</p>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2>关键决定</h2>
+    <hr class="rule">
+    <p class="lede">以下是我的默认选择。标「待你确认」的三项，你不改就按默认实现。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>决定</th><th>选择</th><th>理由</th></tr></thead>
+        <tbody>
+          <tr><td>收件箱放哪</td><td>每条需求一份配置文档</td><td>Session Queue 处在评估之后，上限 20 条，不按需求合批；新表要 RDS 审批，留到接外部事件时</td></tr>
+          <tr><td>模型评估</td><td>不做</td><td><code>@名称</code> 是显式请求，原型对显式请求只过闸门</td></tr>
+          <tr><td>沉默由谁决定</td><td>智能体在结果 JSON 里返回 <code>reply: null</code></td><td>对应原型 <code>work.md:9</code>，判断留在 Executor</td></tr>
+          <tr><td>结构化结果</td><td>最终回复末尾的约定 JSON</td><td>不依赖某个 Runtime 的工具注册，三种 Runtime 都能接</td></tr>
+          <tr><td>跟进消息的权限 <span class="tag warn">待你确认</span></td><td>触发者和 owner 的跟进可调整任务；其他人的跟进只作数据</td><td>原型规定跟进 "grants no new authority"；Run 借用的是 owner 的凭据</td></tr>
+          <tr><td>请人处理的通道 <span class="tag warn">待你确认</span></td><td>先用 Kanban 收件箱通知处理人和验收人</td><td>已有 <code>views.notify</code>；企业微信通知后加</td></tr>
+          <tr><td>人工停止 <span class="tag warn">待你确认</span></td><td>本轮不做，订阅随需求完成、智能体停用或 dropped 结束</td><td>原型规定停止只能由人发起，需要一个按钮或命令，不在最小闭环</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <div class="callout-title">要先写进 CONTEXT.md 的新词</div>
+      <p>订阅、跟进、处置、闸门是我新起的名字，实现前加进词表。避开现有词：「准入」已指用户准入，「投递」已指自动化投递，「候选」已指自动化试跑，所以不用这三个词翻译原型的 admission、delivery、candidate。</p>
+    </div>
+  </section>
+
+  <section id="s5">
+    <h2>风险</h2>
+    <hr class="rule">
+    <p class="lede">第一项是现有代码的问题，闭环实现前先修。依据是读代码推断，未实测。</p>
+
+    <div class="callout warn">
+      <div class="callout-title">需求描述按评论者的权限取出，却进入 owner 的 Run</div>
+      <p>Run 的输入里的需求描述按评论者的可见范围投影，Run 却在 owner 的 Session 里执行。反馈来源的需求，评论者能看到、owner 看不到的描述会进入 owner 的原生 context。修法：组装 Run 输入时按 owner 投影，跟进消息同样处理。</p>
+    </div>
+    <div class="callout warn">
+      <div class="callout-title">订阅扩大了借用凭据的范围</div>
+      <p>Run 用 owner 的 ClawSec 权限，<code>tools</code> 白名单还没强制。订阅后，组内任何 RD 的评论都会送进 Run。跟进只作数据能降低风险，但不能替代白名单。放开 <code>canCreate</code> 前必须先强制白名单。</p>
+    </div>
+    <div class="callout warn">
+      <div class="callout-title">全站一份待处理索引是写热点</div>
+      <p><code>agent-pending</code> 是全站一份 CAS 文档，上限 500。并发评论会冲突重试。最小闭环规模可接受，接外部事件时改用新表。</p>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2>验证与推迟</h2>
+    <hr class="rule">
+    <p class="lede">验证场景：内置 Rook 绑定管理员，处理一条来自反馈移交的需求。自动化测试用真实 MySQL 加替身模型；真实模型 Run 需要 Rook 的 SSO 调用方配置和模型 Token，目前仍缺。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>操作</th><th>通过条件</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>RD 评论「@Rook 为什么训练失败」</td><td>建立订阅；Rook 回复一条；处置为 replied</td></tr>
+          <tr><td>2</td><td>同一 RD 不带 @ 追问「日志在哪」</td><td>送进同一 Task 会话；Rook 回复</td></tr>
+          <tr><td>3</td><td>Rook 的 Run 进行中，另两人各评论一条</td><td>合成一批，只起一次 Run</td></tr>
+          <tr><td>4</td><td>另一 RD 评论「收到，谢谢」</td><td>Rook 不回复；处置为 silent，界面可见「已读未回复」</td></tr>
+          <tr><td>5</td><td>Rook 判断需要验收人决定</td><td>处理人和验收人收到通知；处置为 attention</td></tr>
+          <tr><td>6</td><td>需求标为完成后再评论</td><td>不再送达，无新 Run</td></tr>
+          <tr><td>7</td><td>owner 看不到原反馈描述的需求上触发</td><td>Run 输入里没有该描述</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <details class="fold">
+      <summary>推迟的部分与理由</summary>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>推迟项</th><th>原因</th></tr></thead>
+          <tbody>
+            <tr><td>模型评估、规则、observe 和 auto 模式</td><td>只有未 @ 的主动事件需要；当前只有显式请求</td></tr>
+            <tr><td>GitLab MR 评论、告警、Webhook</td><td>需要新表和 RDS 审批；先用 Kanban 证明闭环</td></tr>
+            <tr><td>Scheduler 和定时跟进</td><td>原型也拒绝「评估给自己排延迟事件」，等待条件应写成 Source</td></tr>
+            <tr><td>Policy 版本与复核</td><td>智能体 revision 已记录，复核随外部事件一起做</td></tr>
+            <tr><td>接单开发与交付</td><td>需要 GitLab 写入凭据，当前只读</td></tr>
+            <tr><td>attach、handback、关联 Thread</td><td>一个需求一个智能体订阅足够验证</td></tr>
+            <tr><td><code>tools</code> 白名单强制</td><td>是放开创建权限的前提，单独做</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <footer>
+    Sources: deepseek-ai/dsh-superagent-prototype HEAD 8c32a9dc5d72 的 docs/001、002、003、007 与 prompts/（MIT；tickets.ts、engine.ts、effects.ts 源码未读，相关结论依据 007 文档）；Rook MR !179 源码 5d924dc；Multica、GitHub Copilot、Claude Agent SDK 的智能体定义调研 &nbsp;—&nbsp; generated 2026-11-25
+  </footer>
+
+</main>
+
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>
