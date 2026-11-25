@@ -124,16 +124,16 @@
       "category": "技术方案",
       "description": "Anthropic《Building always-on agents》中文摘要：事件收件箱、定时器、记忆、权限、发件箱五个原语，以及它们如何组成一个持续运行的 Agent。",
       "id": "reports/building-always-on-agents",
-      "project": "Claude Platform",
-      "title": "常驻 Agent 的工程结构",
+      "project": "Rook",
+      "title": "Rook：Kanban 里的常驻 Agent",
       "versions": [
         {
-          "digest": "10b17bb63b9079acb714b74adfb6400f691180231c26af74fbe1abe1b8456f60",
+          "digest": "d67a8fd192879e08ef4d7635ead5e7c098ee7a1e73f01ef4e10cfcad3465ffd4",
           "label": "v1",
           "path": "reports/building-always-on-agents",
           "published_at": "2026-11-25T14:10:13.365022Z",
-          "summary": "基于 Anthropic《Building always-on agents》的二次整理：五层结构、一次完整运行与落地取舍",
-          "updated_at": "2026-11-25T14:21:32.271864Z"
+          "summary": "Rook 常驻智能体设计参考：Kanban 事件入口、下游 Agent 分派、记忆、权限与评审闸门；含三张原创架构图",
+          "updated_at": "2026-11-25T14:29:18.570446Z"
         }
       ]
     },
