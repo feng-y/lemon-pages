@@ -338,6 +338,23 @@
           "updated_at": "2026-11-26T08:18:54.917983Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "页面与字体评估",
+      "id": "reports/rook-type-scale-20261126",
+      "project": "Rook",
+      "title": "Rook 页面与字体评估",
+      "versions": [
+        {
+          "digest": "c492d93a3be18ea05522307a910f4f25534e64a9eae936a9b5e557430f8dbee2",
+          "label": "v1",
+          "path": "reports/rook-type-scale-20261126",
+          "published_at": "2026-11-26T08:35:47.180630Z",
+          "summary": "v0.1.31：全站字号统一后 19 页验收，越档 262→34，附前后对比截图",
+          "updated_at": "2026-11-26T08:35:47.180630Z"
+        }
+      ]
     }
   ]
 }
