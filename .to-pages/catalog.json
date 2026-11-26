@@ -253,6 +253,23 @@
           "updated_at": "2026-11-25T23:23:31.914216Z"
         }
       ]
+    },
+    {
+      "category": "设计原型",
+      "description": "Runtime 选择器",
+      "id": "reports/rook-runtime-picker",
+      "project": "Rook",
+      "title": "Rook Runtime 选择器",
+      "versions": [
+        {
+          "digest": "03660ddf711233e4a1ae28822145660da2b53919777b346989c72b251bbe4702",
+          "label": "v1",
+          "path": "reports/rook-runtime-picker",
+          "published_at": "2026-11-26T05:24:12.242996Z",
+          "summary": "首版：Runtime、模型、思考强度选择器",
+          "updated_at": "2026-11-26T05:24:12.242996Z"
+        }
+      ]
     }
   ]
 }
