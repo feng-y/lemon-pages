@@ -279,12 +279,12 @@
       "title": "DaVinci 系统分层",
       "versions": [
         {
-          "digest": "9c1053434dccb9e48ac3d658c6603469a4a1c113a52d83361941cb01d69f01f9",
+          "digest": "2928bb74c2cebd6009fc870100a28185f7ed8532ccfe0fc691c5ca023489e31e",
           "label": "v1",
           "path": "reports/davinci-system-layering",
           "published_at": "2026-11-26T06:00:34.595985Z",
-          "summary": "新增第 4 节：改造完成后的代码到 runtime 映射；待决定加结果交付目录与 rules.md:18",
-          "updated_at": "2026-11-26T06:47:20.938417Z"
+          "summary": "新增第 5 节：约 39 个 MR 反复出问题的 5 类结构原因、流程缺口和改造后加一张表的改法；拆分加 1f、4b、5b",
+          "updated_at": "2026-11-26T07:15:39.687707Z"
         }
       ]
     },

@@ -386,6 +386,7 @@ body {
 figure.bleed, .table-wrap.bleed { width: min(1220px, calc(100vw - 48px)); margin-left: calc(50% - min(610px, 50vw - 24px)); }
 .chart.wide svg { min-width: 980px; }
 table.issues td:nth-child(2) { white-space: nowrap; }
+table.recur td:first-child { min-width: 7.5em; }
 .chart svg text { fill: var(--ink); font-family: var(--sans); }
 .chart svg .mono { font-family: var(--mono); fill: var(--muted); }
 .chart svg .muted { fill: var(--muted); }
@@ -414,6 +415,7 @@ table.dest td:last-child, table.dest td:nth-child(2) { white-space: nowrap; }
   <p>目标分层在能力层和外部系统之间加一层「中间件入口」（这是本文新起的名字）。每个外部系统一个入口，线上实现由 <code>server.cc</code> 装配，replay 实现由 <code>ReplayEnvironment</code> 装配，各装配一次。能力代码不再读 replay flag。</p>
   <p>Feature Streaming 不单列为能力。它和 predict 走同一条链，只是结果契约是「特征样本」：跳过模型调用，交付时写 sink。</p>
   <p>改造完成后的样子见第 4 节：一套 schedule，7 个阶段各有一个负责目录。三种结果契约只在模型调用和结果交付两处分叉。replay 只在中间件入口换实现。</p>
+  <p>第 5 节分析了 FeatureTable、KFC 和用户序列相关的约 39 个 MR 为什么反复出问题。根在结构：加一张表要手改 7 份清单和约 6 处组装，MR 因此变大、跨层，评审关不掉，有的最后带着未关的意见进了 master。改造后加一张表只改一行声明，5 类问题各有一条检查守着。</p>
   <p>拆分按这个目标排成 8 波。第 1 波只删死代码：C++ 约 885 行，python 约 490 行，另有 KFC 死路径未计行数。中间件按系统逐个收敛，最后删掉两个 replay flag，再按角色拆 <code>data/</code>。每个进二进制的 MR 都过 build、replay、评审和 x 集群单机灰度。</p>
 </div>
 
@@ -1020,29 +1022,148 @@ table.dest td:last-child, table.dest td:nth-child(2) { white-space: nowrap; }
       <tbody>
         <tr><td><code>server.cc</code> · <code>service_impl</code></td><td>L7 入口</td><td>入口；装配线上中间件入口</td><td>FS / Items RPC 先转成 <code>ModelServerRequest</code>，再进同一套 schedule</td><td>3、8a</td></tr>
         <tr><td><code>modules/</code></td><td>L6 编排</td><td>解析；按结果契约排阶段</td><td>V1 predict 链删除；<code>module_schedule_fs.conf</code> 并入同一套 schedule</td><td>1c、8a</td></tr>
-        <tr><td><code>feature_dependency/</code></td><td>L4 能力</td><td>取特征</td><td>KFC、Redis 调用改经入口；replay flag 删除</td><td>3c、3e、3f</td></tr>
-        <tr><td><code>feature/</code></td><td>L4 能力</td><td>特征执行。spec 和 Hermes 输入只在这里组装</td><td>收进 <code>data/spec_converter</code>、<code>hermes_input</code>、<code>normal_hermes_input_spec</code>；FS 的 5 项输入差异写成结果契约的声明</td><td>5、8a</td></tr>
-        <tr><td><code>predict/</code></td><td>L4 能力</td><td>模型调用，按 QServer 族</td><td>收进 <code>data/onerec_qsv2_model</code>、<code>galaxy_shard_planner</code>、<code>predict_execution_context</code>；QSBertV2 直连改经 Galaxy 入口；死代码删除</td><td>1a、3d、5</td></tr>
+        <tr><td><code>feature_dependency/</code></td><td>L4 能力</td><td>取特征</td><td>收进 <code>modules/parallel_dict_fetcher.h</code>（只有本目录的两个 source 用它）；KFC、Redis 调用改经入口；replay flag 删除；source 只经 fragment 写 log_kv</td><td>1f、3c、3e、3f、4b</td></tr>
+        <tr><td><code>feature/</code></td><td>L4 能力</td><td>特征执行。spec 和 Hermes 输入只在这里组装</td><td>收进 <code>data/spec_converter</code>、<code>hermes_input</code>、<code>normal_hermes_input_spec</code>；今天约 6 处 <code>FeaContext</code> 组装和 model_server 里的 <code>Specification</code> 构造都收到这里；FS 的 5 项输入差异写成结果契约的声明</td><td>5、8a</td></tr>
+        <tr><td><code>predict/</code></td><td>L4 能力</td><td>模型调用，按 QServer 族</td><td>收进 <code>data/onerec_qsv2_model</code>、<code>galaxy_shard_planner</code>、<code>predict_execution_context</code>；QSBertV2 直连改经 Galaxy 入口；死代码删除；QServer 族的身份只在一份族登记表里</td><td>1a、3d、5、6</td></tr>
         <tr><td>结果交付（目录待定）</td><td>L4 能力</td><td>结果交付</td><td><code>feature_streaming/</code> 只剩投影和采样；sink 代码进入口；FS 自己的 schedule、选模型和输入准备删除；只回特征推广到所有族</td><td>3a–3c、8a</td></tr>
-        <tr><td><code>observation/</code></td><td>L4 能力</td><td>观测；响应后</td><td>GalaxyIo、RecordingTask、粗排采样、ReplayCapture 的手写队列换成一个后台排空队列</td><td>4</td></tr>
+        <tr><td><code>observation/</code></td><td>L4 能力</td><td>观测；响应后</td><td>GalaxyIo、RecordingTask、粗排采样、ReplayCapture 的手写队列换成一个后台排空队列；同一种观测只留一份实现</td><td>4、4b</td></tr>
         <tr><td><code>client/</code> → 中间件入口</td><td>L1（和 <code>ftable/</code> 同层）</td><td>所有外部调用</td><td>收进 <code>peta_kfc_client</code>、<code>lancer_sdk_wrapper</code>、<code>boss_client</code>、<code>feature_streaming/</code> 的 Kafka producer、5 个目录里的 Redis 调用</td><td>2–4</td></tr>
         <tr><td><code>replay/</code></td><td>离线验证</td><td>装配 replay 实现</td><td><code>ReplayEnvironment</code> 装配一次；两个 replay flag 删除</td><td>3f</td></tr>
-        <tr><td><code>data/</code></td><td>L5 加载面</td><td>后台线程，不在请求链路上</td><td>只剩加载生命周期：<code>model_curator</code>、<code>hermes_curator</code>、<code>model_family</code>、watcher、dict codec、<code>model_kfc_tables</code></td><td>5</td></tr>
+        <tr><td><code>data/</code></td><td>L5 加载面</td><td>后台线程，不在请求链路上</td><td>只剩加载生命周期：<code>model_curator</code>、<code>hermes_curator</code>、<code>model_family</code>、watcher、<code>model_kfc_tables</code></td><td>5</td></tr>
         <tr><td><code>session_data</code></td><td>L3 请求载体</td><td>贯穿全链路</td><td>不变</td><td>—</td></tr>
         <tr><td><code>fea/</code> <code>sequence/</code> <code>gr_sequence/</code> <code>rt_unified_sequence/</code> · <code>//hermes</code></td><td>L2 Hermes</td><td>特征执行的算子</td><td>死代码和重复副本删除</td><td>1e、7a、7b</td></tr>
-        <tr><td><code>ftable/</code></td><td>L1 FeatureTable</td><td>取特征读的表</td><td>不变</td><td>—</td></tr>
+        <tr><td><code>ftable/</code></td><td>L1 FeatureTable</td><td>取特征读的表；表声明</td><td>收进 <code>data/feature_table_dict_codec</code> 和 <code>feature_table_export_catalog</code>，合成一份表声明，一张表一行；今天的 7 份手写清单都从它读</td><td>5b</td></tr>
         <tr><td><code>types/</code> · <code>config/</code></td><td>L0 基础</td><td>—</td><td>收进配置声明：<code>model_config</code>、<code>data_define</code> 等</td><td>5</td></tr>
       </tbody>
     </table>
   </div>
   <div class="callout">
     <div class="callout-title">两处要先定</div>
-    <p>结果交付的目录名没有定。<code>feature_streaming/</code> 改名会动很多文件，不改名又和它的新职责对不上。另外 <code>rules.md</code> 第 18 行只允许 observation surface 写 Lancer，而特征样本写 sink 是交付，不是观测。两处都列进第 6 节。</p>
+    <p>结果交付的目录名没有定。<code>feature_streaming/</code> 改名会动很多文件，不改名又和它的新职责对不上。另外 <code>rules.md</code> 第 18 行只允许 observation surface 写 Lancer，而特征样本写 sink 是交付，不是观测。两处都列进第 7 节。</p>
+  </div>
+</section>
+
+<section id="recur">
+  <h2>5. 改动为什么反复出问题</h2>
+  <hr class="rule">
+  <p class="lede">取 FeatureTable、KFC 和用户序列相关的三组 MR，共约 39 个，把评审意见按 5 类归到 master 上的结构。同一类问题在不同 MR 里反复出现，原因在结构：同一件事要在多处手写，而检查只覆盖其中一部分。</p>
+
+  <figure class="bleed">
+    <div class="chart wide">
+      <svg viewBox="0 0 1180 232" role="img" aria-label="今天加一张用户数据表要手改多处，MR 变大、跨层，评审跟不上，带着未关的意见合入，再回退或补丁。改造后加一张表只改一行声明，清单从声明读，MR 变小，replay 能覆盖 source op，再上单机。">
+        <defs>
+          <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="var(--muted)"/></marker>
+        </defs>
+        <text x="16" y="79" font-size="13" class="strong">今天</text>
+        <text x="16" y="179" font-size="13" class="strong">改造后</text>
+        <g fill="var(--surface)" stroke="var(--line)" stroke-width="1.5">
+          <rect x="96" y="44" width="196" height="60" rx="8"/>
+          <rect x="317" y="44" width="196" height="60" rx="8"/>
+          <rect x="538" y="44" width="196" height="60" rx="8"/>
+        </g>
+        <g fill="var(--danger-tint)" stroke="var(--danger)" stroke-width="1.5">
+          <rect x="759" y="44" width="196" height="60" rx="8"/>
+          <rect x="980" y="44" width="196" height="60" rx="8"/>
+        </g>
+        <g fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="2">
+          <rect x="96" y="144" width="196" height="60" rx="8"/>
+          <rect x="317" y="144" width="196" height="60" rx="8"/>
+        </g>
+        <g fill="var(--ok-tint)" stroke="var(--ok)" stroke-width="1.5">
+          <rect x="538" y="144" width="196" height="60" rx="8"/>
+          <rect x="759" y="144" width="196" height="60" rx="8"/>
+          <rect x="980" y="144" width="196" height="60" rx="8"/>
+        </g>
+        <g font-size="12" class="strong">
+          <text x="110" y="68">加一张用户数据表</text>
+          <text x="331" y="68">改动跨 L1–L5</text>
+          <text x="552" y="68">评审跟不上</text>
+          <text x="773" y="68">带着未关的意见合入</text>
+          <text x="994" y="68">回退或补丁 MR</text>
+          <text x="110" y="168">加一张用户数据表</text>
+          <text x="331" y="168">清单从声明读</text>
+          <text x="552" y="168">MR 只动声明、算子、测试</text>
+          <text x="773" y="168">replay 覆盖 source op</text>
+          <text x="994" y="168">x 集群单机</text>
+        </g>
+        <g font-size="11">
+          <text x="110" y="90">手改 7 份清单 + 约 6 处组装</text>
+          <text x="331" y="90">MR 55–70 个文件，向上 include</text>
+          <text x="552" y="90">bot 超 diff 上限，21–35 轮</text>
+          <text x="773" y="90">发布车带上，或直接合入</text>
+          <text x="994" y="90">阻塞意见留在 master</text>
+          <text x="110" y="190" class="mono">ftable/ 表声明加一行</text>
+          <text x="331" y="190">组装只在 feature/</text>
+          <text x="552" y="190">本地检查 + CR-Rot 收敛</text>
+          <text x="773" y="190">KFC 表从 case 还原</text>
+          <text x="994" y="190">再合入、灰度</text>
+        </g>
+        <g stroke="var(--muted)" stroke-width="1.2" marker-end="url(#a5)">
+          <line x1="294" y1="74" x2="315" y2="74"/>
+          <line x1="515" y1="74" x2="536" y2="74"/>
+          <line x1="736" y1="74" x2="757" y2="74"/>
+          <line x1="957" y1="74" x2="978" y2="74"/>
+          <line x1="294" y1="174" x2="315" y2="174"/>
+          <line x1="515" y1="174" x2="536" y2="174"/>
+          <line x1="736" y1="174" x2="757" y2="174"/>
+          <line x1="957" y1="174" x2="978" y2="174"/>
+        </g>
+      </svg>
+    </div>
+    <figcaption>第 2 类是根。今天加一张表要在 L1 到 L5 之间手改多处，MR 因此变大、跨层，跨层编辑又带出向上 include（第 1 类）。评审关不掉，有的 MR 最后带着未关的意见进了 master。改造后，5b 的表声明和第 5 波的 <code>feature/</code> 组装把改动收成一行声明，3e 的 KFC 入口让 replay 覆盖 source op。每一环都有下表的 MR 证据，环与环之间的因果是推断。</figcaption>
+  </figure>
+
+  <h3>五类问题</h3>
+  <div class="table-wrap bleed">
+    <table class="recur">
+      <thead><tr><th>类</th><th>评审里的证据</th><th>master 上的结构原因</th><th>改造后由谁挡住</th><th>守住它的检查</th></tr></thead>
+      <tbody>
+        <tr><td>1 循环依赖</td><td>!4712 6 条，!4765 8 条。!4787 为绕开环加了类型别名，后来删掉</td><td>被依赖的代码放在使用方的上层。<code>modules/parallel_dict_fetcher.h</code>（L6）只被 <code>feature_dependency/</code>（L4）用。<code>ftable/request_feature_tables.cpp:6-10</code>（L1）include <code>data/</code> 的 codec（L5）、<code>feature_streaming/</code>（L4）和 <code>session_data.h</code>（L3）。检查在 eac376025b 上报 83 条向上边、26 个目录在环里，但 <code>//hermes</code> 只算一个节点，<code>hermes/src</code> 与 <code>hermes/ops</code> 之间的环看不到</td><td>被依赖的代码放到使用方的层或更低：fetcher 进 <code>feature_dependency/</code>（1f），codec 进 <code>ftable/</code> 的表声明（5b）。<code>request_feature_tables</code> 里调 <code>Export</code> 的部分移到结果交付（5b）</td><td>目录环数量进棘轮；<code>//hermes</code> 拆成两个节点（第 2 波）</td></tr>
+        <tr><td>2 FeatureTable / 用户数据 → spec → Hermes 多处重复</td><td>!4712 25 条，!4765 10 条，评审原话是「每张表 6 处」。!4795 的 <code>codec_type</code> 从未赋值。!4690 把用户 PB 路由加进旧的 spec builder。!4507 新增的 3 个重复 JNI 入口仍在 master</td><td>每张表要手改 7 份清单，条目数各不相同：export catalog 49、key mapping 53、fea_lib 注册表 50、codec 35、log_kv key 27、restore dispatch 19、export dispatch 18。没有一份声明驱动它们。<code>Export</code> 有两个入口（<code>feature_table_dict_export.cpp:1094</code>、<code>:1117</code>），在线和 replay 各走一个。<code>FeaContext</code> 约 6 处组装，<code>Specification</code> 5 处构造</td><td>一张表一行声明，放在 <code>ftable/</code>，7 份清单从它读（5b）。<code>FeaContext</code> 和 <code>Specification</code> 只在 <code>feature/</code> 组装，在线、FS、replay 走同一处（5、8a）</td><td>声明覆盖测试：每份清单的表名集合等于声明。组装位置进边界脚本棘轮（第 2 波）</td></tr>
+        <tr><td>3 QServer 族</td><td>这三组 MR 里 0 条。另一组 Hermes 相关 MR 里，!4545 有 1 条阻塞：<code>ResolveVersion(SystemInfo::app_id())</code> 与下载侧的 app_key 对不上</td><td>一个族的身份散在 3 处。下载脚本 <code>dnn_model_download.py</code> 有 49 处 <code>model_type</code> 比较。<code>model_scoring_provider.cpp:47</code>、<code>:195</code> 按 <code>QServerType</code> switch。<code>hermes_curator.cpp:94</code> 的注释要求写侧和读侧「两处必须同步」，靠人记</td><td><code>predict/</code> 持有族登记表，下载脚本、provider 和 <code>hermes_curator</code> 都读它（6）</td><td>登记表之外的 <code>QServerType</code> switch 进棘轮；python 与 C++ 一致性测试</td></tr>
+        <tr><td>4 配置</td><td>!4712 删掉 HSTU 开关后，owner 的反对意见没关。!4765 的 <code>data_type</code> 一词两义</td><td>同一事实有两处来源：表来源写在 <code>feature_table_source.json</code> 和 TOML 的 <code>remote_dict_source</code> 里；<code>slot.json</code> 由 python 写，C++ 用 <code>value_or(false)</code> 读。跳过和配错走同一条返回：<code>user_hstu_source.cpp:69-72</code>、<code>:84</code> 都返回 <code>MOD_SUCCESS</code>，没有计数区分；<code>ModelConfigView::boolean</code> 对缺失和类型错都返回 nullopt</td><td>一个事实一处声明：表来源进表声明（5b），<code>model.conf</code> 字段进供给声明（6）。加载时类型错直接拒绝</td><td>python 与 C++ 一致性测试；加载期校验的单测</td></tr>
+        <tr><td>5 拆分时期留下的观测实现</td><td>!4628 只改了 cross-AUC 的 V2，master 构建失败，由 !4642 补救。!4785 的评审指出 log_kv_map 的竞争在回退后又出现</td><td>同一种观测有多份实现。Feature Lancer 有 V1、V2、Content、ContentV1 四个模块，FS 另有 <code>BuildSpecBase</code> 和 <code>feature_log_output</code>。cross-AUC 有 V2、V1（无人用）、Seq。<code>observe_general</code> 与 <code>observe_prerank</code> 两套。log_kv_map 有 4 个写入点：<code>feature_dependency_mgr.cpp:247</code>、<code>model_kfc_source.cpp:25</code>、<code>remote_dict_source.cpp:281</code>、<code>fetch_feature_handles.cpp:112</code>。两参 <code>run</code> 的默认实现转发给单参版本并丢掉 fragment（<code>feature_dependency_op.h:30-34</code>），新 source 只覆写单参版本，就绕过了合并点</td><td>每种观测一份实现（4b、8a）。source 只经 fragment 写 log_kv（4b）</td><td><code>mutable_log_kv_map()</code> 的写入位置进边界脚本棘轮；<code>SourceOp</code> 的两参 <code>run</code> 改纯虚，编译期拦住</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>5 类之外：流程上的缺口</h3>
+  <div class="table-wrap bleed">
+    <table class="recur">
+      <thead><tr><th>现象</th><th>证据</th><th>改造后的门槛</th></tr></thead>
+      <tbody>
+        <tr><td>发布车带上评审没关的 MR</td><td>!4576 在第二条阻塞意见后 31 秒合入，!4660、!4512、!4670 同类。!4712 最后一轮 bot 结论是不通过，2 条阻塞未关；它最新版本的 62 个文件里，55 个经发布车 !4758 原样进了 master。!4690 还没合入，它的 <code>specmini.cpp</code>、<code>spec_util.h</code> 已经由 11-12 的发布车带进 master。调查找到 4 条合入时未关的阻塞意见至今还在 master</td><td>发布车核对所带 MR 的最新 bot 结论，见第 7 节</td></tr>
+        <tr><td>带着未关的主要意见合入</td><td>!4765 带着 2 条主要意见合入，58 分钟后被 !4785 回退。记录里没有回退原因，之后拆成 4 个 MR 重做</td><td>推送前本地跑 Davinci-CR-Rot，「主要」和「阻塞」先处理（AGENTS.md 已要求）</td></tr>
+        <tr><td>MR 大到评审跟不上</td><td>!4767、!4794、!4815 超出 bot 的 diff 上限。!4757、!4763 各 70 个文件。!4712 约 35 轮、!4765 21 轮 bot 评审仍不收敛，!4795 多次出现「前轮漏检」</td><td>第 2 类修好后，加一张表只动声明、算子和测试。方案阶段先给落点表（AGENTS.md）</td></tr>
+        <tr><td>叠放的 MR 没人评审</td><td>!4796、!4797、!4800 和 !4798、!4799、!4821 都是 0 轮评审</td><td>每个 MR 单独过 bot；上层在下层合入后再开</td></tr>
+        <tr><td>replay 看不到 source op 的改动</td><td><code>FLAGS_replay_skip_kfc_client</code> 让 FD 跳过全部 source op（<code>feature_dependency_mgr.cpp:180</code>）。第 2 类改动的主体正在 source op 里，replay 通过不代表它对</td><td>3e 的 KFC 入口在 replay 里从 case 还原，3f 删掉这个 flag</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>改造后加一张用户数据表</h3>
+  <p>以 !4765 那类 dense 表为例。评审在 !4765 上说「每张表 6 处」，下表逐项展开，并对照改造后的改法。</p>
+  <div class="table-wrap bleed">
+    <table class="recur">
+      <thead><tr><th>步骤</th><th>今天</th><th>改造后</th></tr></thead>
+      <tbody>
+        <tr><td>声明</td><td>export catalog、key mapping、log_kv key、codec bindings、fea_lib 注册表各加一行；表来源在 TOML 和 <code>feature_table_source.json</code> 各写一次</td><td><code>ftable/</code> 的表声明加一行。fea_lib 注册表漏了，一致性测试报错</td></tr>
+        <tr><td>取数与导出</td><td>restore 和 export dispatch 各加一个分支；两个 <code>Export</code> 入口都要覆盖</td><td>已有 codec 类型不加代码。新 codec 类型只加一个 codec 实现，dispatch 查声明</td></tr>
+        <tr><td>进 Hermes</td><td>约 6 处 <code>FeaContext</code> 组装各自决定带不带新数据</td><td><code>feature/</code> 一处组装，在线、FS、replay 共用</td></tr>
+        <tr><td>日志</td><td>source 可以直接写 log_kv_map，也可以经 fragment</td><td>source 只能返回 fragment，FD 合并点统一写</td></tr>
+        <tr><td>依赖</td><td>fetcher 在 <code>modules/</code>，codec 在 <code>data/</code>，新代码容易加出向上 include</td><td>被依赖的代码都在使用方的层或更低，检查拦住新增的向上边和环</td></tr>
+        <tr><td>验证</td><td>replay 跳过 source op，KFC 部分只能靠单机看</td><td>replay 从 case 还原 KFC 表，未采集的表报「未覆盖」；再上 x 集群单机</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn">
+    <div class="callout-title">还没核实</div>
+    <p>!4765 的回退原因没有记录，「为了拆分重做」是推断。评审意见按关键词归类，没有去重，只有 !4765 的 25 条人工去重过，条数只用来比大小。fea_lib 注册表、codec、两个 dispatch 的条目数，以及 4 条还在 master 的阻塞意见，来自调查报告，主会话没有逐条复核。</p>
   </div>
 </section>
 
 <section id="split">
-  <h2>5. 拆分</h2>
+  <h2>6. 拆分</h2>
   <hr class="rule">
   <p class="lede">顺序按「先删再加、每步可验证」排。每一波都从上面的目标推出来，不是独立的清理项。</p>
 
@@ -1055,7 +1176,8 @@ table.dest td:last-child, table.dest td:nth-child(2) { white-space: nowrap; }
         <tr><td class="wave">1c</td><td>删 V1 predict 链：先让 <code>PredictModelV2Module</code>、<code>PostPredictV2Module</code> 不再继承 V1，再删</td><td>减负</td><td class="num">~300</td><td>replay fine / coarse / trade / fs + 单机；先查 Paladin 动态绑定</td></tr>
         <tr><td class="wave">1d</td><td>删下载脚本里 C++ 已拒绝的模型类型分支</td><td>减负</td><td class="num">~490 py</td><td><code>test_aa_download.py</code> + 单 pod 的 dict/model 树 diff</td></tr>
         <tr><td class="wave">1e</td><td>删 Hermes 死代码：<code>FeaRunnerSimple</code> 与 <code>SIMPLE</code> 分支、<code>jni_set_dict</code> / <code>do_set_dict</code>、只有 <code>#pragma once</code> 的 <code>fea/feature_diff.h</code>。同一个 MR 先给 <code>fea_parser.cpp:812</code> 补空指针检查</td><td>减负；未注册的源 op 今天让进程在加载时崩溃，改成解析失败</td><td class="num">~205</td><td>build + replay fine / coarse / mixer / fs / trade + 单机</td></tr>
-        <tr><td class="wave">2</td><td>声明表 + <code>check_middleware_boundary.py</code>，存量棘轮</td><td>把目标变成可执行的约束，后面每个 MR 只能让数字变小</td><td class="num">0</td><td>单测 + 探针 + 评审（不进二进制）</td></tr>
+        <tr><td class="wave">1f</td><td>纯搬移：<code>modules/parallel_dict_fetcher.h</code>（L6）移到 <code>feature_dependency/</code>（L4）。只有本目录的 <code>model_kfc_source.cpp:9</code> 和 <code>remote_dict_source.cpp:5</code> 用它</td><td>第 5 节第 1 类；向上边减 2 条</td><td class="num">0</td><td>build + <code>check_module_deps.py</code> 计数减 2 + replay fine + 单机</td></tr>
+        <tr><td class="wave">2</td><td>声明表 + <code>check_middleware_boundary.py</code>，存量棘轮。同一个脚本再加 3 条规则：<code>Specification</code> 构造和 <code>FeaContext</code> 组装只在 <code>feature/</code>；<code>mutable_log_kv_map()</code> 只在 FD 合并点；<code>QServerType</code> switch 只在族登记表。<code>check_module_deps.py</code> 把 <code>//hermes</code> 拆成 <code>hermes/src</code>、<code>hermes/ops</code> 两个节点，目录环数量进棘轮</td><td>把目标变成可执行的约束，后面每个 MR 只能让数字变小；第 5 节 5 类问题各有一条检查</td><td class="num">0</td><td>单测 + 探针 + 评审（不进二进制）</td></tr>
         <tr><td class="wave">3a</td><td>Lancer：replay 装配记录器；7 处无 gate 写入和 3 处 flag 分支改走入口</td><td>问题 8、9</td><td class="num">分支 3 处</td><td>build + replay（看 <code>lancer_outputs</code> 不变）+ 评审 + 单机</td></tr>
         <tr><td class="wave">3b</td><td>Kafka：<code>feature_log_output</code> 路由分支和 <code>Sink::Start</code> 分支并进入口</td><td>问题 8</td><td class="num">分支 2 处</td><td>同上</td></tr>
         <tr><td class="wave">3c</td><td>Redis：在 <code>client/</code> 建入口，读写分开；replay 读「拒绝并计数」、写「记录」</td><td>问题 6、8</td><td class="num">分支 1 处</td><td>同上，另看 <code>log_item_bytes</code> / <code>user_spec_bytes</code> 不变</td></tr>
@@ -1063,24 +1185,26 @@ table.dest td:last-child, table.dest td:nth-child(2) { white-space: nowrap; }
         <tr><td class="wave">3e</td><td>KFC：5 条活 RPC 路径收进 <code>client/</code> 的入口，miss 和 error 分开（照 <code>RemoteDictKfcCall</code>）。<code>TableSetting</code> 只能搬进 <code>client/</code>，反向依赖会成环</td><td>问题 3、8</td><td class="num">分支 9 处</td><td>build + replay + 单机；超时口径先定（见下）</td></tr>
         <tr><td class="wave">3f</td><td>删 <code>replay_skip_predict_client</code> 和 <code>replay_skip_kfc_client</code></td><td>问题 8 归零</td><td class="num">2 个 flag</td><td>build + replay 全 app + 单机</td></tr>
         <tr><td class="wave">4</td><td>capture：一个有界的后台排空队列（新起的名字）替换 GalaxyIo、RecordingTask、粗排采样、ReplayCapture 的手写队列；BOSS 只留一套 transport，HeadObject 移出 bthread</td><td>问题 2、7、10</td><td class="num">~160</td><td>build + replay capture 真实产物自检 + 单机</td></tr>
+        <tr><td class="wave">4b</td><td>观测去重：cross-AUC 的 V2 和 Seq 共用一份实现，无人用的 V1 删除；<code>observe_general</code> 和 <code>observe_prerank</code> 合成一个；<code>SourceOp</code> 的两参 <code>run</code> 改成纯虚，source 只经 fragment 写 log_kv；FS 的表 facts 只采一次</td><td>第 5 节第 5 类</td><td class="num">待量</td><td>build + replay（看 <code>lancer_outputs</code> 和 log_kv 不变）+ 单机</td></tr>
         <tr><td class="wave">5</td><td>按角色拆 <code>data/</code>：声明下沉，模型族代码（如 <code>onerec_qsv2_model.cpp</code>、<code>galaxy_shard_planner</code>）回 <code>predict/</code>，KFC 客户端已在 3e 进入口，只留加载生命周期</td><td>向上边从结构上消失，替代 dir-layering 的 S2–S7</td><td class="num">搬移为主</td><td><code>check_module_deps.py</code> 计数下降 + build + replay</td></tr>
-        <tr><td class="wave">6</td><td>供给链路：<code>model.conf</code> 字段由一份声明驱动 python 写和 C++ 读，加一致性测试；修 revision 恒为 0 导致的在线目录 <code>rm -fr</code></td><td>python 写了 7 个 C++ 不读的字段；下载窗口内的半目录</td><td class="num">~120 py</td><td><code>test_aa_download.py</code> + pod diff + 单机</td></tr>
+        <tr><td class="wave">5b</td><td>表声明：<code>feature_table_dict_codec</code> 和 <code>feature_table_export_catalog</code> 移到 <code>ftable/</code>，合成一张表一行的声明。export catalog、codec bindings、key mapping、log_kv key、restore 和 export dispatch 都从它读；<code>feature_table_source.json</code> 和 TOML 里的表来源并进去；fea_lib 的 <code>dict_func.h</code> 注册表加一致性测试。两个 <code>Export</code> 入口合成一个，<code>request_feature_tables.cpp</code> 里调 <code>Export</code> 的部分移到结果交付</td><td>第 5 节第 2、4 类</td><td class="num">清单合并</td><td>声明覆盖测试 + <code>table_key_mapping_contract_test</code> + replay fine / fs + 单机；先确认 codec 对 <code>type_define.h</code> 的 include 是否还需要</td></tr>
+        <tr><td class="wave">6</td><td>供给链路：<code>model.conf</code> 字段由一份声明驱动 python 写和 C++ 读，加一致性测试；QServer 族登记表也在这份声明里，下载脚本、<code>model_scoring_provider</code> 和 <code>hermes_curator</code> 都读它；<code>ModelConfigView::boolean</code> 区分缺失和类型错；修 revision 恒为 0 导致的在线目录 <code>rm -fr</code></td><td>python 写了 7 个 C++ 不读的字段；下载窗口内的半目录；第 5 节第 3、4 类</td><td class="num">~120 py</td><td><code>test_aa_download.py</code> + pod diff + 单机</td></tr>
         <tr><td class="wave">7a</td><td>Hermes 合并重复副本：<code>S_GetRtAdSeq</code> 并进 <code>S_GetSeq</code>，先迁调用方再删；三个 runner 的 Init / ToFeatureResult / Clear 样板收进 <code>FeaRunnerBase</code>；<code>init_pro_runner</code> 改走 <code>BuildRunnerPool</code></td><td>减负，热路径上行为不变</td><td class="num">~230</td><td>replay fine / fs / mixer + JNI 单测 + x 集群单机看耗时（replay 不判耗时）</td></tr>
         <tr><td class="wave">7b</td><td>删约 49 个只在注册表里出现的 op：2026-05 之后没人改过，29,826 张抓到的图、feature_store 快照和仓库里的配置都没引用</td><td>减负</td><td class="num">~1.4k 估</td><td>1e 已合入；拉新的 feature_store <code>hermes_store</code>，拿到 JNI / Flink 图清单后再删</td></tr>
-        <tr><td class="wave">8a</td><td>Feature Streaming 并进 predict 链：FS / Items 请求照旧在入口转成 <code>ModelServerRequest</code>，打分意图声明「特征样本」和样本模型；跑模型阶段按结果契约跳过模型调用，把 ADR-0007 的只回特征从 ItemEmbQServerV2 推广到所有族；交付阶段经 Lancer、Kafka、Redis 入口写样本。5 项输入差异先写成这个结果契约的显式声明，行为不变</td><td>问题 11；删 FS 自己的 schedule、选模型和输入准备</td><td class="num">待量</td><td>replay fs（看 <code>lancer_outputs</code> 不变）+ replay fine + 单机</td></tr>
-        <tr><td class="wave">8b</td><td>去掉 5 项输入差异，样本与线上预估同口径</td><td>训练与线上一致</td><td class="num">—</td><td>先有算法 owner 的决定（见第 6 节）；样本 diff + 离线训练评估</td></tr>
+        <tr><td class="wave">8a</td><td>Feature Streaming 并进 predict 链：FS / Items 请求照旧在入口转成 <code>ModelServerRequest</code>，打分意图声明「特征样本」和样本模型；跑模型阶段按结果契约跳过模型调用，把 ADR-0007 的只回特征从 ItemEmbQServerV2 推广到所有族；交付阶段经 Lancer、Kafka、Redis 入口写样本。5 项输入差异先写成这个结果契约的显式声明，行为不变</td><td>问题 11；删 FS 自己的 schedule、选模型和输入准备；Feature Lancer 的 V1、V2、Content、ContentV1 四个模块并成一个交付（第 5 节第 5 类）</td><td class="num">待量</td><td>replay fs（看 <code>lancer_outputs</code> 不变）+ replay fine + 单机</td></tr>
+        <tr><td class="wave">8b</td><td>去掉 5 项输入差异，样本与线上预估同口径</td><td>训练与线上一致</td><td class="num">—</td><td>先有算法 owner 的决定（见第 7 节）；样本 diff + 离线训练评估</td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="callout">
     <div class="callout-title">为什么这个顺序</div>
-    <p>第 1 波只删不加，先把要迁移的调用点变少。第 2 波在动结构前把目标写成检查，之后每个 MR 都能用数字证明方向对。第 3 波按风险从低到高逐个系统收敛，Lancer 和 Kafka 只有记录语义，KFC 牵涉超时口径，放最后。第 5 波排在第 3 波之后，因为 <code>data/</code> 里的 KFC 客户端要先进入口才能拆干净。第 7 波是 Hermes 内部的减负，不依赖中间件入口，可以和第 3 波并行；7b 要等 JNI 图清单。第 8 波排在 3a、3b、3c 之后，因为样本要经 Lancer、Kafka、Redis 的入口写出；8a 不改样本内容，8b 改样本内容，所以分开。</p>
+    <p>第 1 波只删不加，先把要迁移的调用点变少。第 2 波在动结构前把目标写成检查，之后每个 MR 都能用数字证明方向对。第 3 波按风险从低到高逐个系统收敛，Lancer 和 Kafka 只有记录语义，KFC 牵涉超时口径，放最后。第 5 波排在第 3 波之后，因为 <code>data/</code> 里的 KFC 客户端要先进入口才能拆干净。第 7 波是 Hermes 内部的减负，不依赖中间件入口，可以和第 3 波并行；7b 要等 JNI 图清单。第 8 波排在 3a、3b、3c 之后，因为样本要经 Lancer、Kafka、Redis 的入口写出；8a 不改样本内容，8b 改样本内容，所以分开。1f 是纯搬移，可以和第 1 波一起做。4b 和 5b 不依赖中间件入口，可以和第 3 波并行。5b 合入后，加一张表只改一行声明，后面各波涉及表的 MR 都会变小。</p>
   </div>
 </section>
 
 <section id="decide">
-  <h2>6. 待决定</h2>
+  <h2>7. 待决定</h2>
   <hr class="rule">
   <div class="table-wrap">
     <table>
@@ -1094,6 +1218,7 @@ table.dest td:last-child, table.dest td:nth-child(2) { white-space: nowrap; }
         <tr><td>FS 样本的 5 项输入差异：<code>request_time_ms</code> 为 0，GR、GR General、dense 为空（<code>feature_streaming_input.cpp:40-43</code>），rt_unified 只有样本填（<code>:107-112</code>，线上 <code>PrepareContext</code> 不填）。当前 28 张图用 <code>S_GetRtUnifiedSeq</code>，线上拿到的永远是空。FS 还按 spec 重建长行为视图（<code>:45</code>），和线上是否相同没有核对</td><td>A 是有意保留的历史口径，写进结果契约；B 是训练与线上的偏差，统一成线上口径</td><td>需要算法 owner 判断。8a 先按 A 做，行为不变</td><td>8b</td></tr>
         <tr><td>结果交付放在哪个目录</td><td>A <code>feature_streaming/</code> 改名，收进 fill 和只回特征的投影；B 不改名，只在第 4 节的表里写明职责</td><td>A。名字和职责不符，agent 会按名字把新代码放错地方；改名放在 8a 同一个 MR 里，只动一次</td><td>8a</td></tr>
         <tr><td><code>rules.md:18</code> 只允许 observation surface 写 Lancer；特征样本写 sink 是交付，不是观测</td><td>A 改规则：结果交付也可以经 Lancer、Kafka、Redis 入口写样本；B 特征样本的写出归 <code>observation/</code></td><td>A。样本是结果契约的产出，丢了或格式变了是契约问题；观测按 ADR-0004 不得改变结果</td><td>3a 之前</td></tr>
+        <tr><td>发布车的上车门槛：今天发布车会带上最新 bot 结论还有未关阻塞的 MR（第 5 节）</td><td>A 发布车合入前，逐个核对所带 MR 的最新 bot 结论，有未关阻塞的不上车；B 保持现状，由各 MR 自查</td><td>A。合入时未关的阻塞意见，调查找到 4 条至今还在 master。这是流程决定，不进二进制，需要发布车负责人认可</td><td>全部</td></tr>
         <tr><td>GR General 一族，约 1.2k 行：抓到的图里有 34 张引用，fine_ads 的 hermes_statistics 里没有；在线 flag 默认关，靠 abyss 打开</td><td>A 保留；B 删除</td><td>先用 <code>model-locator</code> 和 abyss 实验状态确认是否还在跑</td><td>7b 之后</td></tr>
       </tbody>
     </table>
@@ -1139,10 +1264,11 @@ replay_skip_predict_client（10 处，9 个文件）
       <table>
         <thead><tr><th>角色</th><th>文件</th><th>目标去向</th></tr></thead>
         <tbody>
-          <tr><td>配置声明</td><td>model_config、data_define、model_scope_config_data、ucl_config_data、global_dense_feature_config_data、model_requirements、model_provider_types、feature_table_export_catalog</td><td>下沉，不依赖加载面</td></tr>
+          <tr><td>配置声明</td><td>model_config、data_define、model_scope_config_data、ucl_config_data、global_dense_feature_config_data、model_requirements、model_provider_types</td><td>下沉，不依赖加载面</td></tr>
+          <tr><td>表声明</td><td>feature_table_dict_codec、feature_table_export_catalog</td><td>并进 <code>ftable/</code> 的表声明（5b）</td></tr>
           <tr><td>外部系统客户端</td><td>user_long_behavior、user_ad_behavior、user_hstu、data_define_dense_online、remote_dict、davinci_abyss_data</td><td>KFC 部分进中间件入口；abyss 保持</td></tr>
           <tr><td>模型族与执行</td><td>onerec_qsv2_model、galaxy_shard_planner、predict_execution_context、hermes_input、normal_hermes_input_spec、spec_converter</td><td>回 predict/ 或 feature/</td></tr>
-          <tr><td>加载生命周期</td><td>model_curator、hermes_curator、model_family、data_define_model_watcher、dict_serializer、feature_table_dict_codec、model_kfc_tables</td><td>留在 data/</td></tr>
+          <tr><td>加载生命周期</td><td>model_curator、hermes_curator、model_family、data_define_model_watcher、dict_serializer、model_kfc_tables</td><td>留在 data/</td></tr>
         </tbody>
       </table>
     </div>
@@ -1155,6 +1281,7 @@ replay_skip_predict_client（10 处，9 个文件）
     <ul class="points">
       <li><strong>调查方式。</strong>6 个只读调查分别覆盖 KFC 入口、replay flag、capture 流水线、模型子系统、Hermes 边界、模型下发；本页用到的 file:line 来自这 6 份报告。主会话复核了 flag 读取计数、目录行数、fine_ads schedule，以及 1e 每一项的调用方。</li>
       <li><strong>Feature Streaming 的分叉点。</strong>主会话读代码确认：<code>feature_request_converter.cpp:13-73</code> 把 FS 请求转成 <code>ModelServerRequest</code>；<code>feature_streaming_input.cpp:38</code> 调同一个 <code>PrepareContext</code>；<code>feature_lancer_module_feasign.cpp:370</code> 调同一个 <code>feature_provider()-&gt;Extract</code>。FS 专有代码 <code>feature_streaming/</code> 共 4618 行 .cpp，其中多少能删还没逐个量。</li>
+      <li><strong>第 5 节的来源。</strong>3 个只读调查读了约 39 个 MR 的评审意见和合入记录。主会话在 master eac376025b 上复核了：!4576 的合入时间；!4712 最新版本 62 个文件中 55 个与发布车合入的 f5f8a54e6c 相同；5 处 <code>Specification</code> 构造；<code>QServerType</code> switch 的两处位置；log_kv_map 的 4 个写入点和两参 <code>run</code> 的默认实现；export catalog、key mapping、log_kv key 三份清单的条目数（49、53、27）；<code>parallel_dict_fetcher.h</code> 只被两个 source 使用；dict codec 用到的表类型都在 <code>//model_server/ftable</code>。</li>
       <li><strong>纠正。</strong>Hermes 调查报告 <code>GetSlotUserType</code> / <code>SaveSlotUserTypeToJson</code> 没有调用方。主会话在 <code>fea_lib/tools/fea_mini.cpp:649</code>、<code>:663</code> 找到调用，已从 1e 去掉。</li>
       <li><strong>master 上已有的 bug。</strong><code>fea_parser.cpp:812</code> 不检查 <code>CreateOperator</code> 的返回值，而 <code>operator.h:618-619</code> 对未知名字返回 nullptr。图里的源 op 没注册时，进程在加载时崩溃。</li>
       <li><strong>推断项。</strong>Redis 客户端是否阻塞 pthread、Lancer SDK 是否缓冲、<code>Issue(int)</code> 是否覆盖 channel 超时，三者的库源码不在本 checkout，未核实。revision 恒为 0 导致读到半目录是推断。mixer 图在线跑离线名字的 dict op，是否拿到 DictSet 未核实。</li>
