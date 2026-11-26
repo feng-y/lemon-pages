@@ -321,6 +321,23 @@
           "updated_at": "2026-11-26T08:11:26.119685Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/multica-v2026-1125-022-verify",
+      "project": "",
+      "title": "Multica v2026.1125.022 验证报告",
+      "versions": [
+        {
+          "digest": "e9a7cbae61786dcdf384806e8abbe696052f7001390ac38841cfe5e4164e9c44",
+          "label": "v1",
+          "path": "reports/multica-v2026-1125-022-verify",
+          "published_at": "2026-11-26T08:18:54.917983Z",
+          "summary": "分诊不发企业微信、分诊处理人检索、用户准入邮箱补全的浏览器与测试证据",
+          "updated_at": "2026-11-26T08:18:54.917983Z"
+        }
+      ]
     }
   ]
 }
