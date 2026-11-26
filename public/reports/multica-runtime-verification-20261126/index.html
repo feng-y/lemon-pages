@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'">
+<title>Multica Runtime 验收</title>
+<style>
+  :root { font: 16px/1.65 system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; color: #152521; background: #f4f6f2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  main { max-width: 1140px; margin: 0 auto; padding: 56px 24px; }
+  header { padding-bottom: 24px; border-bottom: 1px solid #bdcbc1; }
+  h1 { margin: 6px 0 10px; font-size: clamp(32px, 6vw, 50px); line-height: 1.13; letter-spacing: -.02em; }
+  h2 { margin: 0; font-size: 24px; }
+  p { margin: 0; }
+  time, figcaption { color: #436053; }
+  .checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 20px; margin-top: 24px; }
+  .check { padding: clamp(16px, 3vw, 24px); background: #fff; border: 1px solid #d2ded5; border-radius: 15px; }
+  .model { margin-top: 5px; }
+  code { padding: .12em .38em; border: 1px solid #c9dbd0; border-radius: 5px; color: #173f33; background: #eaf3ed; }
+  figure { margin: 22px 0 0; }
+  img { display: block; width: 100%; height: auto; border: 1px solid #d7dfd9; border-radius: 9px; }
+  .picker img { max-width: 368px; }
+  figcaption { margin-top: 7px; font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <time datetime="2026-11-26">2026 年 11 月 26 日</time>
+    <h1>Multica Runtime 验收</h1>
+    <p>我在生产 Chat 选择模型和 effort，并发起真实模型调用。两次 Run 均成功。两个 HTML 分享均可在登录后打开，且各包含一条合成提问和一条回复。</p>
+  </header>
+  <div class="checks">
+    <section class="check" aria-labelledby="claude-heading">
+      <h2 id="claude-heading">Claude Code</h2>
+      <p class="model">Claude Sonnet 5.5 · <code>xhigh</code></p>
+      <figure class="picker">
+        <img src="Claude-Sonnet-5.5-picker.png" width="368" height="246" alt="Multica 选中 Claude Code、Claude Sonnet 5.5 和超高思考强度">
+        <figcaption>生产 Chat 的模型选择器</figcaption>
+      </figure>
+      <figure>
+        <img src="claude-code-share.png" width="960" height="330" alt="Claude Code 的分享页显示合成提问和 ROOK_RUNTIME_OK 回复">
+        <figcaption>登录后打开的只读 HTML 分享</figcaption>
+      </figure>
+    </section>
+    <section class="check" aria-labelledby="codex-heading">
+      <h2 id="codex-heading">Codex</h2>
+      <p class="model">GPT-6 Astra · <code>xhigh</code></p>
+      <figure class="picker">
+        <img src="GPT-6-Astra-picker.png" width="368" height="232" alt="Multica 选中 Codex、GPT-6 Astra 和超高思考强度">
+        <figcaption>生产 Chat 的模型选择器</figcaption>
+      </figure>
+      <figure>
+        <img src="codex-share.png" width="960" height="330" alt="Codex 的分享页显示合成提问和 ROOK_RUNTIME_OK 回复">
+        <figcaption>登录后打开的只读 HTML 分享</figcaption>
+      </figure>
+    </section>
+  </div>
+</main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

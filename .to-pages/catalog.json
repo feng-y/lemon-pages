@@ -355,6 +355,23 @@
           "updated_at": "2026-11-26T08:35:47.180630Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/multica-runtime-verification-20261126",
+      "project": "Multica",
+      "title": "Multica Runtime 验收",
+      "versions": [
+        {
+          "digest": "082c7569f0555f72cc8fb5cd6615dd265ed6f388369f0fadddccfd4ac282275b",
+          "label": "v1",
+          "path": "reports/multica-runtime-verification-20261126",
+          "published_at": "2026-11-26T10:14:00.213045Z",
+          "summary": "Claude Code 和 Codex 的生产模型、effort 和 HTML 分享截图",
+          "updated_at": "2026-11-26T10:14:00.213045Z"
+        }
+      ]
     }
   ]
 }
