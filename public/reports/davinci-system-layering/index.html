@@ -411,7 +411,8 @@ td code { white-space: nowrap; }
   <div class="tldr-label">TL;DR</div>
   <p>结构问题集中在一处：请求链路上的能力代码直接调用外部系统的 SDK。replay 替代这些调用靠两种办法：一是 <code>replay/</code> 之外 19 处 <code>FLAGS_replay_skip_*</code> 读取，二是 Redis、Lancer 和两条 Galaxy 直连在 replay 里根本没初始化客户端。第二种没有任何检查守着。</p>
   <p>目标分层在能力层和外部系统之间加一层「中间件入口」（这是本文新起的名字）。每个外部系统一个入口，线上实现由 <code>server.cc</code> 装配，replay 实现由 <code>ReplayEnvironment</code> 装配，各装配一次。能力代码不再读 replay flag。</p>
-  <p>拆分按这个目标排成 7 波。第 1 波只删死代码：C++ 约 885 行，python 约 490 行，另有 KFC 死路径未计行数。中间件按系统逐个收敛，最后删掉两个 replay flag，再按角色拆 <code>data/</code>。每个进二进制的 MR 都过 build、replay、评审和 x 集群单机灰度。</p>
+  <p>Feature Streaming 不单列为能力。它和 predict 走同一条链，只是结果契约是「特征样本」：跳过模型调用，交付时写 sink。</p>
+  <p>拆分按这个目标排成 8 波。第 1 波只删死代码：C++ 约 885 行，python 约 490 行，另有 KFC 死路径未计行数。中间件按系统逐个收敛，最后删掉两个 replay flag，再按角色拆 <code>data/</code>。每个进二进制的 MR 都过 build、replay、评审和 x 集群单机灰度。</p>
 </div>
 
 <section id="chain">
@@ -566,7 +567,7 @@ td code { white-space: nowrap; }
   </figure>
 
   <h3>链路上的问题</h3>
-  <div class="table-wrap">
+  <div class="table-wrap bleed">
     <table class="issues">
       <thead><tr><th>#</th><th>阶段</th><th>现象</th><th>证据</th><th>后果</th></tr></thead>
       <tbody>
@@ -580,6 +581,7 @@ td code { white-space: nowrap; }
         <tr><td class="num">8</td><td>全链路</td><td>replay 替代散在 <code>replay/</code> 之外 19 处 flag 读取、15 个文件。<code>replay_skip_predict_client</code> 同时表示「不调模型」和「不写 sink」</td><td>见附录的读取清单</td><td>改一种语义会连带另一种。新调用点漏判没有任何信号</td></tr>
         <tr><td class="num">9</td><td>日志</td><td>Lancer 有 7 个写入点没有 gate</td><td><code>model_scoring_observation.cpp:151/282/381</code>，<code>lancer_cross_auc_module.cpp:92/275/355</code>，<code>lancer_score_monitor_module.cpp:79</code></td><td>replay 里靠 <code>writer not found</code> 失败返回</td></tr>
         <tr><td class="num">10</td><td>响应后</td><td>「队列 + 单 bthread worker」手写了 3 份。BOSS 客户端构造两次，HTTP 和 HTTPS 不一致。capture worker 在 bthread 上同步调 BOSS</td><td><code>galaxy_io_record.cpp:382-435</code>、<code>recording_task.cpp:102-164</code>、<code>replay_capture_manager.cpp:495-526</code>；<code>boss_client.cpp:129</code> 对 <code>:162</code></td><td>约 200 行重复。BOSS 最坏阻塞 16 s，占住 brpc worker</td></tr>
+        <tr><td class="num">11</td><td>交付</td><td>Feature Streaming 是 predict 链的小分叉：FD、<code>PrepareContext</code>、Hermes 和 ModelCurator 都复用，另有自己的 RPC 和 schedule（<code>module_schedule_fs.conf</code>）。它在同一个 <code>PrepareContext</code> 之后改掉 5 项输入，按配置自己选模型，自己投影 payload</td><td><code>feature_streaming_input.cpp:38-45</code>、<code>:107-112</code> 对 <code>spec_converter.cpp:292-316</code>；<code>feature_lancer_module_feasign.cpp:100-115</code>、<code>:355-382</code></td><td>样本和线上预估的特征输入不同：<code>request_time_ms</code> 为 0，GR、GR General 序列和 dense 为空，rt_unified 只有样本有。用到这些输入的模型，训练和线上看到的特征不同（推断）</td></tr>
       </tbody>
     </table>
   </div>
@@ -611,9 +613,9 @@ td code { white-space: nowrap; }
           <rect x="110" y="236" width="620" height="42" rx="10"/>
         </g>
         <text x="124" y="62" font-size="12" class="strong">L7 入口</text>
-        <text x="124" y="80" font-size="11" class="muted">server.cc 装配 · ServiceImpl · HTTP 服务</text>
+        <text x="124" y="80" font-size="11" class="muted">server.cc 装配 · ServiceImpl：预估 RPC；FS / Items RPC 先转成同一个 ModelServerRequest</text>
         <text x="124" y="124" font-size="12" class="strong">L6 编排 · modules/</text>
-        <text x="124" y="142" font-size="11" class="muted">schedule 七个阶段：check → parse → 取特征 → 跑模型 → post → fill → logging</text>
+        <text x="124" y="142" font-size="11" class="muted">一套 schedule：check → parse → 取特征 → 跑模型 → 按结果契约交付 → logging</text>
         <text x="124" y="180" font-size="12" class="strong">L4 能力</text>
         <g fill="var(--ground)" stroke="var(--line)" stroke-width="1.2">
           <rect x="120" y="188" width="112" height="32" rx="6"/>
@@ -625,8 +627,8 @@ td code { white-space: nowrap; }
         <g font-size="10.5" text-anchor="middle">
           <text x="176" y="208">FD 取特征</text>
           <text x="298" y="208">Hermes 特征执行</text>
-          <text x="420" y="208">模型执行 predict/</text>
-          <text x="542" y="208">Feature Streaming</text>
+          <text x="420" y="208">模型调用</text>
+          <text x="542" y="208">结果交付</text>
           <text x="664" y="208">观测（Observation）</text>
         </g>
         <text x="124" y="262" font-size="12" class="strong">L3 请求载体</text>
@@ -735,7 +737,7 @@ td code { white-space: nowrap; }
         </g>
       </svg>
     </div>
-    <figcaption>目标只改一处结构：能力层到外部系统的所有调用都经过中间件入口（蓝框）。今天的红色虚线是要收掉的直连。供给链路已经是「后台发布、请求只借快照」，保持不动。L0 基础层（flags、logging、bthread、util）省略。</figcaption>
+    <figcaption>目标只改一处结构：能力层到外部系统的所有调用都经过中间件入口（蓝框）。今天的红色虚线是要收掉的直连。供给链路已经是「后台发布、请求只借快照」，保持不动。Feature Streaming 不再是单独的能力：它走同一条链，按「特征样本」结果契约跳过模型调用，交付时把样本写到 sink，不回包。L0 基础层（flags、logging、bthread、util）省略。</figcaption>
   </figure>
 
   <h3>分层规则和守护它们的检查</h3>
@@ -783,7 +785,7 @@ td code { white-space: nowrap; }
         <rect x="520" y="228" width="464" height="30" rx="8" fill="var(--ok-tint)" stroke="var(--ok)" stroke-width="1.5"/>
 
         <g font-size="12">
-          <text x="30" y="55">能力代码：FD · 模型执行 · Feature Streaming</text>
+          <text x="30" y="55">能力代码：FD · Hermes · 模型调用 · 结果交付</text>
           <text x="30" y="123">if (FLAGS_replay_skip_*)：replay/ 之外 19 处读取，15 个文件</text>
           <text x="30" y="203">线上：直接调 SDK</text>
           <text x="262" y="203">replay：记 capture 或空返回</text>
@@ -861,13 +863,15 @@ td code { white-space: nowrap; }
         <tr><td class="wave">6</td><td>供给链路：<code>model.conf</code> 字段由一份声明驱动 python 写和 C++ 读，加一致性测试；修 revision 恒为 0 导致的在线目录 <code>rm -fr</code></td><td>python 写了 7 个 C++ 不读的字段；下载窗口内的半目录</td><td class="num">~120 py</td><td><code>test_aa_download.py</code> + pod diff + 单机</td></tr>
         <tr><td class="wave">7a</td><td>Hermes 合并重复副本：<code>S_GetRtAdSeq</code> 并进 <code>S_GetSeq</code>，先迁调用方再删；三个 runner 的 Init / ToFeatureResult / Clear 样板收进 <code>FeaRunnerBase</code>；<code>init_pro_runner</code> 改走 <code>BuildRunnerPool</code></td><td>减负，热路径上行为不变</td><td class="num">~230</td><td>replay fine / fs / mixer + JNI 单测 + x 集群单机看耗时（replay 不判耗时）</td></tr>
         <tr><td class="wave">7b</td><td>删约 49 个只在注册表里出现的 op：2026-05 之后没人改过，29,826 张抓到的图、feature_store 快照和仓库里的配置都没引用</td><td>减负</td><td class="num">~1.4k 估</td><td>1e 已合入；拉新的 feature_store <code>hermes_store</code>，拿到 JNI / Flink 图清单后再删</td></tr>
+        <tr><td class="wave">8a</td><td>Feature Streaming 并进 predict 链：FS / Items 请求照旧在入口转成 <code>ModelServerRequest</code>，打分意图声明「特征样本」和样本模型；跑模型阶段按结果契约跳过模型调用，把 ADR-0007 的只回特征从 ItemEmbQServerV2 推广到所有族；交付阶段经 Lancer、Kafka、Redis 入口写样本。5 项输入差异先写成这个结果契约的显式声明，行为不变</td><td>问题 11；删 FS 自己的 schedule、选模型和输入准备</td><td class="num">待量</td><td>replay fs（看 <code>lancer_outputs</code> 不变）+ replay fine + 单机</td></tr>
+        <tr><td class="wave">8b</td><td>去掉 5 项输入差异，样本与线上预估同口径</td><td>训练与线上一致</td><td class="num">—</td><td>先有算法 owner 的决定（见第 5 节）；样本 diff + 离线训练评估</td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="callout">
     <div class="callout-title">为什么这个顺序</div>
-    <p>第 1 波只删不加，先把要迁移的调用点变少。第 2 波在动结构前把目标写成检查，之后每个 MR 都能用数字证明方向对。第 3 波按风险从低到高逐个系统收敛，Lancer 和 Kafka 只有记录语义，KFC 牵涉超时口径，放最后。第 5 波排在第 3 波之后，因为 <code>data/</code> 里的 KFC 客户端要先进入口才能拆干净。第 7 波是 Hermes 内部的减负，不依赖中间件入口，可以和第 3 波并行；7b 要等 JNI 图清单。</p>
+    <p>第 1 波只删不加，先把要迁移的调用点变少。第 2 波在动结构前把目标写成检查，之后每个 MR 都能用数字证明方向对。第 3 波按风险从低到高逐个系统收敛，Lancer 和 Kafka 只有记录语义，KFC 牵涉超时口径，放最后。第 5 波排在第 3 波之后，因为 <code>data/</code> 里的 KFC 客户端要先进入口才能拆干净。第 7 波是 Hermes 内部的减负，不依赖中间件入口，可以和第 3 波并行；7b 要等 JNI 图清单。第 8 波排在 3a、3b、3c 之后，因为样本要经 Lancer、Kafka、Redis 的入口写出；8a 不改样本内容，8b 改样本内容，所以分开。</p>
   </div>
 </section>
 
@@ -882,7 +886,8 @@ td code { white-space: nowrap; }
         <tr><td>RecordingTask 留不留</td><td>A 保留，换有界队列；B 删除，压测改用 WrkForOtherApp</td><td>需要产品判断。删除比收敛多删约 490 行</td><td>4</td></tr>
         <tr><td>是否把中间件入口层写成 ADR</td><td>A 写 ADR，并更新 ARCHITECTURE.md 的分层；B 只写进本 effort</td><td>A。它改变依赖方向和模块责任，ADR-0003 要求有记录</td><td>2 之前</td></tr>
         <tr><td>下载脚本里的死类型是否还被线上 <code>dnn_task</code> 引用</td><td>查线上 Paladin 后再删</td><td>先查。即便还在引用，C++ 也已拒绝这些模型，删掉只是停止无用下载</td><td>1d</td></tr>
-        <tr><td>rt_unified 序列：线上 <code>PrepareContext</code> 不填（<code>spec_converter.cpp:292-316</code>），Feature Streaming 填（<code>feature_streaming_input.cpp:107-112</code>）。当前 28 张图用 <code>S_GetRtUnifiedSeq</code>，线上拿到的永远是空</td><td>A 线上补齐；B 认定不需要，删 op 和 <code>rt_unified_sequence/</code></td><td>需要算法 owner 判断：这是训练与线上不一致，还是有意为之</td><td>7b 之后</td></tr>
+        <tr><td>ADR-0007 的范围：只回特征目前只对 ItemEmbQServerV2 生效</td><td>A 改 ADR，「特征样本」成为所有族都能声明的结果契约；B 保持，FS 继续单独一套</td><td>A。FS 已经复用同一套 FD、Hermes 和 ModelCurator，剩下的分叉只有选模型、输入覆盖和投影</td><td>8a 之前</td></tr>
+        <tr><td>FS 样本的 5 项输入差异：<code>request_time_ms</code> 为 0，GR、GR General、dense 为空（<code>feature_streaming_input.cpp:40-43</code>），rt_unified 只有样本填（<code>:107-112</code>，线上 <code>PrepareContext</code> 不填）。当前 28 张图用 <code>S_GetRtUnifiedSeq</code>，线上拿到的永远是空。FS 还按 spec 重建长行为视图（<code>:45</code>），和线上是否相同没有核对</td><td>A 是有意保留的历史口径，写进结果契约；B 是训练与线上的偏差，统一成线上口径</td><td>需要算法 owner 判断。8a 先按 A 做，行为不变</td><td>8b</td></tr>
         <tr><td>GR General 一族，约 1.2k 行：抓到的图里有 34 张引用，fine_ads 的 hermes_statistics 里没有；在线 flag 默认关，靠 abyss 打开</td><td>A 保留；B 删除</td><td>先用 <code>model-locator</code> 和 abyss 实验状态确认是否还在跑</td><td>7b 之后</td></tr>
       </tbody>
     </table>
@@ -943,6 +948,7 @@ replay_skip_predict_client（10 处，9 个文件）
   <div class="fold-body">
     <ul class="points">
       <li><strong>调查方式。</strong>6 个只读调查分别覆盖 KFC 入口、replay flag、capture 流水线、模型子系统、Hermes 边界、模型下发；本页用到的 file:line 来自这 6 份报告。主会话复核了 flag 读取计数、目录行数、fine_ads schedule，以及 1e 每一项的调用方。</li>
+      <li><strong>Feature Streaming 的分叉点。</strong>主会话读代码确认：<code>feature_request_converter.cpp:13-73</code> 把 FS 请求转成 <code>ModelServerRequest</code>；<code>feature_streaming_input.cpp:38</code> 调同一个 <code>PrepareContext</code>；<code>feature_lancer_module_feasign.cpp:370</code> 调同一个 <code>feature_provider()-&gt;Extract</code>。FS 专有代码 <code>feature_streaming/</code> 共 4618 行 .cpp，其中多少能删还没逐个量。</li>
       <li><strong>纠正。</strong>Hermes 调查报告 <code>GetSlotUserType</code> / <code>SaveSlotUserTypeToJson</code> 没有调用方。主会话在 <code>fea_lib/tools/fea_mini.cpp:649</code>、<code>:663</code> 找到调用，已从 1e 去掉。</li>
       <li><strong>master 上已有的 bug。</strong><code>fea_parser.cpp:812</code> 不检查 <code>CreateOperator</code> 的返回值，而 <code>operator.h:618-619</code> 对未知名字返回 nullptr。图里的源 op 没注册时，进程在加载时崩溃。</li>
       <li><strong>推断项。</strong>Redis 客户端是否阻塞 pthread、Lancer SDK 是否缓冲、<code>Issue(int)</code> 是否覆盖 channel 超时，三者的库源码不在本 checkout，未核实。revision 恒为 0 导致读到半目录是推断。mixer 图在线跑离线名字的 dict op，是否拿到 DictSet 未核实。</li>
