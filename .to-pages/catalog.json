@@ -372,6 +372,23 @@
           "updated_at": "2026-11-26T10:14:00.213045Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/multica-chat-ui-verification-20261126",
+      "project": "Rook",
+      "title": "Multica 产品图标与 Chat 滚动验收",
+      "versions": [
+        {
+          "digest": "dcf20e741ca91b2ddec164dfbdb4c5b3a582d1c3ac413febd57e16d0fe0f62f7",
+          "label": "v1",
+          "path": "reports/multica-chat-ui-verification-20261126",
+          "published_at": "2026-11-26T10:54:02.495904Z",
+          "summary": "正式页面的 Runtime 截图和滚动边界测量",
+          "updated_at": "2026-11-26T10:54:02.495904Z"
+        }
+      ]
     }
   ]
 }
