@@ -262,12 +262,12 @@
       "title": "Rook Runtime 选择器",
       "versions": [
         {
-          "digest": "a7f5e204779d1c43270c6864a72ff88a898a2e61829729c9428da4f79bde4f9d",
+          "digest": "2897704cc7c1cd7f58d84c8cb364ac8fca9fce454ac493ee468a963ce2519c3c",
           "label": "v1",
           "path": "reports/rook-runtime-picker",
           "published_at": "2026-11-26T05:24:12.242996Z",
-          "summary": "补充模型很多时的滚动列表与组合校验",
-          "updated_at": "2026-11-26T07:06:19.534773Z"
+          "summary": "模型列表固定显示 5 个，超出滚动",
+          "updated_at": "2026-11-26T07:15:16.664252Z"
         }
       ]
     },
