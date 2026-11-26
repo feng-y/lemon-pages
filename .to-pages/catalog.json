@@ -270,6 +270,23 @@
           "updated_at": "2026-11-26T05:57:53.039129Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/davinci-system-layering",
+      "project": "DaVinci",
+      "title": "DaVinci 系统分层",
+      "versions": [
+        {
+          "digest": "a921fc8821a08808462903e11b0593a533e098328ab3555dd17ef8fb121f7d15",
+          "label": "v1",
+          "path": "reports/davinci-system-layering",
+          "published_at": "2026-11-26T06:00:34.595985Z",
+          "summary": "按 fine_ads 运行时调用链路整理现状问题、目标分层（中间件入口层）和 7 波拆分",
+          "updated_at": "2026-11-26T06:00:34.595985Z"
+        }
+      ]
     }
   ]
 }

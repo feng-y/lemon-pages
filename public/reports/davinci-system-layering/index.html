@@ -1,0 +1,991 @@
+<meta charset="utf-8"><title>DaVinci 系统分层</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+
+/* ▼ 报告专用样式 ▼ */
+body {
+  padding-left: max(24px, env(safe-area-inset-left, 0px));
+  padding-right: max(24px, env(safe-area-inset-right, 0px));
+}
+@media (max-width: 640px) {
+  body {
+    padding-left: max(18px, env(safe-area-inset-left, 0px));
+    padding-right: max(18px, env(safe-area-inset-right, 0px));
+  }
+}
+/* 图比正文宽：桌面上突破 880px 正文宽度，窄屏退回 .chart.wide 的横向滚动 */
+figure.bleed, .table-wrap.bleed { width: min(1220px, calc(100vw - 48px)); margin-left: calc(50% - min(610px, 50vw - 24px)); }
+.chart.wide svg { min-width: 980px; }
+table.issues td:nth-child(2) { white-space: nowrap; }
+.chart svg text { fill: var(--ink); font-family: var(--sans); }
+.chart svg .mono { font-family: var(--mono); fill: var(--muted); }
+.chart svg .muted { fill: var(--muted); }
+.chart svg .strong { fill: var(--ink-strong); font-weight: 650; }
+.chart svg .bad { fill: var(--danger); }
+.chart svg .acc { fill: var(--accent-strong); font-weight: 650; }
+td code { white-space: nowrap; }
+.wave { font-family: var(--mono); font-weight: 650; color: var(--accent-strong); white-space: nowrap; }
+</style>
+
+
+<main>
+
+<header>
+  <div class="head-top">
+    <h1>DaVinci 系统分层</h1>
+    <span class="pill-auto">proposal · 未实施</span>
+  </div>
+  <p class="subtitle">按一次请求的 runtime 调用链路整理现状、目标分层和拆分顺序。代码基线 master <code>87f3f8a87d</code>，链路取 fine_ads 的 <code>module_schedule_fusion_v2.conf</code> MAIN schedule。</p>
+</header>
+
+<div class="tldr" id="tldr">
+  <div class="tldr-label">TL;DR</div>
+  <p>结构问题集中在一处：请求链路上的能力代码直接调用外部系统的 SDK。replay 替代这些调用靠两种办法：一是 <code>replay/</code> 之外 19 处 <code>FLAGS_replay_skip_*</code> 读取，二是 Redis、Lancer 和两条 Galaxy 直连在 replay 里根本没初始化客户端。第二种没有任何检查守着。</p>
+  <p>目标分层在能力层和外部系统之间加一层「中间件入口」（这是本文新起的名字）。每个外部系统一个入口，线上实现由 <code>server.cc</code> 装配，replay 实现由 <code>ReplayEnvironment</code> 装配，各装配一次。能力代码不再读 replay flag。</p>
+  <p>拆分按这个目标排成 7 波。第 1 波只删死代码：C++ 约 885 行，python 约 490 行，另有 KFC 死路径未计行数。中间件按系统逐个收敛，最后删掉两个 replay flag，再按角色拆 <code>data/</code>。每个进二进制的 MR 都过 build、replay、评审和 x 集群单机灰度。</p>
+</div>
+
+<section id="chain">
+  <h2>1. 运行时调用链路</h2>
+  <hr class="rule">
+  <p class="lede">一次请求从哪里进来，每个阶段碰哪些外部系统，replay 今天怎么替代它们。</p>
+
+  <figure class="bleed">
+    <div class="chart wide">
+      <svg viewBox="0 0 1180 400" role="img" aria-label="fine_ads 一次请求经过 7 个阶段。取特征、跑模型、日志和响应后四个阶段直接调用外部系统，replay 在这些阶段用分散的 flag 或客户端未初始化来替代。">
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="var(--muted)"/></marker>
+        </defs>
+        <!-- row labels -->
+        <text x="6" y="31" font-size="11" class="muted">阶段</text>
+        <text x="6" y="96" font-size="11" class="muted">线上</text>
+        <text x="6" y="111" font-size="11" class="muted">外部调用</text>
+        <text x="6" y="294" font-size="11" class="muted">replay</text>
+        <text x="6" y="309" font-size="11" class="muted">今天的替代</text>
+        <line x1="4" y1="262" x2="1176" y2="262" stroke="var(--line)" stroke-width="1"/>
+
+        <!-- stage headers -->
+        <g stroke="var(--accent)" stroke-width="1.2" fill="var(--accent-tint)">
+          <rect x="88" y="12" width="136" height="46" rx="8"/>
+          <rect x="238" y="12" width="112" height="46" rx="8"/>
+          <rect x="364" y="12" width="164" height="46" rx="8"/>
+          <rect x="542" y="12" width="222" height="46" rx="8"/>
+          <rect x="778" y="12" width="104" height="46" rx="8"/>
+          <rect x="896" y="12" width="134" height="46" rx="8"/>
+          <rect x="1044" y="12" width="128" height="46" rx="8"/>
+        </g>
+        <g font-size="13" class="strong" text-anchor="middle">
+          <text x="156" y="31">入口</text>
+          <text x="294" y="31">解析</text>
+          <text x="446" y="31">取特征</text>
+          <text x="653" y="31">跑模型</text>
+          <text x="830" y="31">后处理与填充</text>
+          <text x="963" y="31">日志与交付</text>
+          <text x="1108" y="31">响应后</text>
+        </g>
+        <g font-size="10.5" class="mono" text-anchor="middle">
+          <text x="156" y="48">ServiceImpl::process</text>
+          <text x="294" y="48">check · parse</text>
+          <text x="446" y="48">FeatureDependency</text>
+          <text x="653" y="48">PredictModelV2 → call_galaxy</text>
+          <text x="830" y="48">post · fill</text>
+          <text x="963" y="48">stage_logging</text>
+          <text x="1108" y="48">after_rpc_resp</text>
+        </g>
+        <g stroke="var(--muted)" stroke-width="1.2" marker-end="url(#a1)">
+          <line x1="225" y1="35" x2="237" y2="35"/>
+          <line x1="351" y1="35" x2="363" y2="35"/>
+          <line x1="529" y1="35" x2="541" y2="35"/>
+          <line x1="765" y1="35" x2="777" y2="35"/>
+          <line x1="883" y1="35" x2="895" y2="35"/>
+          <line x1="1031" y1="35" x2="1043" y2="35"/>
+        </g>
+
+        <!-- ok chips -->
+        <g fill="var(--surface)" stroke="var(--line)" stroke-width="1.2">
+          <rect x="92" y="72" width="128" height="24" rx="6"/>
+          <rect x="92" y="276" width="128" height="24" rx="6"/>
+          <rect x="242" y="72" width="104" height="24" rx="6"/>
+          <rect x="242" y="102" width="104" height="24" rx="6"/>
+          <rect x="242" y="276" width="104" height="24" rx="6"/>
+          <rect x="368" y="132" width="156" height="24" rx="6"/>
+          <rect x="368" y="162" width="156" height="24" rx="6"/>
+          <rect x="368" y="306" width="156" height="24" rx="6"/>
+          <rect x="546" y="72" width="214" height="24" rx="6"/>
+          <rect x="546" y="102" width="214" height="24" rx="6"/>
+          <rect x="546" y="192" width="214" height="24" rx="6"/>
+          <rect x="782" y="72" width="96" height="24" rx="6"/>
+          <rect x="900" y="72" width="126" height="24" rx="6"/>
+          <rect x="900" y="102" width="126" height="24" rx="6"/>
+          <rect x="900" y="132" width="126" height="24" rx="6"/>
+          <rect x="1048" y="72" width="120" height="24" rx="6"/>
+          <rect x="1048" y="102" width="120" height="24" rx="6"/>
+          <rect x="1048" y="276" width="120" height="24" rx="6"/>
+        </g>
+        <!-- problem chips -->
+        <g fill="var(--danger-tint)" stroke="var(--danger)" stroke-width="1.2">
+          <rect x="92" y="102" width="128" height="24" rx="6"/>
+          <rect x="92" y="132" width="128" height="24" rx="6"/>
+          <rect x="368" y="72" width="156" height="24" rx="6"/>
+          <rect x="368" y="102" width="156" height="24" rx="6"/>
+          <rect x="368" y="276" width="156" height="24" rx="6"/>
+          <rect x="368" y="336" width="156" height="24" rx="6"/>
+          <rect x="546" y="132" width="214" height="24" rx="6"/>
+          <rect x="546" y="162" width="214" height="24" rx="6"/>
+          <rect x="546" y="222" width="214" height="24" rx="6"/>
+          <rect x="546" y="276" width="214" height="24" rx="6"/>
+          <rect x="546" y="306" width="214" height="24" rx="6"/>
+          <rect x="546" y="336" width="214" height="24" rx="6"/>
+          <rect x="782" y="276" width="96" height="24" rx="6"/>
+          <rect x="900" y="276" width="126" height="24" rx="6"/>
+          <rect x="900" y="306" width="126" height="24" rx="6"/>
+          <rect x="1048" y="132" width="120" height="24" rx="6"/>
+          <rect x="1048" y="162" width="120" height="24" rx="6"/>
+        </g>
+        <g font-size="11">
+          <!-- 入口 -->
+          <text x="100" y="88">SessionData 会话本地</text>
+          <text x="100" y="118">1 · ReqDup 建连</text>
+          <text x="100" y="148" font-size="10.5">2 · RecordingTask 锁</text>
+          <text x="100" y="292">runner 还原请求</text>
+          <!-- 解析 -->
+          <text x="250" y="88">abyss 实验参数</text>
+          <text x="250" y="118">Paladin 采样率</text>
+          <text x="250" y="292">配置随 case 还原</text>
+          <!-- 取特征 -->
+          <text x="376" y="88">3 · KFC 7 处 RPC</text>
+          <text x="376" y="118">3 · 超时 20 / 40 / 10 ms</text>
+          <text x="376" y="148">Redis MGET</text>
+          <text x="376" y="178">本地命名表</text>
+          <text x="376" y="292">8 · flag 跳过 SourceOp</text>
+          <text x="376" y="322">字典随 case 还原</text>
+          <text x="376" y="352">4 · dense / HSTU 未采集</text>
+          <!-- 跑模型 -->
+          <text x="554" y="88">Hermes 本地特征执行</text>
+          <text x="554" y="118">call_galaxy · 9 个 QServer 族</text>
+          <text x="554" y="148">5 · QSBertV2 直连 Galaxy ×2</text>
+          <text x="554" y="178">6 · Redis LLM 缓存读写</text>
+          <text x="554" y="208">Lancer：lancer_sf 同步写</text>
+          <text x="554" y="238">7 · 采样：每请求一个 bthread</text>
+          <text x="554" y="292">8 · flag → kReplayCaptured</text>
+          <text x="554" y="322">6 · Redis / Lancer 靠未初始化</text>
+          <text x="554" y="352">5 · 直连 Galaxy 无 gate</text>
+          <!-- 后处理 -->
+          <text x="790" y="88">无外部调用</text>
+          <text x="790" y="292">8 · flag 填分</text>
+          <!-- 日志 -->
+          <text x="908" y="88">Lancer：3 个模块</text>
+          <text x="908" y="118">Kafka 特征样本</text>
+          <text x="908" y="148">Redis SET 样本</text>
+          <text x="908" y="292">8 · 同一 flag 记 sink</text>
+          <text x="908" y="322">9 · Lancer 写无 gate</text>
+          <!-- 响应后 -->
+          <text x="1056" y="88">ReplayCapture</text>
+          <text x="1056" y="118">GalaxyIo → Lancer</text>
+          <text x="1056" y="148">10 · 手写队列 ×3</text>
+          <text x="1056" y="178">10 · BOSS 阻塞</text>
+          <text x="1056" y="292">不采集</text>
+        </g>
+        <!-- legend -->
+        <rect x="88" y="374" width="22" height="14" rx="4" fill="var(--danger-tint)" stroke="var(--danger)" stroke-width="1.2"/>
+        <text x="116" y="385" font-size="11" class="muted">问题点，数字对应下表</text>
+        <rect x="300" y="374" width="22" height="14" rx="4" fill="var(--surface)" stroke="var(--line)" stroke-width="1.2"/>
+        <text x="328" y="385" font-size="11" class="muted">现状，可以保留</text>
+      </svg>
+    </div>
+    <figcaption>问题集中在取特征、跑模型、日志和响应后四个阶段。下半行几乎全红：replay 没有一个统一的替代点，每个阶段各自判断 flag，或者靠客户端没初始化而失败。</figcaption>
+  </figure>
+
+  <h3>链路上的问题</h3>
+  <div class="table-wrap">
+    <table class="issues">
+      <thead><tr><th>#</th><th>阶段</th><th>现象</th><th>证据</th><th>后果</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td>入口</td><td>请求复制在 schedule 之前可能调 <code>Channel::Init</code></td><td><code>request_duplicate_manager.cpp:160-166</code>，入口在 <code>service_impl.cpp:175</code></td><td>目标变化或每 1 s 失败重试时，当次请求付建连耗时</td></tr>
+        <tr><td class="num">2</td><td>入口</td><td>RecordingTask 让每个请求都拿一把全局锁</td><td><code>service_impl.cpp:177</code> → <code>recording_task.cpp:338-349</code></td><td>不压测时也加锁；异步队列没有上界</td></tr>
+        <tr><td class="num">3</td><td>取特征</td><td>KFC 有 7 个 RPC 发起点（5 个活）和 6 个 proxy 构造点。超时有三种写法</td><td><code>data_define_dense_online.cpp:86</code> 写死 <code>Issue(40)</code>；<code>remote_dict.h:119</code> 把 10 ms 的 connect flag 当 deadline；其余走 channel 默认 20 ms</td><td>改一处超时要找全 7 处。dense 实际按 40 ms 等</td></tr>
+        <tr><td class="num">4</td><td>取特征</td><td>dense、HSTU、GrModelSeq 表不进 capture，replay 里是空特征</td><td><code>session_data.cpp:806-880</code> 不含这些表；<code>data_define_dense_online.cpp:228</code></td><td>用这些表的模型，compare 通过也证明不了特征一致</td></tr>
+        <tr><td class="num">5</td><td>跑模型</td><td>QSBertV2 的两条 Qwen 路径绕过 <code>call_galaxy</code> 直连 Galaxy</td><td><code>qs_bert_model_v2.cpp:877</code>、<code>:1729</code></td><td>没有 replay gate，没有统一超时和指标</td></tr>
+        <tr><td class="num">6</td><td>跑模型</td><td>Redis 没有入口。读写散在 5 个目录和 <code>server.cc</code>，都没有 replay gate</td><td><code>qs_bert_model_v2.cpp:407-818</code>；<code>model_scoring_observation.cpp:221</code></td><td>replay 碰不到线上 Redis，只因为客户端没 init。有人在 <code>ReplayEnvironment</code> 加 init，就会打到线上</td></tr>
+        <tr><td class="num">7</td><td>跑模型</td><td>粗排采样给每个采样请求起一个 detached bthread，串行 GET</td><td><code>model_scoring_observation.cpp:314-345</code>、<code>:221</code></td><td>并发数没有上界</td></tr>
+        <tr><td class="num">8</td><td>全链路</td><td>replay 替代散在 <code>replay/</code> 之外 19 处 flag 读取、15 个文件。<code>replay_skip_predict_client</code> 同时表示「不调模型」和「不写 sink」</td><td>见附录的读取清单</td><td>改一种语义会连带另一种。新调用点漏判没有任何信号</td></tr>
+        <tr><td class="num">9</td><td>日志</td><td>Lancer 有 7 个写入点没有 gate</td><td><code>model_scoring_observation.cpp:151/282/381</code>，<code>lancer_cross_auc_module.cpp:92/275/355</code>，<code>lancer_score_monitor_module.cpp:79</code></td><td>replay 里靠 <code>writer not found</code> 失败返回</td></tr>
+        <tr><td class="num">10</td><td>响应后</td><td>「队列 + 单 bthread worker」手写了 3 份。BOSS 客户端构造两次，HTTP 和 HTTPS 不一致。capture worker 在 bthread 上同步调 BOSS</td><td><code>galaxy_io_record.cpp:382-435</code>、<code>recording_task.cpp:102-164</code>、<code>replay_capture_manager.cpp:495-526</code>；<code>boss_client.cpp:129</code> 对 <code>:162</code></td><td>约 200 行重复。BOSS 最坏阻塞 16 s，占住 brpc worker</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="layers">
+  <h2>2. 目标分层</h2>
+  <hr class="rule">
+  <p class="lede">按线程和触发方式分：请求线程走左边的栈，后台线程和旁路进程走右边，外部系统在底部。</p>
+
+  <figure class="bleed">
+    <div class="chart wide">
+      <svg viewBox="0 0 1180 492" role="img" aria-label="目标分层：请求线程从入口经编排、能力、请求载体到中间件入口，再到外部系统。供给链路在后台线程发布模型代，请求线程只借快照。离线验证系统装配 replay 入口，驱动同一套 schedule。今天能力层有四类调用绕过入口直达外部系统。">
+        <defs>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="var(--muted)"/></marker>
+          <marker id="a2bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="var(--danger)"/></marker>
+          <marker id="a2acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="var(--accent)"/></marker>
+        </defs>
+
+        <!-- upstream -->
+        <text x="420" y="14" font-size="11" class="muted" text-anchor="middle">上游 AS · BS · NIO 的 brpc 调用</text>
+        <line x1="420" y1="20" x2="420" y2="38" stroke="var(--muted)" stroke-width="1.2" marker-end="url(#a2)"/>
+
+        <!-- left stack: request threads -->
+        <g fill="var(--surface)" stroke="var(--line)" stroke-width="1.5">
+          <rect x="110" y="40" width="620" height="52" rx="10"/>
+          <rect x="110" y="102" width="620" height="52" rx="10"/>
+          <rect x="110" y="164" width="620" height="62" rx="10"/>
+          <rect x="110" y="236" width="620" height="42" rx="10"/>
+        </g>
+        <text x="124" y="62" font-size="12" class="strong">L7 入口</text>
+        <text x="124" y="80" font-size="11" class="muted">server.cc 装配 · ServiceImpl · HTTP 服务</text>
+        <text x="124" y="124" font-size="12" class="strong">L6 编排 · modules/</text>
+        <text x="124" y="142" font-size="11" class="muted">schedule 七个阶段：check → parse → 取特征 → 跑模型 → post → fill → logging</text>
+        <text x="124" y="180" font-size="12" class="strong">L4 能力</text>
+        <g fill="var(--ground)" stroke="var(--line)" stroke-width="1.2">
+          <rect x="120" y="188" width="112" height="32" rx="6"/>
+          <rect x="242" y="188" width="112" height="32" rx="6"/>
+          <rect x="364" y="188" width="112" height="32" rx="6"/>
+          <rect x="486" y="188" width="112" height="32" rx="6"/>
+          <rect x="608" y="188" width="112" height="32" rx="6"/>
+        </g>
+        <g font-size="10.5" text-anchor="middle">
+          <text x="176" y="208">FD 取特征</text>
+          <text x="298" y="208">Hermes 特征执行</text>
+          <text x="420" y="208">模型执行 predict/</text>
+          <text x="542" y="208">Feature Streaming</text>
+          <text x="664" y="208">观测（Observation）</text>
+        </g>
+        <text x="124" y="262" font-size="12" class="strong">L3 请求载体</text>
+        <text x="220" y="262" font-size="11" class="muted">SessionData：每请求一份，brpc session_local</text>
+
+        <!-- middleware entry layer -->
+        <rect x="110" y="288" width="620" height="72" rx="10" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="2"/>
+        <text x="124" y="306" font-size="12" class="acc">中间件入口（新增层）</text>
+        <g fill="var(--surface)" stroke="var(--accent)" stroke-width="1">
+          <rect x="116" y="314" width="62" height="22" rx="5"/>
+          <rect x="185" y="314" width="62" height="22" rx="5"/>
+          <rect x="254" y="314" width="62" height="22" rx="5"/>
+          <rect x="323" y="314" width="62" height="22" rx="5"/>
+          <rect x="392" y="314" width="62" height="22" rx="5"/>
+          <rect x="461" y="314" width="62" height="22" rx="5"/>
+          <rect x="530" y="314" width="62" height="22" rx="5"/>
+          <rect x="599" y="314" width="62" height="22" rx="5"/>
+          <rect x="668" y="314" width="56" height="22" rx="5"/>
+        </g>
+        <g font-size="10.5" text-anchor="middle">
+          <text x="147" y="329">KFC</text>
+          <text x="216" y="329">Galaxy</text>
+          <text x="285" y="329">Redis</text>
+          <text x="354" y="329">Lancer</text>
+          <text x="423" y="329">Kafka</text>
+          <text x="492" y="329">BOSS</text>
+          <text x="561" y="329">Paladin</text>
+          <text x="630" y="329">abyss</text>
+          <text x="696" y="329">naming</text>
+        </g>
+        <text x="124" y="352" font-size="11" class="muted">每个入口三面：线上调用 · capture 冻结 · replay 替代。线上和 replay 各在启动时装配一次</text>
+
+        <!-- right column: background threads and sidecars -->
+        <g fill="var(--surface)" stroke="var(--line)" stroke-width="1.5">
+          <rect x="790" y="40" width="374" height="50" rx="10"/>
+          <rect x="790" y="112" width="374" height="30" rx="10"/>
+          <rect x="790" y="164" width="374" height="62" rx="10"/>
+          <rect x="790" y="288" width="374" height="116" rx="10"/>
+        </g>
+        <text x="804" y="58" font-size="12" class="strong">pod 内旁路进程</text>
+        <text x="804" y="78" font-size="11" class="muted">Paladin 同步 1 min · 模型下载 5 min · capture_boss_cron · rdr</text>
+        <text x="804" y="132" font-size="11" class="muted">落盘：conf/ · dict/model/&lt;命名模型&gt;/&lt;rev&gt; · model.conf</text>
+        <text x="804" y="182" font-size="12" class="strong">L5 加载面 · DataKeeper 后台线程</text>
+        <text x="804" y="200" font-size="11" class="muted">download 60 s · configure 5 s · peta 5 s</text>
+        <text x="804" y="216" font-size="11" class="muted">model 5 s → ModelCurator 物化 Hermes runner → 发布模型代</text>
+        <text x="804" y="306" font-size="12" class="strong">离线验证系统</text>
+        <text x="804" y="326" font-size="11" class="muted">replay_runner：还原 case，调用同一套 schedule</text>
+        <text x="804" y="344" font-size="11" class="muted">ReplayEnvironment：装配 replay 入口</text>
+        <text x="804" y="362" font-size="11" class="muted">golden_comparator · tools/replay</text>
+        <text x="804" y="380" font-size="11" class="muted">CI：check_module_deps · check_abyss_boundary</text>
+        <text x="804" y="396" font-size="11" class="acc">＋ 新增：中间件入口边界检查</text>
+
+        <g stroke="var(--muted)" stroke-width="1.2" marker-end="url(#a2)">
+          <line x1="977" y1="90" x2="977" y2="110"/>
+          <line x1="977" y1="142" x2="977" y2="162"/>
+          <line x1="790" y1="195" x2="732" y2="195"/>
+          <line x1="790" y1="323" x2="732" y2="323"/>
+          <polyline points="634,440 634,422 1100,422 1100,406" fill="none"/>
+        </g>
+        <text x="985" y="104" font-size="10.5" class="muted">写文件</text>
+        <text x="985" y="156" font-size="10.5" class="muted">watch mtime</text>
+        <text x="761" y="189" font-size="10.5" class="muted" text-anchor="middle">借快照</text>
+        <text x="761" y="317" font-size="10.5" class="muted" text-anchor="middle">装配</text>
+        <text x="866" y="418" font-size="10.5" class="muted" text-anchor="middle">下载 capture case</text>
+
+        <!-- target path: only through entries -->
+        <line x1="420" y1="362" x2="420" y2="436" stroke="var(--accent)" stroke-width="2" marker-end="url(#a2acc)"/>
+        <text x="428" y="404" font-size="11" class="acc">只经入口（目标）</text>
+
+        <!-- today bypass -->
+        <polyline points="110,205 100,205 100,436" fill="none" stroke="var(--danger)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#a2bad)"/>
+        <g font-size="11" class="bad">
+          <text x="4" y="234">今天绕过入口</text>
+          <text x="4" y="252">KFC 7 处 RPC</text>
+          <text x="4" y="270">Redis 5 个目录</text>
+          <text x="4" y="288">Lancer 4 个目录</text>
+          <text x="4" y="306">Galaxy 直连 2</text>
+        </g>
+
+        <!-- external systems -->
+        <g fill="var(--line-soft)" stroke="var(--line)" stroke-width="1.2">
+          <rect x="110" y="440" width="88" height="40" rx="8"/>
+          <rect x="206" y="440" width="88" height="40" rx="8"/>
+          <rect x="302" y="440" width="88" height="40" rx="8"/>
+          <rect x="398" y="440" width="88" height="40" rx="8"/>
+          <rect x="494" y="440" width="88" height="40" rx="8"/>
+          <rect x="590" y="440" width="88" height="40" rx="8"/>
+          <rect x="686" y="440" width="88" height="40" rx="8"/>
+          <rect x="782" y="440" width="88" height="40" rx="8"/>
+          <rect x="878" y="440" width="88" height="40" rx="8"/>
+          <rect x="974" y="440" width="88" height="40" rx="8"/>
+          <rect x="1070" y="440" width="88" height="40" rx="8"/>
+        </g>
+        <g font-size="11" text-anchor="middle">
+          <text x="154" y="464">Galaxy</text>
+          <text x="250" y="464">KFC / peta</text>
+          <text x="346" y="464">Redis</text>
+          <text x="442" y="464">Lancer</text>
+          <text x="538" y="464">Kafka</text>
+          <text x="634" y="464">BOSS</text>
+          <text x="730" y="464">Paladin</text>
+          <text x="826" y="464">abyss</text>
+          <text x="922" y="464">Discovery</text>
+          <text x="1018" y="464">HDFS</text>
+          <text x="1114" y="464">Prometheus</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>目标只改一处结构：能力层到外部系统的所有调用都经过中间件入口（蓝框）。今天的红色虚线是要收掉的直连。供给链路已经是「后台发布、请求只借快照」，保持不动。L0 基础层（flags、logging、bthread、util）省略。</figcaption>
+  </figure>
+
+  <h3>分层规则和守护它们的检查</h3>
+  <div class="table-wrap bleed">
+    <table>
+      <thead><tr><th>规则</th><th>反例</th><th>检查</th><th>今天的存量</th></tr></thead>
+      <tbody>
+        <tr><td>外部系统的 SDK 头文件只出现在中间件入口的文件里</td><td><code>predict/qs_bert_model_v2.cpp</code> include <code>redis_cluster/</code></td><td>新增 <code>check_middleware_boundary.py</code>，写法照 <code>check_abyss_boundary.py</code>，存量只减不增</td><td>Redis 5 个目录、Lancer 4 个目录、Galaxy client 2 个目录 + <code>server.cc</code>、KFC pb 6 个文件</td></tr>
+        <tr><td><code>FLAGS_replay_skip_*</code> 只在入口和 <code>replay/</code> 里读</td><td><code>feature_streaming/feature_log_output.cpp:12</code></td><td>同一个脚本</td><td>19 处、15 个文件，第 3 波收敛后归零，flag 删除</td></tr>
+        <tr><td>请求线程上不做阻塞 I/O，后台工作有上界</td><td>每个采样请求一个 detached bthread</td><td>后台工作统一走一个有界队列；溢出计数</td><td>问题 1、2、7、10</td></tr>
+        <tr><td>请求线程只读加载面发布的快照，不触发加载</td><td>（目前没有违反）</td><td>保持 <code>DataKeeper::get_data</code> 5 处借用点</td><td>0</td></tr>
+        <tr><td>加载面只放加载生命周期，不放声明和客户端</td><td><code>data/user_long_behavior.h</code> 发 KFC RPC</td><td><code>check_module_deps.py</code> 的向上边计数</td><td>!4820 层表下 92 条向上边，73 条指向 <code>data/</code></td></tr>
+        <tr><td>Hermes op 只从 <code>FeaContext</code> 取输入，不读 abyss，也不读进程 gflag</td><td><code>hermes/ops/gr/gr_general_his_preprocess_v2.cpp:221</code> 读 <code>FLAGS_enable_hstu_log_msg</code></td><td><code>check_abyss_boundary.py</code> 在 Hermes op 目录里加禁 <code>FLAGS_</code></td><td>1 处</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="entry">
+  <h2>3. 中间件入口</h2>
+  <hr class="rule">
+  <p class="lede">replay 怎么替代外部调用，今天由每个调用点决定，目标由进程启动时装配决定。</p>
+
+  <figure class="bleed">
+    <div class="chart wide">
+      <svg viewBox="0 0 1000 268" role="img" aria-label="今天每个调用点读 replay flag，分成线上直连 SDK 和 replay 两条路；Redis、Lancer、直连 Galaxy 连分支都没有。目标是能力代码只调入口，线上和 replay 实现在启动时装配一次。">
+        <defs>
+          <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="var(--muted)"/></marker>
+        </defs>
+        <text x="16" y="20" font-size="13" class="strong">今天</text>
+        <text x="520" y="20" font-size="13" class="strong">目标</text>
+        <line x1="492" y1="10" x2="492" y2="258" stroke="var(--line)" stroke-width="1"/>
+
+        <g fill="var(--surface)" stroke="var(--line)" stroke-width="1.5">
+          <rect x="16" y="32" width="448" height="36" rx="8"/>
+          <rect x="16" y="180" width="216" height="36" rx="8"/>
+          <rect x="248" y="180" width="216" height="36" rx="8"/>
+          <rect x="520" y="32" width="464" height="36" rx="8"/>
+          <rect x="520" y="180" width="224" height="36" rx="8"/>
+          <rect x="760" y="180" width="224" height="36" rx="8"/>
+        </g>
+        <rect x="16" y="100" width="448" height="36" rx="8" fill="var(--danger-tint)" stroke="var(--danger)" stroke-width="1.5"/>
+        <rect x="16" y="228" width="448" height="30" rx="8" fill="var(--danger-tint)" stroke="var(--danger)" stroke-width="1.5"/>
+        <rect x="520" y="100" width="464" height="36" rx="8" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="2"/>
+        <rect x="520" y="228" width="464" height="30" rx="8" fill="var(--ok-tint)" stroke="var(--ok)" stroke-width="1.5"/>
+
+        <g font-size="12">
+          <text x="30" y="55">能力代码：FD · 模型执行 · Feature Streaming</text>
+          <text x="30" y="123">if (FLAGS_replay_skip_*)：replay/ 之外 19 处读取，15 个文件</text>
+          <text x="30" y="203">线上：直接调 SDK</text>
+          <text x="262" y="203">replay：记 capture 或空返回</text>
+          <text x="30" y="248" font-size="11.5">Redis · Lancer · 直连 Galaxy：没有分支，靠客户端未初始化而失败</text>
+          <text x="534" y="55">能力代码：同一份，不读 replay flag</text>
+          <text x="534" y="123" class="acc">中间件入口接口：每个外部系统一个</text>
+          <text x="534" y="203">server.cc 装配线上实现</text>
+          <text x="774" y="203" font-size="11">ReplayEnvironment 装配 replay 实现</text>
+          <text x="534" y="248" font-size="11.5">replay 实现只有三种：从 case 还原 · 记录输出 · 拒绝并计数</text>
+        </g>
+        <g stroke="var(--muted)" stroke-width="1.2" marker-end="url(#a3)">
+          <line x1="240" y1="68" x2="240" y2="98"/>
+          <line x1="124" y1="136" x2="124" y2="178"/>
+          <line x1="356" y1="136" x2="356" y2="178"/>
+          <line x1="752" y1="68" x2="752" y2="98"/>
+          <line x1="632" y1="178" x2="632" y2="138"/>
+          <line x1="872" y1="178" x2="872" y2="138"/>
+        </g>
+        <g font-size="10.5" class="muted">
+          <text x="248" y="88">每个调用点自己判断</text>
+          <text x="132" y="162">false</text>
+          <text x="364" y="162">true</text>
+          <text x="760" y="88">只调入口</text>
+          <text x="640" y="162">启动时装配一次</text>
+          <text x="880" y="162">启动时装配一次</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>目标把 replay 的判断从 19 个调用点挪到 2 个装配点。<code>replay_skip_predict_client</code> 的两种语义自然分开：「不调模型」归 Galaxy 入口，「不写 sink」归 Lancer、Kafka、Redis 入口。之后两个 flag 都可以删。</figcaption>
+  </figure>
+
+  <h3>声明表：每个外部系统一行</h3>
+  <p>这张表是目标的数据形态。它落成仓库里的一份声明，边界检查和 VERIFICATION_POLICY 的「replay 不覆盖」清单都从它生成，同一事实只写一处。</p>
+  <div class="table-wrap bleed">
+    <table>
+      <thead><tr><th>外部系统</th><th>今天的入口</th><th>链路位置</th><th>绕过入口的调用</th><th>replay 今天</th><th>目标 replay 实现</th></tr></thead>
+      <tbody>
+        <tr><td>KFC / peta</td><td>没有。<code>KfcClientManager</code> 只覆盖 5 条活路径里的 1 条</td><td>取特征</td><td>7 个 RPC 发起点，6 个 proxy 构造点</td><td>9 处 flag + 只解析配置</td><td>从 case 还原；未采集的表显式报「未覆盖」</td></tr>
+        <tr><td>Galaxy</td><td><code>Model::call_galaxy</code>，覆盖 9 个 QServer 族</td><td>跑模型</td><td>QSBertV2 直连 2 处</td><td>flag → <code>kReplayCaptured</code>；直连无 gate</td><td>记录输入，不发请求</td></tr>
+        <tr><td>Redis</td><td>没有，裸 <code>redis_cluster</code></td><td>取特征 · 跑模型 · 日志</td><td>5 个目录 + <code>server.cc</code></td><td>写：flag 改记录。读：客户端未初始化</td><td>读：拒绝并计数。写：记录</td></tr>
+        <tr><td>Lancer</td><td><code>LancerSdkWrapper</code></td><td>跑模型 · 日志 · 响应后</td><td>4 个目录直接调 <code>Write</code></td><td>3 处 flag 改记录；7 处无 gate</td><td>记录</td></tr>
+        <tr><td>Kafka</td><td><code>feature_log_kafka_producer</code>，单一 produce</td><td>日志</td><td>无</td><td>flag 改路由到 Lancer 记录</td><td>记录</td></tr>
+        <tr><td>BOSS</td><td><code>boss_client</code>，内部两套 transport</td><td>响应后 · Hermes cost</td><td>无</td><td>不运行</td><td>不涉及</td></tr>
+        <tr><td>Paladin</td><td><code>DaVinciPaladinSpec</code>，已经是单一入口</td><td>全链路</td><td>无</td><td>从 case 还原</td><td>保持</td></tr>
+        <tr><td>abyss</td><td><code>davinci_abyss_data</code>，有 <code>check_abyss_boundary.py</code></td><td>解析 · 取特征</td><td>无</td><td>从 case 还原</td><td>保持。它就是本方案的范例</td></tr>
+        <tr><td>Discovery / naming</td><td>没有</td><td>入口（请求复制）· 各客户端</td><td><code>request_duplicate_manager.cpp:160</code></td><td><code>register_peta</code> 仍注册 naming</td><td>不涉及</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="split">
+  <h2>4. 拆分</h2>
+  <hr class="rule">
+  <p class="lede">顺序按「先删再加、每步可验证」排。每一波都从上面的目标推出来，不是独立的清理项。</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>波次</th><th>做什么</th><th>解决</th><th class="num">删除（估）</th><th>门槛</th></tr></thead>
+      <tbody>
+        <tr><td class="wave">1a</td><td>删 predict 死代码：<code>model.cpp</code> 里 <code>model_impl.h</code> helper 的重复副本、<code>model_impl.h</code> 的死部分、9 个 <code>create_instance</code>、<code>load_old</code> 与空 <code>RecoverFrom</code>、Bert cmd 的二次切分、恒为 0 的 <code>run_mode</code></td><td>减负，附带消掉一处推断的 ODR 冲突</td><td class="num">~380</td><td>build + replay fine + 评审 + x 集群单机</td></tr>
+        <tr><td class="wave">1b</td><td>删 KFC 死路径：<code>load_from_kfc_with_table_proxy</code>、<code>KfcRemoteDictIns</code> / <code>RemoteDict</code> / <code>RemoteDictData</code>、<code>KfcModule</code>、predict 里 3 处无用 include</td><td>问题 3 的范围从 7 处缩到 5 处</td><td class="num">未计</td><td>同上；先查 <code>RemoteDictData</code> 不在任何线上配置</td></tr>
+        <tr><td class="wave">1c</td><td>删 V1 predict 链：先让 <code>PredictModelV2Module</code>、<code>PostPredictV2Module</code> 不再继承 V1，再删</td><td>减负</td><td class="num">~300</td><td>replay fine / coarse / trade / fs + 单机；先查 Paladin 动态绑定</td></tr>
+        <tr><td class="wave">1d</td><td>删下载脚本里 C++ 已拒绝的模型类型分支</td><td>减负</td><td class="num">~490 py</td><td><code>test_aa_download.py</code> + 单 pod 的 dict/model 树 diff</td></tr>
+        <tr><td class="wave">1e</td><td>删 Hermes 死代码：<code>FeaRunnerSimple</code> 与 <code>SIMPLE</code> 分支、<code>jni_set_dict</code> / <code>do_set_dict</code>、只有 <code>#pragma once</code> 的 <code>fea/feature_diff.h</code>。同一个 MR 先给 <code>fea_parser.cpp:812</code> 补空指针检查</td><td>减负；未注册的源 op 今天让进程在加载时崩溃，改成解析失败</td><td class="num">~205</td><td>build + replay fine / coarse / mixer / fs / trade + 单机</td></tr>
+        <tr><td class="wave">2</td><td>声明表 + <code>check_middleware_boundary.py</code>，存量棘轮</td><td>把目标变成可执行的约束，后面每个 MR 只能让数字变小</td><td class="num">0</td><td>单测 + 探针 + 评审（不进二进制）</td></tr>
+        <tr><td class="wave">3a</td><td>Lancer：replay 装配记录器；7 处无 gate 写入和 3 处 flag 分支改走入口</td><td>问题 8、9</td><td class="num">分支 3 处</td><td>build + replay（看 <code>lancer_outputs</code> 不变）+ 评审 + 单机</td></tr>
+        <tr><td class="wave">3b</td><td>Kafka：<code>feature_log_output</code> 路由分支和 <code>Sink::Start</code> 分支并进入口</td><td>问题 8</td><td class="num">分支 2 处</td><td>同上</td></tr>
+        <tr><td class="wave">3c</td><td>Redis：在 <code>client/</code> 建入口，读写分开；replay 读「拒绝并计数」、写「记录」</td><td>问题 6、8</td><td class="num">分支 1 处</td><td>同上，另看 <code>log_item_bytes</code> / <code>user_spec_bytes</code> 不变</td></tr>
+        <tr><td class="wave">3d</td><td>Galaxy：QSBertV2 两条 Qwen 直连改走 <code>call_galaxy</code></td><td>问题 5</td><td class="num">—</td><td>fake transport 单测 + 单机；replay 不跑 <code>process_bert</code>，覆盖不到</td></tr>
+        <tr><td class="wave">3e</td><td>KFC：5 条活 RPC 路径收进 <code>client/</code> 的入口，miss 和 error 分开（照 <code>RemoteDictKfcCall</code>）。<code>TableSetting</code> 只能搬进 <code>client/</code>，反向依赖会成环</td><td>问题 3、8</td><td class="num">分支 9 处</td><td>build + replay + 单机；超时口径先定（见下）</td></tr>
+        <tr><td class="wave">3f</td><td>删 <code>replay_skip_predict_client</code> 和 <code>replay_skip_kfc_client</code></td><td>问题 8 归零</td><td class="num">2 个 flag</td><td>build + replay 全 app + 单机</td></tr>
+        <tr><td class="wave">4</td><td>capture：一个有界的后台排空队列（新起的名字）替换 GalaxyIo、RecordingTask、粗排采样、ReplayCapture 的手写队列；BOSS 只留一套 transport，HeadObject 移出 bthread</td><td>问题 2、7、10</td><td class="num">~160</td><td>build + replay capture 真实产物自检 + 单机</td></tr>
+        <tr><td class="wave">5</td><td>按角色拆 <code>data/</code>：声明下沉，模型族代码（如 <code>onerec_qsv2_model.cpp</code>、<code>galaxy_shard_planner</code>）回 <code>predict/</code>，KFC 客户端已在 3e 进入口，只留加载生命周期</td><td>向上边从结构上消失，替代 dir-layering 的 S2–S7</td><td class="num">搬移为主</td><td><code>check_module_deps.py</code> 计数下降 + build + replay</td></tr>
+        <tr><td class="wave">6</td><td>供给链路：<code>model.conf</code> 字段由一份声明驱动 python 写和 C++ 读，加一致性测试；修 revision 恒为 0 导致的在线目录 <code>rm -fr</code></td><td>python 写了 7 个 C++ 不读的字段；下载窗口内的半目录</td><td class="num">~120 py</td><td><code>test_aa_download.py</code> + pod diff + 单机</td></tr>
+        <tr><td class="wave">7a</td><td>Hermes 合并重复副本：<code>S_GetRtAdSeq</code> 并进 <code>S_GetSeq</code>，先迁调用方再删；三个 runner 的 Init / ToFeatureResult / Clear 样板收进 <code>FeaRunnerBase</code>；<code>init_pro_runner</code> 改走 <code>BuildRunnerPool</code></td><td>减负，热路径上行为不变</td><td class="num">~230</td><td>replay fine / fs / mixer + JNI 单测 + x 集群单机看耗时（replay 不判耗时）</td></tr>
+        <tr><td class="wave">7b</td><td>删约 49 个只在注册表里出现的 op：2026-05 之后没人改过，29,826 张抓到的图、feature_store 快照和仓库里的配置都没引用</td><td>减负</td><td class="num">~1.4k 估</td><td>1e 已合入；拉新的 feature_store <code>hermes_store</code>，拿到 JNI / Flink 图清单后再删</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">为什么这个顺序</div>
+    <p>第 1 波只删不加，先把要迁移的调用点变少。第 2 波在动结构前把目标写成检查，之后每个 MR 都能用数字证明方向对。第 3 波按风险从低到高逐个系统收敛，Lancer 和 Kafka 只有记录语义，KFC 牵涉超时口径，放最后。第 5 波排在第 3 波之后，因为 <code>data/</code> 里的 KFC 客户端要先进入口才能拆干净。第 7 波是 Hermes 内部的减负，不依赖中间件入口，可以和第 3 波并行；7b 要等 JNI 图清单。</p>
+  </div>
+</section>
+
+<section id="decide">
+  <h2>5. 待决定</h2>
+  <hr class="rule">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>问题</th><th>选项</th><th>推荐</th><th>影响哪一波</th></tr></thead>
+      <tbody>
+        <tr><td>KFC 超时口径：dense 40 ms、remote_dict 10 ms、其余 20 ms</td><td>A 保持各路现值，写进声明表；B 统一成一个值</td><td>A。收敛入口时行为不变，统一留到有灰度数据后单独做</td><td>3e</td></tr>
+        <tr><td>RecordingTask 留不留</td><td>A 保留，换有界队列；B 删除，压测改用 WrkForOtherApp</td><td>需要产品判断。删除比收敛多删约 490 行</td><td>4</td></tr>
+        <tr><td>是否把中间件入口层写成 ADR</td><td>A 写 ADR，并更新 ARCHITECTURE.md 的分层；B 只写进本 effort</td><td>A。它改变依赖方向和模块责任，ADR-0003 要求有记录</td><td>2 之前</td></tr>
+        <tr><td>下载脚本里的死类型是否还被线上 <code>dnn_task</code> 引用</td><td>查线上 Paladin 后再删</td><td>先查。即便还在引用，C++ 也已拒绝这些模型，删掉只是停止无用下载</td><td>1d</td></tr>
+        <tr><td>rt_unified 序列：线上 <code>PrepareContext</code> 不填（<code>spec_converter.cpp:292-316</code>），Feature Streaming 填（<code>feature_streaming_input.cpp:107-112</code>）。当前 28 张图用 <code>S_GetRtUnifiedSeq</code>，线上拿到的永远是空</td><td>A 线上补齐；B 认定不需要，删 op 和 <code>rt_unified_sequence/</code></td><td>需要算法 owner 判断：这是训练与线上不一致，还是有意为之</td><td>7b 之后</td></tr>
+        <tr><td>GR General 一族，约 1.2k 行：抓到的图里有 34 张引用，fine_ads 的 hermes_statistics 里没有；在线 flag 默认关，靠 abyss 打开</td><td>A 保留；B 删除</td><td>先用 <code>model-locator</code> 和 abyss 实验状态确认是否还在跑</td><td>7b 之后</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <div class="callout-title">Hermes 的位置</div>
+    <p>Hermes 本身不直连任何外部系统。KFC 只出现在注释里，abyss 从不读取。输入全部经 <code>FeaContext</code> 进来，至少 6 个调用方各自填它。唯一的外部写入是 <code>fea/hermes_cost_*</code> 上传 BOSS。它把统计喂回优化器，按 ADR-0004 不算观测（Observation），保留自己的生命周期，不并进第 4 波。所以 Hermes 不需要自己的中间件入口，它的拆分是 1e 和第 7 波的减负，边界规则补在第 2 节的规则表里。</p>
+  </div>
+  <div class="callout warn">
+    <div class="callout-title">还没覆盖</div>
+    <p>JNI / Flink 侧的 Hermes 图没有清单，7b 的「没有引用」只覆盖线上抓到的图。线上 Paladin 的 <code>dnn_task</code> 内容没查，1d 删的类型是否还在下发未知。</p>
+  </div>
+</section>
+
+<details class="fold">
+  <summary>附录：replay/ 之外的 19 处 replay flag 读取</summary>
+  <div class="fold-body">
+    <pre><code>replay_skip_kfc_client（9 处，6 个文件）
+  data/data_define.cpp:251, :305, :355
+  data/data_define_dense_online.cpp:228
+  data/remote_dict.h:335
+  feature_dependency/feature_dependency_mgr.cpp:181, :197
+  kfc_module.cpp:12
+  peta_kfc_client.cpp:76
+replay_skip_predict_client（10 处，9 个文件）
+  predict/model.cpp:471
+  modules/predict_model_module.cpp:143
+  modules/predict_model_v2_module.cpp:80
+  modules/predict_bert_module.cpp:116
+  modules/predict_listwise_module.cpp:59
+  feature_streaming/feature_redis_module.cpp:127
+  feature_streaming/feature_content_lancer_module.cpp:21
+  feature_streaming/feature_log_output.cpp:12, :24
+  feature_streaming/feature_log_kafka_sink.cpp:265</code></pre>
+    <p>命令：<code>git grep -n FLAGS_replay_skip -- model_server/model_server ':!*_test*' ':!replay/' ':!all_flags.*'</code>，在 master 87f3f8a87d 上执行。</p>
+  </div>
+</details>
+
+<details class="fold">
+  <summary>附录：data/ 按角色初分（按文件名，未逐个读）</summary>
+  <div class="fold-body">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>角色</th><th>文件</th><th>目标去向</th></tr></thead>
+        <tbody>
+          <tr><td>配置声明</td><td>model_config、data_define、model_scope_config_data、ucl_config_data、global_dense_feature_config_data、model_requirements、model_provider_types、feature_table_export_catalog</td><td>下沉，不依赖加载面</td></tr>
+          <tr><td>外部系统客户端</td><td>user_long_behavior、user_ad_behavior、user_hstu、data_define_dense_online、remote_dict、davinci_abyss_data</td><td>KFC 部分进中间件入口；abyss 保持</td></tr>
+          <tr><td>模型族与执行</td><td>onerec_qsv2_model、galaxy_shard_planner、predict_execution_context、hermes_input、normal_hermes_input_spec、spec_converter</td><td>回 predict/ 或 feature/</td></tr>
+          <tr><td>加载生命周期</td><td>model_curator、hermes_curator、model_family、data_define_model_watcher、dict_serializer、feature_table_dict_codec、model_kfc_tables</td><td>留在 data/</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</details>
+
+<details class="fold">
+  <summary>附录：证据来源与未核实项</summary>
+  <div class="fold-body">
+    <ul class="points">
+      <li><strong>调查方式。</strong>6 个只读调查分别覆盖 KFC 入口、replay flag、capture 流水线、模型子系统、Hermes 边界、模型下发；本页用到的 file:line 来自这 6 份报告。主会话复核了 flag 读取计数、目录行数、fine_ads schedule，以及 1e 每一项的调用方。</li>
+      <li><strong>纠正。</strong>Hermes 调查报告 <code>GetSlotUserType</code> / <code>SaveSlotUserTypeToJson</code> 没有调用方。主会话在 <code>fea_lib/tools/fea_mini.cpp:649</code>、<code>:663</code> 找到调用，已从 1e 去掉。</li>
+      <li><strong>master 上已有的 bug。</strong><code>fea_parser.cpp:812</code> 不检查 <code>CreateOperator</code> 的返回值，而 <code>operator.h:618-619</code> 对未知名字返回 nullptr。图里的源 op 没注册时，进程在加载时崩溃。</li>
+      <li><strong>推断项。</strong>Redis 客户端是否阻塞 pthread、Lancer SDK 是否缓冲、<code>Issue(int)</code> 是否覆盖 channel 超时，三者的库源码不在本 checkout，未核实。revision 恒为 0 导致读到半目录是推断。mixer 图在线跑离线名字的 dict op，是否拿到 DictSet 未核实。</li>
+      <li><strong>估算。</strong>删除行数是调查给的估计，进入各波实施时逐个复核。</li>
+      <li><strong>向上边计数。</strong>92 / 73 来自 !4820 的层表，master 上的层表只有 20 个节点。</li>
+    </ul>
+  </div>
+</details>
+
+<footer>
+  Sources: git grep / git ls-files on master 87f3f8a87d · production/conf/fine_ads/ordinary/module_schedule_fusion_v2.conf, data_keeper.conf · 只读调查报告 6 份 · check_module_deps.py --edge &nbsp;—&nbsp; generated 2026-11-25 SGT (UTC+8)
+</footer>
+
+</main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end -->
