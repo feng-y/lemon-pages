@@ -287,6 +287,23 @@
           "updated_at": "2026-11-26T06:00:34.595985Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/magpie-deployment-path-verification",
+      "project": "Magpie",
+      "title": "部署路径核实验证",
+      "versions": [
+        {
+          "digest": "8b8c72a150fd7c70a7bebabfeda043f90b245e6e06a3e815e7de9bf9dc9041be",
+          "label": "v1",
+          "path": "reports/magpie-deployment-path-verification",
+          "published_at": "2026-11-26T06:19:50.427107Z",
+          "summary": "MR !137 合入后的工程验证和行为评估",
+          "updated_at": "2026-11-26T06:19:50.427107Z"
+        }
+      ]
     }
   ]
 }
