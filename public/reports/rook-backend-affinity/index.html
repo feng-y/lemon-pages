@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rook 多机执行归属</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+
+/* 报告专用样式 */
+.scheme-head { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; margin-top:28px; }
+.scheme-head h3 { margin:0; }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-title">On this page</div>
+  <a href="#tldr">TL;DR</a>
+  <a href="#now">现状和问题</a>
+  <a href="#refs">调研和参考</a>
+  <a href="#schemes">三套方案</a>
+  <a href="#compare">对比</a>
+  <a href="#common">共同前提</a>
+  <a href="#plan">推荐和顺序</a>
+</nav>
+
+<main>
+
+  <header>
+    <div class="head-top">
+      <h1>Rook 多机执行归属</h1>
+    </div>
+    <p class="subtitle">多台 Rook Backend 共用一个 MySQL 时，一项工作该由谁执行。目标是优先交给上次处理的机器，pod 不丢就继续。依据是当前 main 的代码和公开系统的原始文档。</p>
+  </header>
+
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">TL;DR</div>
+    <p>现在任何 Backend 都能抢任何工作，没有一项工作记录该由谁处理，旧版本也会按旧语义执行新工作。三套方案都保留现有的 <code>FOR UPDATE</code> 和 <code>active_run_id</code> 来保证只执行一次，区别在于亲和怎么判活。推荐先做方案 C（粘性派发加超时回落，Temporal 式）。它不加表，不写心跳，pod 丢失后约 5 秒交接（推断）。要做机器视图和按能力拒绝入队时，再加方案 A 的实例心跳表。三套方案都必须先解决旧版本：Rook 正式环境升级一次，再用能力门槛防止以后复发。</p>
+  </div>
+
+  <section id="now">
+    <h2>现状和问题</h2>
+    <hr class="rule">
+    <p class="lede">今天谁在领取工作，靠什么保证只执行一次。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>入口</th><th>周期</th><th>怎么领取</th><th>依据</th></tr></thead>
+        <tbody>
+          <tr><td>Queue 派发（执行 Run）</td><td class="num">1 s</td><td><code>beginRun</code> 对 Session 行加 <code>FOR UPDATE</code>，写 <code>active_run_id</code> 和 30 秒 <code>lease_expires_at</code>，再 CAS 消费 Queue 项</td><td><code>src/chat/manager.ts:114</code>、<code>src/chat/store.ts:455-487</code></td></tr>
+          <tr><td>Run 续约</td><td class="num">5 s</td><td>续约前核对 <code>active_run_id</code> 等于自己的 runId，不等就 <code>run_not_active</code></td><td><code>src/chat/store.ts:715-722</code></td></tr>
+          <tr><td>过期恢复</td><td>心跳内</td><td><code>recoverExpired</code> 把租约过期的 Run 标成中断</td><td><code>src/chat/store.ts:740-776</code></td></tr>
+          <tr><td>Kanban 跟进</td><td class="num">10 s</td><td>按批次占用，占用时决定是否带连接器</td><td><code>src/agent-tasks.ts</code></td></tr>
+          <tr><td>自动化</td><td class="num">5 s</td><td><code>occurrence_key</code> 唯一键加到期时间 CAS</td><td><code>src/automation/service.ts</code></td></tr>
+          <tr><td>优雅退出</td><td>SIGTERM</td><td>最多等 25 秒，超时强退</td><td><code>src/server.ts:556-562</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="points">
+      <li><strong>MySQL 里只执行一次已经有保障（实测代码）。</strong>Session 行锁加 <code>active_run_id</code> 校验，作用接近 Kleppmann 说的 fencing token。校验和写入在同一个 MySQL 事务里，丢了租约的 Run 续不上，也写不进 Run 状态。MySQL 之外的副作用不受这层保护，比如卡顿后的旧 Run 仍可能调用一次连接器（推断）。</li>
+      <li><strong>缺的是归属（实测代码）。</strong>Run 结束后 <code>active_run_id</code> 清空，Session 不记得上次在哪台机器跑。下一项工作由谁的 1 秒轮询先到决定。</li>
+      <li><strong>缺的是版本门槛（实测线上）。</strong>Multica 发布后，<code>tools</code> 为空的 RK-24 业务用例仍拿到了凭据。原因是旧版本 Backend 也在领取共享工作，它会丢掉不认识的 Queue 字段，限制就失效了。</li>
+    </ul>
+  </section>
+
+  <section id="refs">
+    <h2>调研和参考</h2>
+    <hr class="rule">
+    <p class="lede">六个公开系统和本地 Multica 分支怎么回答「一项工作由谁执行」。数字都来自原始文档或源码，链接在本节末尾。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>系统</th><th>归属怎么定</th><th>关键数字</th><th>持有者丢失后</th><th>版本和能力</th><th>Rook 借鉴什么</th></tr></thead>
+        <tbody>
+          <tr><td>Temporal sticky execution</td><td>执行过的 worker 额外轮询一条只有它能读的 sticky 队列，并缓存工作流状态</td><td>sticky 超时默认 5 s；缓存 10000 个工作流</td><td>5 秒内没人领，服务端关掉粘性，任务回到普通队列给任何 worker</td><td>worker 上报部署版本；Pinned 工作流留在同一版本，版本有 Active、Draining、Drained</td><td>方案 C 的原型，5 秒窗口直接沿用</td></tr>
+          <tr><td>Kubernetes Lease</td><td>Lease 对象记 <code>holderIdentity</code>、<code>renewTime</code>、<code>leaseDurationSeconds</code>，用 <code>resourceVersion</code> 乐观并发写</td><td>client-go 默认 15 s 租约、10 s 续约截止、2 s 重试</td><td>租约到期后其他候选者抢；client-go 明说不提供 fencing</td><td>Coordinated Leader Election（beta）按最低模拟版本选主</td><td>方案 B 的原型；租约本身不防双写，要靠存储侧校验</td></tr>
+          <tr><td>Orleans 成员表</td><td>每个 silo 一行，键是 <code>ip:port:epoch</code>，epoch 是启动时间；重启后是新身份</td><td>10 s 探测，3 次未响应起疑，2 票判死，典型 15 s 左右发现</td><td>判死对所有人生效，被判死的 silo 自己退出，只能以新 epoch 回来</td><td>请求要 V2 而激活是 V1 时，下线后在兼容的 silo 上重新激活</td><td>方案 A 的实例表；实例身份用 pod 名加启动 UUID</td></tr>
+          <tr><td>Kleppmann 分布式锁</td><td>锁服务每次发单调递增的 token，存储拒绝比已见过的更小的 token</td><td>无</td><td>GC 停顿、网络延迟都能超过租约，所以只有租约不安全</td><td>无</td><td>三套方案都保留 <code>active_run_id</code> 校验，不能只靠亲和判断</td></tr>
+          <tr><td>Rendezvous 哈希</td><td>每个节点按 h(对象, 节点) 取最高分，不需要协调</td><td>无</td><td>只有落在变化节点上的对象移动</td><td>无</td><td>不采用：扩容时会把 Session 从活着的 pod 移走（来源为二手资料）</td></tr>
+          <tr><td>Akka Cluster Sharding</td><td>最老节点上的单例协调者分配分片，新分片给分片最少的节点</td><td>1000 个分片；10 s 重平衡；交接超时 60 s；空闲 2 min 钝化</td><td>崩溃节点被移出集群后才重新分配；分裂集群会出现重复实体</td><td>用 <code>app-version</code> 区分新旧节点，滚动发布时不往旧节点分配，也暂停重平衡</td><td>能力门槛：发布期间不把新工作交给旧版本</td></tr>
+          <tr><td>Multica（本地分支 c33158b）</td><td>智能体绑定一个 runtime，任务只给这个 runtime；runtime 必须在线且心跳新鲜</td><td>daemon 心跳 15 s；150 s 判离线；准备租约 45 s</td><td>不转给别的 runtime；卡住的任务只重新投给同一个 runtime，换 runtime 要重新绑定智能体</td><td>daemon 在 <code>X-Client-Capabilities</code> 里声明能力；领取后发现缺能力，任务直接失败</td><td>能力按名字声明，不比版本号；Rook 改成缺能力就不领，留给有能力的机器</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="points">
+      <li><strong>Multica 不是「优先上次的机器」。</strong>它是硬绑定，持有者丢了就停在那里等它回来（实测源码 <code>server/pkg/db/queries/agent.sql:728-789</code>、<code>:850-899</code>）。Rook 要的是带回落的亲和，更接近 Temporal。</li>
+      <li><strong>只有 Akka 和 Temporal 主动把工作从旧版本引开。</strong>Multica 的能力检查发生在领取之后，缺能力就让任务失败（实测源码 <code>server/internal/handler/daemon.go:2931</code>）。</li>
+      <li><strong>租约不等于互斥。</strong>client-go 和 Kleppmann 都说明，租约只是「大概率只有一个」。真正的互斥要落在存储的校验上，在 Rook 里就是 Session 行锁和 <code>active_run_id</code>。</li>
+    </ul>
+    <details class="fold">
+      <summary>参考链接与源码位置</summary>
+      <div class="fold-body">
+        <ul>
+          <li>Temporal：<a href="https://docs.temporal.io/sticky-execution">sticky execution</a>、<a href="https://docs.temporal.io/worker-versioning">worker versioning</a>；sdk-go <code>internal/worker.go:268-280</code>、<code>internal/internal_task_handlers.go:42</code></li>
+          <li>Kubernetes：<a href="https://kubernetes.io/docs/concepts/architecture/leases/">Leases</a>、<a href="https://kubernetes.io/docs/concepts/cluster-administration/coordinated-leader-election/">Coordinated Leader Election</a>、<a href="https://github.com/kubernetes/client-go/blob/master/tools/leaderelection/leaderelection.go">client-go leaderelection.go</a></li>
+          <li>Orleans：<a href="https://learn.microsoft.com/en-us/dotnet/orleans/implementation/cluster-management">cluster management</a>、<a href="https://learn.microsoft.com/en-us/dotnet/orleans/grains/grain-placement">grain placement</a>、<a href="https://learn.microsoft.com/en-us/dotnet/orleans/host/grain-directory">grain directory</a>。同一页对 IAmAlive 周期有 30 s 和 5 min 两种说法，表中未采用。</li>
+          <li>Kleppmann：<a href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html">How to do distributed locking</a></li>
+          <li>Rendezvous 哈希：<a href="https://en.wikipedia.org/wiki/Rendezvous_hashing">Wikipedia</a>（二手）。原始论文 Thaler 与 Ravishankar 1996 未能提取正文，未核对。</li>
+          <li>Akka：<a href="https://doc.akka.io/libraries/akka-core/current/typed/cluster-sharding.html">cluster sharding</a>、<a href="https://doc.akka.io/libraries/akka-core/current/additional/rolling-updates.html">rolling updates</a></li>
+          <li>Multica 本地分支：<code>server/pkg/db/queries/agent.sql:728-789</code>（领取）、<code>:850-899</code>（回收）、<code>server/internal/service/task.go:200-206</code>（150 s、45 s）、<code>server/internal/daemon/config.go:30</code>（15 s 心跳）、<code>server/internal/handler/daemon.go:2015-2057</code>、<code>:2931</code>（能力解析与失败）。注意它用的是 PostgreSQL。</li>
+        </ul>
+      </div>
+    </details>
+  </section>
+
+  <section id="schemes">
+    <h2>三套方案</h2>
+    <hr class="rule">
+    <p class="lede">三套都只在 Queue 派发这一层做亲和。Kanban 占批次和自动化落定时调用都是很短的 CAS，谁做都一样，只加能力门槛。</p>
+
+    <div class="scheme-head"><h3>方案 A：实例心跳表加执行机器</h3><span class="tag neutral">Multica、Orleans 式</span></div>
+    <ul class="points">
+      <li><strong>数据。</strong>新表 <code>rook_backend_instance_v1</code>，每个 Backend 实例一行：<code>instance_id</code>（pod 名加启动 UUID）、<code>commit</code>、<code>capabilities</code>、<code>heartbeat_at</code>、<code>draining</code>。每 5 秒写一次心跳。<code>rook_chat_session_v2</code> 加一列 <code>executor_instance</code>，Run 结束后保留。</li>
+      <li><strong>领取规则。</strong>在 <code>beginRun</code> 已有的事务里判断。执行机器是我，就继续。执行机器是别人且心跳在 30 秒内，就跳过。心跳过期、对方 <code>draining</code>、或对方缺这项工作要的能力，就用 CAS 改成自己。没有执行机器，就按现在的规则抢。</li>
+      <li><strong>好处。</strong>严格满足「pod 不丢就继续」。有一张实时的机器表，能看到哪些 commit 在线。入队时能按能力拒绝，没有合格机器在线就直接报错，不让工作挂着没人领。这和 Orleans 成员表、Multica runtime 表是同一类做法。</li>
+      <li><strong>代价。</strong>一张新表和一列，都要 DDL 审批。pod 丢失后最多 30 秒才交接。执行机器满载时，它名下的 Session 也只能排队等它。</li>
+    </ul>
+
+    <div class="scheme-head"><h3>方案 B：Session 执行租约</h3><span class="tag neutral">Kubernetes Lease 式</span></div>
+    <ul class="points">
+      <li><strong>数据。</strong><code>rook_chat_session_v2</code> 加 <code>executor_instance</code> 和 <code>executor_until</code>。没有实例表。</li>
+      <li><strong>领取规则。</strong>持有者每 5 秒用一条 <code>UPDATE ... WHERE executor_instance=?</code> 给自己名下的 Session 续约，只续还有常驻 Pi worker 的那些。租约在有效期内，别人跳过。租约过期，谁都可以 CAS 抢。SIGTERM 时一条语句清空自己的租约，立刻交接。</li>
+      <li><strong>好处。</strong>亲和只在热状态还在时生效。worker 被回收，租约自然到期，不会把 Session 绑在一台没有缓存的机器上。</li>
+      <li><strong>代价。</strong>续约写入量随热 Session 数增长。看不到机器视图，也做不了入队时的能力拒绝。和方案 C 比，多出来的只是「worker 在就一直留着」，收益不大。</li>
+    </ul>
+
+    <div class="scheme-head"><h3>方案 C：粘性派发加超时回落</h3><span class="tag accent">推荐先做</span><span class="tag neutral">Temporal sticky 式</span></div>
+    <ul class="points">
+      <li><strong>数据。</strong>Run 结束时，在这个 Session 的 Queue 文档里记下 <code>executor</code>（pod 名加启动 UUID）。Queue 已经是 JSON 文档（<code>src/chat/queue.ts:17</code> 的 <code>chat-queue</code>），不需要 DDL。</li>
+      <li><strong>领取规则。</strong>Queue 项就绪后的前 5 秒，只有 <code>executor</code> 本人能领。过了 5 秒，任何有能力的 Backend 都能领。真正的互斥仍然是 <code>beginRun</code> 的行锁。</li>
+      <li><strong>为什么够用（推断）。</strong>执行机器活着时每秒轮询一次，5 秒窗口里它有 5 次机会先领到。它丢了，5 秒后别人接手，比心跳方案的 30 秒快。pod 重启后启动 UUID 变了，亲和自动失效，这时内存里的 worker 也确实没了。</li>
+      <li><strong>代价。</strong>没有存活判断，执行机器满载或卡顿超过 5 秒，工作会被别人领走，只损失缓存，不影响正确性。看不到机器视图。</li>
+    </ul>
+
+    <figure>
+      <div class="chart">
+        <svg viewBox="0 0 640 170" role="img" aria-label="pod 丢失后多久交接">
+          <line x1="150" y1="20" x2="150" y2="140" stroke="var(--line)" stroke-width="1.5"/>
+          <line x1="150" y1="140" x2="620" y2="140" stroke="var(--line)" stroke-width="1.5"/>
+          <line x1="300" y1="20" x2="300" y2="140" stroke="var(--line-soft)" stroke-width="1"/>
+          <line x1="450" y1="20" x2="450" y2="140" stroke="var(--line-soft)" stroke-width="1"/>
+          <line x1="600" y1="20" x2="600" y2="140" stroke="var(--line-soft)" stroke-width="1"/>
+          <text x="150" y="158" font-size="12" fill="var(--muted)" text-anchor="middle">0 s</text>
+          <text x="300" y="158" font-size="12" fill="var(--muted)" text-anchor="middle">10 s</text>
+          <text x="450" y="158" font-size="12" fill="var(--muted)" text-anchor="middle">20 s</text>
+          <text x="600" y="158" font-size="12" fill="var(--muted)" text-anchor="middle">30 s</text>
+          <text x="140" y="44" font-size="13" fill="var(--ink)" text-anchor="end">A 心跳过期</text>
+          <rect x="150" y="30" width="450" height="20" rx="4" fill="var(--line)"/>
+          <text x="140" y="84" font-size="13" fill="var(--ink)" text-anchor="end">B 租约过期</text>
+          <rect x="150" y="70" width="450" height="20" rx="4" fill="var(--line)"/>
+          <text x="140" y="124" font-size="13" fill="var(--ink)" text-anchor="end">C 回落窗口</text>
+          <rect x="150" y="110" width="75" height="20" rx="4" fill="var(--accent)"/>
+        </svg>
+      </div>
+      <figcaption>pod 被强杀时的最长交接等待（推断，按设计参数算，未实测）。正常发布走 SIGTERM，A 标 draining、B 清租约，都能立刻交接；C 仍要等 5 秒。</figcaption>
+    </figure>
+  </section>
+
+  <section id="compare">
+    <h2>对比</h2>
+    <hr class="rule">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>A 实例心跳表</th><th>B Session 租约</th><th>C 粘性回落</th></tr></thead>
+        <tbody>
+          <tr><td>DDL</td><td>新表加一列</td><td>两列</td><td>无</td></tr>
+          <tr><td>持续写入</td><td>每实例每 5 秒 1 行</td><td>每实例每 5 秒 1 条，影响所有热 Session</td><td>无，只在 Run 结束时写 Queue 文档</td></tr>
+          <tr><td>「pod 不丢就继续」</td><td>严格满足</td><td>worker 在时满足</td><td>pod 在且 5 秒内领到时满足</td></tr>
+          <tr><td>强杀后交接</td><td class="num">≤ 30 s</td><td class="num">≤ 30 s</td><td class="num">≤ 5 s</td></tr>
+          <tr><td>SIGTERM 交接</td><td>立刻（draining）</td><td>立刻（清租约）</td><td class="num">5 s</td></tr>
+          <tr><td>执行机器满载</td><td>排队等它</td><td>排队等它</td><td>5 秒后转走</td></tr>
+          <tr><td>机器视图</td><td>有</td><td>无</td><td>无</td></tr>
+          <tr><td>入队时按能力拒绝</td><td>能</td><td>不能</td><td>不能</td></tr>
+          <tr><td>只执行一次</td><td colspan="3">三套相同，靠现有 <code>FOR UPDATE</code> 和 <code>active_run_id</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>一致性哈希（Rendezvous）没有列为方案。扩容时它会把一部分 Session 从还活着的 pod 上移走，违反「pod 不丢就继续」。</p>
+  </section>
+
+  <section id="common">
+    <h2>共同前提：旧版本不能领新工作</h2>
+    <hr class="rule">
+    <p class="lede">三套方案都只约束遵守规则的新版本。已经在线上的旧版本看不到这些规则。</p>
+    <ul class="points">
+      <li><strong>能力门槛。</strong>每个 Backend 启动时声明 <code>capabilities</code>，比如 <code>agent-tools-v1</code>。新语义的工作带 <code>requires</code>。领取前核对自己有没有这些能力，没有就不领。能力按名字声明，不比版本号，这一点沿用 Multica 的 <code>X-Client-Capabilities</code>。Multica 缺能力时让任务失败，Rook 改成不领，和 Akka 滚动发布时不往旧节点分配一致。</li>
+      <li><strong>旧版本只能升级。</strong>门槛对旧代码无效。旧版本会丢掉不认识的字段，再按旧语义执行。所以 Rook 正式环境要先发布一次带门槛的版本，之后的混跑才受保护。</li>
+      <li><strong>换 scope 名不够（推断）。</strong>Queue 换成新 scope，旧版本确实看不到新 Queue 项。但旧版本还会占 Kanban 批次、触发自动化，再写进旧 scope 自己执行。要把所有入口都换掉，等于一次数据迁移，不如升级。</li>
+    </ul>
+  </section>
+
+  <section id="plan">
+    <h2>推荐和顺序</h2>
+    <hr class="rule">
+    <div class="callout ok">
+      <div class="callout-title">推荐</div>
+      <p>先做能力门槛和方案 C。它不需要 DDL 审批，改动集中在 Queue 派发。以后需要机器视图，或者需要「没有合格机器就拒绝入队」，再加方案 A 的实例心跳表。C 的 <code>executor</code> 字段可以直接沿用。</p>
+    </div>
+    <ol>
+      <li>在 <code>release_fix/backend-affinity-20261127</code> 上实现能力门槛：启动时声明 <code>capabilities</code>，Queue、Kanban、自动化三个入口核对 <code>requires</code>。</li>
+      <li>实现方案 C：Run 结束写 <code>executor</code>，派发时按 5 秒窗口判断。</li>
+      <li>写测试，用业务用例：同一个 Task 会话连续两次跟进落在同一台；执行机器停止后 5 秒由另一台接手；缺能力的 Backend 不领 <code>tools</code> 为空的工作。</li>
+      <li>Multica 和 Rook 正式环境都发布后，重跑 RK-24（<code>tools</code> 为空对比 <code>['*']</code>）和定时任务 SSO 检查。</li>
+    </ol>
+    <div class="callout warn">
+      <div class="callout-title">未验证和风险</div>
+      <p>5 秒窗口、30 秒心跳都是按现有 1 秒轮询和 30 秒 Run 租约推出来的，没有线上实测。Run 结束后 Session 再执行时能复用多少热状态，没有量过，亲和的收益是推断。发布 Rook 正式环境需要单独确认。在它升级之前，<code>tools</code> 为空的限制在线上仍然不可靠。</p>
+    </div>
+  </section>
+
+  <footer>
+    Sources: Rook main 80b5597 源码（文中标注 file:line）、Multica 团队分支 c33158b、调研一节所列公开文档；线上现象来自 2026-11-27 Multica 发布验收 &nbsp;—&nbsp; generated 2026-11-27
+  </footer>
+
+</main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

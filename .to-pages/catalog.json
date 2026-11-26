@@ -406,6 +406,23 @@
           "updated_at": "2026-11-26T12:24:06.531800Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/rook-backend-affinity",
+      "project": "Rook",
+      "title": "Rook 多机执行归属",
+      "versions": [
+        {
+          "digest": "b243dbb1dc11ad3d4ab74dcf2e9d179a51e5f35342f250a4b579d3028617c592",
+          "label": "v1",
+          "path": "reports/rook-backend-affinity",
+          "published_at": "2026-11-26T17:14:28.683634Z",
+          "summary": "三套方案（实例心跳表、Session 租约、粘性回落）与七个系统的调研对照",
+          "updated_at": "2026-11-26T17:14:28.683634Z"
+        }
+      ]
     }
   ]
 }
