@@ -1,0 +1,527 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DaVinci 分层落地方案</title>
+<style>:root{--bg:#fff;--fg:#1f2328;--mut:#59636e;--bd:#d1d9e0;--th:#f6f8fa;--code:#eff1f3}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--mut:#9198a1;--bd:#3d444d;--th:#151b23;--code:#262c36}}
+body{background:var(--bg);color:var(--fg);font:15px/1.65 system-ui,-apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif;margin:0}
+main{max-width:1100px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:1.7rem}h2{margin-top:2.2rem;border-bottom:1px solid var(--bd);padding-bottom:.3rem}h3{margin-top:1.6rem}
+table{border-collapse:collapse;display:block;overflow-x:auto;margin:1rem 0}th,td{border:1px solid var(--bd);padding:6px 10px;vertical-align:top;font-size:.9rem}th{background:var(--th);text-align:left}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}a{color:#0969da}@media(prefers-color-scheme:dark){a{color:#4493f8}}
+</style></head><body><main><h1>system-layering</h1>
+<p>来源：报告 https://pages.lemonyhn.top/reports/davinci-system-layering/（基线 master <code>87f3f8a87d</code>，源文件 <code>.scratch/system-architecture/system-layering.src.html</code>）。
+本文把报告的 8 波改成可以逐片开发、验证、部署、合入的计划。报告里的数字除 §0 列出的外，没有重新核对。</p>
+<h2>0. 目标与成功标准</h2>
+<p>目标：减少存量系统的结构混乱，降低冗余，让每次需求和修复只动一处声明加一处实现，让 agent 能靠检查脚本自己发现越界。</p>
+<table>
+<thead>
+<tr>
+<th>成功标准</th>
+<th>今天（master <code>87f3f8a87d</code>）</th>
+<th>终态</th>
+<th>守住它的检查</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>FLAGS_replay_skip_*</code> 在 <code>replay/</code> 之外的读取</td>
+<td>19 处、15 个文件（本次用 <code>git grep</code> 核过）</td>
+<td>0，两个 flag 删除</td>
+<td><code>check_middleware_boundary.py</code> 棘轮</td>
+</tr>
+<tr>
+<td>能力代码直接 include 外部系统 SDK 的目录数</td>
+<td>Redis 5、Lancer 4、Galaxy client 2（报告数，未复核）</td>
+<td>0</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>加一张用户数据表要手改的清单</td>
+<td>7 份清单 + 约 6 处组装（报告数，未复核）</td>
+<td>1 行声明</td>
+<td>声明覆盖测试</td>
+</tr>
+<tr>
+<td>向上 include 边</td>
+<td>83 条、9 个层对、17 个目录对（本次跑 <code>check_module_deps.py</code> 核过）</td>
+<td>只减不增</td>
+<td>已有 <code>check_module_deps.py</code></td>
+</tr>
+<tr>
+<td>单个 MR 评审收敛</td>
+<td>55–70 个文件的 MR 要 21–35 轮 bot 评审（报告数）</td>
+<td>每个 MR 满足 §3 的粒度上限</td>
+<td><code>pr-review-fix</code></td>
+</tr>
+</tbody>
+</table>
+<h2>1. 输入怎么进计划</h2>
+<p>读的是 brooks-lint 的 README、<code>brooks-audit/architecture-guide.md</code>，和 ub-mode 的 <code>SKILL.md</code>。没有运行它们的伴生工具（crapper、dryer、mutator 在本机未装，也没核实支持 C++），所以不把它们列为 gate。</p>
+<table>
+<thead>
+<tr>
+<th>来源规则</th>
+<th>在本计划里的落点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Brooks 概念完整性：一个设计思想贯穿全系统</td>
+<td>全系统只有一个思想：能力代码只经「中间件入口」碰外部系统。每个波次只是把一个外部系统纳入这个思想</td>
+</tr>
+<tr>
+<td>brooks-lint 的 Symptom → Source → Consequence → Remedy</td>
+<td>每个切片的「证据」列按这四段写，不写没有后果的症状</td>
+</tr>
+<tr>
+<td>brooks-lint 的 edge-and-change witness（说出受影响的边和一次具体改动）</td>
+<td>每个切片写出「改前加这个需求要动哪些文件，改后动哪些」，作为验收例子</td>
+</tr>
+<tr>
+<td>brooks-lint：未知不等于干净，缺决定性证据就标 unassessed</td>
+<td>§6 列未核实项，对应切片开工前先关掉，不假设为真</td>
+</tr>
+<tr>
+<td>brooks-lint sweep：修复轮次有上限，报告停止原因</td>
+<td>每个 MR 本地 CR-Rot 最多 3 轮，仍有「主要」以上意见则停下报告</td>
+</tr>
+<tr>
+<td>ub-mode：一个决定只放一处</td>
+<td>声明表是同一事实的唯一来源，7 份清单和「replay 不覆盖」清单都从它读</td>
+</tr>
+<tr>
+<td>ub-mode：先写会失败的测试，再改代码</td>
+<td>每个切片先写检查或测试，看它在 master 上按预期失败，再改</td>
+</tr>
+<tr>
+<td>ub-mode：Build the Lever，先做一个单元，再让工具对齐它</td>
+<td>S1 先做检查脚本，后面每个切片用它出数字</td>
+</tr>
+<tr>
+<td>ub-mode：先删再加；每个单元做完就验证</td>
+<td>波 1 先删；每个 MR 只含一个验证单元</td>
+</tr>
+</tbody>
+</table>
+<h2>2. 和 dir-layering 的边界</h2>
+<p><code>.scratch/dir-layering/PLAN.md</code> 已经做的事：类型归位、层表棘轮（!4810 已合入）、MR A/B/C 切分。本计划不重做。</p>
+<table>
+<thead>
+<tr>
+<th>报告的内容</th>
+<th>归属</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>报告波 5「按角色拆 data/」</td>
+<td>dir-layering 的 PR-12（MR C）</td>
+<td>不在本计划另开 MR。本计划只给它补一个输入：data/ 里的 KFC 客户端要先经 3e 进入口</td>
+</tr>
+<tr>
+<td>报告波 2 里「<code>//hermes</code> 拆两个节点」</td>
+<td><code>check_module_deps.py</code></td>
+<td>并入 S1</td>
+</tr>
+<tr>
+<td>报告其余各波（入口、capture、观测去重、表声明、供给链路、Hermes 减负、FS 并入）</td>
+<td>本计划</td>
+<td>新 effort</td>
+</tr>
+</tbody>
+</table>
+<p>结论：两个 effort 都改 <code>data/</code>。MR C 开工前，先核对本计划已合入的切片，避免同文件冲突。</p>
+<h2>3. 粒度规则</h2>
+<p>依据 <code>harness/core/VERIFICATION_POLICY.md</code> 的 Verification-cost-aware slicing，再加一条上限。</p>
+<ol>
+<li>一个 MR 对应一个验证单元和一个回滚单元。共享同一次 build 和 replay、回滚方式相同的改动合在一起。</li>
+<li>结构相位和行为相位分开。搬、删先合，改行为的另开 MR。</li>
+<li>一个 MR 只收敛一个外部系统，或只动一份清单。</li>
+<li>粒度上限（本文提议，用户可调）：去掉经 <code>move_only.py</code> 证明的纯搬移后，改动不超过 25 个文件。超过就拆，或在 MR 描述写明为什么不能拆。依据是报告第 5 节：55–70 个文件的 MR 超过 bot 的 diff 上限，评审不收敛。</li>
+<li>行为变化的 MR 另外要有一个可观测的失败信号（计数、日志或测试），不靠 replay 通过证明。</li>
+<li>叠放的 MR 每个单独过 bot；上层在下层合入后再开。</li>
+</ol>
+<h2>4. 切片表</h2>
+<p>门槛列的缩写：<code>B</code> = <code>./build.sh -C RemoteExecution -L local</code>；<code>R</code> = replay（括号内为 app）；<code>X</code> = x 集群单机灰度；<code>P</code> = 压测；<code>M</code> = <code>move_only.py</code>；<code>D</code> = <code>check_module_deps.py</code>；<code>A</code> = <code>check_abyss_boundary.py</code>（碰 Hermes op 时）；<code>CR</code> = 本地 Davinci-CR-Rot。每个进二进制的 MR 另走 README 上线 Checklist，缺项在 MR 描述写明是合入前还是上线前需要。</p>
+<h3>阶段 0：先定决定，不进二进制</h3>
+<table>
+<thead>
+<tr>
+<th>切片</th>
+<th>内容</th>
+<th>门槛</th>
+<th>谁决定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S0</td>
+<td>写 ADR「中间件入口层」，更新 <code>ARCHITECTURE.md</code> 分层；<code>rules.md:18</code> 改成结果交付也可经 Lancer、Kafka、Redis 入口写样本；ADR-0007 范围改动留到 8a 前</td>
+<td>文档链接检查 + 用户评审</td>
+<td>用户（报告 §7 前 3 项 + 发布车门槛）</td>
+</tr>
+</tbody>
+</table>
+<h3>阶段 1：把目标变成检查（Build the Lever）</h3>
+<table>
+<thead>
+<tr>
+<th>切片</th>
+<th>证据（症状 → 后果）</th>
+<th>改动</th>
+<th>先写的失败检查</th>
+<th>门槛</th>
+<th>部署</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1</td>
+<td>19 处 flag、7 份清单、<code>Specification</code> 5 处构造都没有检查守着</td>
+<td>声明表（每个外部系统一行）；<code>check_middleware_boundary.py</code> 带存量棘轮，加 3 条规则（<code>FeaContext</code> 与 <code>Specification</code> 只在 <code>feature/</code> 组装；<code>mutable_log_kv_map()</code> 只在 FD 合并点；<code>QServerType</code> switch 只在族登记表）；<code>//hermes</code> 拆 <code>hermes/src</code>、<code>hermes/ops</code>；失败信息写出规则、owner 目录和修法</td>
+<td>在 master 上加一个人造违规提交，检查必须失败；搬家后计数不变</td>
+<td>脚本单测 + 探针提交 + 评审</td>
+<td>不部署（不进二进制）</td>
+</tr>
+</tbody>
+</table>
+<h3>阶段 2：只删、只搬（波 1）</h3>
+<table>
+<thead>
+<tr>
+<th>切片</th>
+<th>内容</th>
+<th>合并依据</th>
+<th>门槛</th>
+<th>部署</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D1</td>
+<td>1a predict 死代码 + 1b KFC 死路径 + 1f <code>parallel_dict_fetcher.h</code> 搬移</td>
+<td>同一次 build 与 replay，回滚相同，都无行为变化</td>
+<td>B + R(fine) + M + D + CR + X</td>
+<td>随发布车，release note 写「无行为变化」</td>
+</tr>
+<tr>
+<td>D2</td>
+<td>1c 删 V1 predict 链</td>
+<td>先查 Paladin 动态绑定，单独成片</td>
+<td>先 Paladin 查询结果入 MR 描述；B + R(fine/coarse/trade/fs) + X</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>D3</td>
+<td>1d 删下载脚本里的死类型分支</td>
+<td>python 单元，不进 C++</td>
+<td>先查线上 dnn_task 是否下发；<code>test_aa_download.py</code> + 单 pod 目录 diff</td>
+<td>随下载脚本发布</td>
+</tr>
+<tr>
+<td>D4a</td>
+<td>1e 前半：<code>fea_parser.cpp:812</code> 补空指针检查，未注册源 op 由崩溃改为解析失败</td>
+<td>这是行为变化，和删除分开</td>
+<td>单测覆盖未注册 op + B + R(fine) + X</td>
+<td>随发布车</td>
+</tr>
+<tr>
+<td>D4b</td>
+<td>1e 后半：删 Hermes 死代码</td>
+<td>无行为变化</td>
+<td>B + R(fine/coarse/mixer/fs/trade) + A + X</td>
+<td>随发布车</td>
+</tr>
+</tbody>
+</table>
+<h3>阶段 3：中间件入口逐个收敛（波 3），按风险从低到高</h3>
+<p>每个切片只动一个外部系统。每片的验收例子：改前，换一个 replay 行为要改的文件数；改后，只改入口的 replay 实现。</p>
+<table>
+<thead>
+<tr>
+<th>切片</th>
+<th>外部系统</th>
+<th>依赖</th>
+<th>门槛</th>
+<th>要等的决定</th>
+<th>部署</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E1</td>
+<td>Lancer + Kafka（3a + 3b）：同为「记录」语义，同一个观察量 <code>lancer_outputs</code></td>
+<td>S0、S1、D1</td>
+<td>B + R(看 <code>lancer_outputs</code> 不变) + CR + X</td>
+<td><code>rules.md:18</code>（S0）</td>
+<td>随发布车</td>
+</tr>
+<tr>
+<td>E2</td>
+<td>Redis（3c）：读「拒绝并计数」、写「记录」</td>
+<td>E1</td>
+<td>同 E1，加 <code>log_item_bytes</code>、<code>user_spec_bytes</code> 不变</td>
+<td>无</td>
+<td>随发布车</td>
+</tr>
+<tr>
+<td>E3</td>
+<td>Galaxy 直连（3d）：QSBertV2 两条 Qwen 路径改走 <code>call_galaxy</code></td>
+<td>E1</td>
+<td>fake transport 单测 + X。replay 不跑 <code>process_bert</code>，覆盖不到，所以不能只靠 replay</td>
+<td>无</td>
+<td>行为面：X 后分批推全；看 Galaxy 指标</td>
+</tr>
+<tr>
+<td>E4</td>
+<td>KFC（3e）：5 条活 RPC 路径收进入口，miss 与 error 分开</td>
+<td>E1、E2、D1</td>
+<td>B + R + X + P</td>
+<td>KFC 超时口径，推荐 A（保持各路现值，写进声明表）</td>
+<td>行为面：压测 + X 后分批推全</td>
+</tr>
+<tr>
+<td>E5</td>
+<td>删 <code>replay_skip_predict_client</code>、<code>replay_skip_kfc_client</code>，<code>ReplayEnvironment</code> 装配一次（3f）</td>
+<td>E1–E4 全部合入</td>
+<td>B + R(全 app) + X；棘轮的 flag 读取数归零</td>
+<td>无</td>
+<td>随发布车</td>
+</tr>
+</tbody>
+</table>
+<p>E1–E4 之间无依赖的可并行开发，但合入顺序按表。每片合入后 <code>check_middleware_boundary.py</code> 的存量数必须下降，下降值写进 MR 描述。</p>
+<h3>阶段 4：与阶段 3 并行的两条线</h3>
+<p>这两条线不依赖中间件入口。表声明线对「降低每次需求范围」收益最大，建议紧接 S1 开始。</p>
+<table>
+<thead>
+<tr>
+<th>切片</th>
+<th>内容</th>
+<th>依赖</th>
+<th>门槛</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>T1</td>
+<td>5b-1：<code>ftable/</code> 表声明（一张表一行）+ 声明覆盖测试：每份清单的表名集合等于声明。只加声明和测试，不改现有清单</td>
+<td>S1</td>
+<td>单测 + B + <code>table_key_mapping_contract_test</code></td>
+</tr>
+<tr>
+<td>T2</td>
+<td>5b-2：codec 与两个 dispatch 改读声明；两个 Export 入口合一</td>
+<td>T1</td>
+<td>B + R(fine/fs) + X</td>
+</tr>
+<tr>
+<td>T3</td>
+<td>5b-3：export catalog、key mapping、log_kv key 改读声明</td>
+<td>T2</td>
+<td>同 T2</td>
+</tr>
+<tr>
+<td>T4</td>
+<td>5b-4：<code>feature_table_source.json</code> 与 TOML 里的表来源并入声明（配置事实只留一处）</td>
+<td>T3</td>
+<td>加载期校验单测 + 单 pod 加载</td>
+</tr>
+<tr>
+<td>O1</td>
+<td>4b 观测去重：cross-AUC V2 与 Seq 共用；删无人用的 V1；<code>observe_general</code> 与 <code>observe_prerank</code> 合一</td>
+<td>S1</td>
+<td>B + R(看 <code>lancer_outputs</code>、<code>log_kv</code> 不变) + X</td>
+</tr>
+<tr>
+<td>O2</td>
+<td>4b：<code>SourceOp</code> 两参 <code>run</code> 改纯虚，source 只经 fragment 写 log_kv</td>
+<td>O1</td>
+<td>编译期拦截 + B + R</td>
+</tr>
+</tbody>
+</table>
+<p>T1–T4 每片只动一份清单，是为了让「加一张表」这个需求在 T4 之后只改一行。T4 合入时用 !4765 那类 dense 表做一次真实演练，数改动文件数，写进 MR 描述作为验收证据。</p>
+<h3>阶段 5：其余波次，前置条件满足后再展开</h3>
+<table>
+<thead>
+<tr>
+<th>切片</th>
+<th>内容</th>
+<th>前置</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C1</td>
+<td>波 4：有界后台排空队列，替换 4 处手写队列；BOSS 只留一套 transport</td>
+<td>E1–E4；用户决定 RecordingTask 留不留</td>
+<td>行为面，需 P + X</td>
+</tr>
+<tr>
+<td>C2</td>
+<td>波 5：data/ 分家</td>
+<td>dir-layering MR C + E4</td>
+<td>不在本计划另开 MR</td>
+</tr>
+<tr>
+<td>C3</td>
+<td>波 6a：model.conf 字段与族登记表由一份声明驱动，python 与 C++ 一致性测试</td>
+<td>S1</td>
+<td>只加测试与声明，无行为变化</td>
+</tr>
+<tr>
+<td>C4</td>
+<td>波 6b：<code>ModelConfigView::boolean</code> 区分缺失与类型错；加载时类型错拒绝</td>
+<td>C3；扫一遍线上 model.conf 确认没有现存类型错</td>
+<td>行为面：先报告后拒绝</td>
+</tr>
+<tr>
+<td>C5</td>
+<td>波 6c：修 revision 恒为 0 导致的在线目录 <code>rm -fr</code></td>
+<td>先在测试里复现（现为推断）</td>
+<td>bug 修复，单独 MR</td>
+</tr>
+<tr>
+<td>H1</td>
+<td>波 7a：Hermes 重复副本合并</td>
+<td>D4b</td>
+<td>B + R + JNI 单测 + X 看耗时</td>
+</tr>
+<tr>
+<td>H2</td>
+<td>波 7b：删约 49 个只在注册表里的 op</td>
+<td>拿到 JNI / Flink 图清单</td>
+<td>清单没拿到之前不开工</td>
+</tr>
+<tr>
+<td>F1</td>
+<td>波 8a：Feature Streaming 并入同一套 schedule，5 项输入差异写成显式声明，行为不变；<code>feature_streaming/</code> 改名同一个 MR</td>
+<td>E1–E3；S0 里 ADR-0007 范围</td>
+<td>R(fs，看 <code>lancer_outputs</code> 不变) + X</td>
+</tr>
+<tr>
+<td>F2</td>
+<td>波 8b：去掉 5 项输入差异</td>
+<td>算法 owner 的决定</td>
+<td>样本 diff + 离线训练评估；不进本计划自动执行</td>
+</tr>
+</tbody>
+</table>
+<h2>5. 部署分级</h2>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>切片</th>
+<th>部署方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>不进二进制</td>
+<td>S0、S1、C3 的测试部分</td>
+<td>CI 与评审通过即合入，无部署</td>
+</tr>
+<tr>
+<td>无行为变化的删与搬</td>
+<td>D1、D4b、E1、E2、E5、T1、O1</td>
+<td>合入 master，随发布车上线；release note 写「无行为变化」；<code>M</code> 证明函数体未改；一次发布车上线前跑一次 X</td>
+</tr>
+<tr>
+<td>行为面变化</td>
+<td>D4a、E3、E4、T2–T4、C1、C4、C5、F1</td>
+<td>合入后单独标注；X → P（E4、C1 必须）→ 分批推全；任一指标越界即回滚该 MR</td>
+</tr>
+<tr>
+<td>流程决定</td>
+<td>发布车上车门槛</td>
+<td>需发布车负责人认可，不进二进制</td>
+</tr>
+</tbody>
+</table>
+<p>合入、部署与推全分别判断。本计划不授权任何发布、合并、推全或回滚动作，那些仍按 <code>UNKNOWN_POLICY.md#action-authority</code> 逐次确认。</p>
+<h2>6. 还没核实的项（对应切片开工前先关掉）</h2>
+<table>
+<thead>
+<tr>
+<th>未知项</th>
+<th>影响切片</th>
+<th>关法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Paladin 里是否有动态绑定指向 V1 predict 链</td>
+<td>D2</td>
+<td>查 Paladin，写入 MR 描述</td>
+</tr>
+<tr>
+<td>线上 dnn_task 是否还下发被 C++ 拒绝的模型类型</td>
+<td>D3</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>报告里的 7 份清单条目数、Redis/Lancer/Galaxy 目录数</td>
+<td>S1</td>
+<td>S1 的脚本跑出实数，替换本文 §0 的报告数</td>
+</tr>
+<tr>
+<td><code>Issue(int)</code> 是否覆盖 channel 超时；Redis 客户端是否阻塞 pthread</td>
+<td>E2、E4</td>
+<td>读库源码或做探针，库不在本 checkout</td>
+</tr>
+<tr>
+<td>JNI / Flink 的 Hermes 图清单</td>
+<td>H2</td>
+<td>拉新的 feature_store hermes_store</td>
+</tr>
+<tr>
+<td>11 个以上 head 的模型是否存在，cross-AUC 下游是否按 key 顺序读</td>
+<td>报告第 5 节第 4 条阻塞意见</td>
+<td>查线上模型配置，再决定是否单开修复 MR</td>
+</tr>
+<tr>
+<td>报告里 !4820 的 92/73 向上边与 master 的 83 不一致</td>
+<td>S1</td>
+<td>以 master 实跑为准</td>
+</tr>
+</tbody>
+</table>
+<h2>7. 下一步</h2>
+<ol>
+<li>用户确认 §3 第 4 条的 25 文件上限，和 S0 里的 4 项决定（ADR、<code>rules.md:18</code>、KFC 超时口径、RecordingTask 去留）。</li>
+<li>确认后开 S1。它不进二进制，是最小的第一个 MR，也是后面所有切片的度量工具。</li>
+<li>S1 合入后并行开 D1 与 T1。</li>
+</ol></main><!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body></html>
