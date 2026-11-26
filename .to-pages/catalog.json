@@ -313,12 +313,12 @@
       "title": "DaVinci 分层落地方案",
       "versions": [
         {
-          "digest": "1c323904f283f361165c897d05e6f4464051a025d3f6b5df8f890ffa40d38d40",
+          "digest": "d2f230d04346afe57f04f40f61c8821dd94acc0ea8fc5628809d92833fc5da64",
           "label": "v1",
           "path": "reports/davinci-system-layering-plan",
           "published_at": "2026-11-26T08:11:26.119685Z",
           "summary": "把分层报告的 8 波改成可逐片开发、验证、部署、合入的计划",
-          "updated_at": "2026-11-26T08:11:26.119685Z"
+          "updated_at": "2026-11-26T08:26:27.863810Z"
         }
       ]
     },

@@ -140,6 +140,143 @@ code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}a{
 <li>行为变化的 MR 另外要有一个可观测的失败信号（计数、日志或测试），不靠 replay 通过证明。</li>
 <li>叠放的 MR 每个单独过 bot；上层在下层合入后再开。</li>
 </ol>
+<h2>3b. 硬约束与已定决策（2026-11-26，用户定目标，决策由 agent 评估）</h2>
+<p>用户定的目标：agentic 运维能力 + 架构治理。两条硬约束：</p>
+<ul>
+<li><strong>C-1 不删有效功能。</strong> 删除必须同时证明三件事：静态零引用、配置零引用（含 Paladin 与各 app 的 conf）、运行时零流量（监控窗口内）。缺任一件，该切片不开工，不降级为「估计没人用」。</li>
+<li><strong>C-2 不引入性能退化。</strong> 碰请求链路的切片，合入前要有基线对比：同一 app 的 P99 延迟与 CPU，候选对基线。阈值取两次基线重复运行的波动范围，候选落在波动内才算无退化。没有压测数据的切片，不进「行为面变化」类别。</li>
+</ul>
+<p>评估按四项各 1–5 分：治理收益（G）、功能风险（F，5 为最安全）、性能风险（P，5 为最安全）、成本（C，5 为最省）。</p>
+<table>
+<thead>
+<tr>
+<th>决策</th>
+<th>选项</th>
+<th>G</th>
+<th>F</th>
+<th>P</th>
+<th>C</th>
+<th>定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ADR「中间件入口层」</td>
+<td>写 / 只留在 effort 里</td>
+<td>5 / 1</td>
+<td>5 / 5</td>
+<td>5 / 5</td>
+<td>3 / 5</td>
+<td><strong>写</strong>。ratchet 需要权威来源</td>
+</tr>
+<tr>
+<td>KFC 超时口径</td>
+<td>A 保持各路现值（dense 40、remote_dict 10、其余 20 ms）/ B 统一</td>
+<td>3 / 4</td>
+<td>5 / 2</td>
+<td>5 / 2</td>
+<td>5 / 3</td>
+<td><strong>A</strong>。B 会改 dense 等待时间，违反 C-2。统一留到有灰度数据后</td>
+</tr>
+<tr>
+<td>RecordingTask</td>
+<td>A 保留，换有界队列 / B 删除</td>
+<td>4 / 5</td>
+<td>5 / 1</td>
+<td>5 / 4</td>
+<td>4 / 5</td>
+<td><strong>A</strong>。B 删掉压测用的有效功能，违反 C-1。A 同时去掉每请求一把全局锁，是性能改善，需 P 证明</td>
+</tr>
+<tr>
+<td><code>rules.md:18</code></td>
+<td>A 放开为「只经 Lancer 入口」/ B 样本写出归 observation</td>
+<td>4 / 2</td>
+<td>5 / 4</td>
+<td>5 / 5</td>
+<td>5 / 3</td>
+<td><strong>A</strong>。样本是结果契约产出，不是观测（ADR-0004）</td>
+</tr>
+<tr>
+<td>ADR-0007 范围 / F1 / F2</td>
+<td>推广到所有族 / 保持</td>
+<td>3 / 3</td>
+<td>2 / 5</td>
+<td>3 / 5</td>
+<td>2 / 5</td>
+<td><strong>保持，F1、F2 移出当前范围</strong>。与已接受的 ADR-0007 冲突，且 F2 改训练样本内容</td>
+</tr>
+<tr>
+<td>GR General 约 1.2k 行</td>
+<td>保留 / 删除</td>
+<td>2 / 3</td>
+<td>5 / 1</td>
+<td>5 / 5</td>
+<td>5 / 4</td>
+<td><strong>保留</strong>。线上 flag 默认关、靠 abyss 打开，不能证明零流量，违反 C-1</td>
+</tr>
+<tr>
+<td>H2 删约 49 个 op</td>
+<td>删 / 不删</td>
+<td>3 / 1</td>
+<td>2 / 5</td>
+<td>5 / 5</td>
+<td>3 / 5</td>
+<td><strong>条件开工</strong>。只有 JNI / Flink 图清单到手并满足 C-1 三证才开</td>
+</tr>
+<tr>
+<td>单个 MR 文件数上限</td>
+<td>25 / 不设</td>
+<td>4 / 1</td>
+<td>4 / 3</td>
+<td>5 / 5</td>
+<td>4 / 5</td>
+<td><strong>25</strong>。不含经 <code>move_only.py</code> 证明的纯搬移</td>
+</tr>
+<tr>
+<td>发布车上车门槛（核对所带 MR 的最新 bot 结论）</td>
+<td>A 核对 / B 保持</td>
+<td>4 / 2</td>
+<td>5 / 3</td>
+<td>5 / 5</td>
+<td>4 / 5</td>
+<td><strong>A</strong>，但这是流程决定，需要发布车负责人认可，不进二进制，不阻塞任何切片</td>
+</tr>
+</tbody>
+</table>
+<p>决策的后果在切片表里已落实：D2、D3、H2 加了 C-1 三证；E2、E3、E4、C1、H1 的门槛加了 C-2 的 P；F1、F2 移出。</p>
+<h2>3c. agentic 运维交付（本计划自己的验收项）</h2>
+<p>每一项都要落成文件或检查，不只写在文档里。</p>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>内容</th>
+<th>落点切片</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>检查失败信息自带修法</td>
+<td>每条棘轮失败信息写出：违反的规则、owner 目录、该改去哪里。agent 读到失败就知道下一步</td>
+<td>S1</td>
+</tr>
+<tr>
+<td>声明表是唯一来源</td>
+<td>「replay 不覆盖」清单、边界检查、一页「运行阶段 → 目录 → 中间件入口」的对照表，都从声明表生成，不手写</td>
+<td>S1，对照表文档在 A1</td>
+</tr>
+<tr>
+<td>路由入口</td>
+<td><code>AGENTS.md</code> 任务入口加一条：碰外部系统的改动先查对照表</td>
+<td>A1（随 S1 之后的文档 MR）</td>
+</tr>
+<tr>
+<td>度量</td>
+<td>加一张表和一次典型修复要动的文件数，作为基线与收尾各量一次，写进 MR</td>
+<td>T4、E5</td>
+</tr>
+</tbody>
+</table>
 <h2>4. 切片表</h2>
 <p>门槛列的缩写：<code>B</code> = <code>./build.sh -C RemoteExecution -L local</code>；<code>R</code> = replay（括号内为 app）；<code>X</code> = x 集群单机灰度；<code>P</code> = 压测；<code>M</code> = <code>move_only.py</code>；<code>D</code> = <code>check_module_deps.py</code>；<code>A</code> = <code>check_abyss_boundary.py</code>（碰 Hermes op 时）；<code>CR</code> = 本地 Davinci-CR-Rot。每个进二进制的 MR 另走 README 上线 Checklist，缺项在 MR 描述写明是合入前还是上线前需要。</p>
 <h3>阶段 0：先定决定，不进二进制</h3>
@@ -155,9 +292,15 @@ code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}a{
 <tbody>
 <tr>
 <td>S0</td>
-<td>写 ADR「中间件入口层」，更新 <code>ARCHITECTURE.md</code> 分层；<code>rules.md:18</code> 改成结果交付也可经 Lancer、Kafka、Redis 入口写样本；ADR-0007 范围改动留到 8a 前</td>
+<td>新 ADR「中间件入口层」（Proposed），更新 <code>ARCHITECTURE.md</code> 分层。写明三点：它是接口层，不是 domain（守 ADR-0003 第 4 条）；依据 ADR-0003 第 5、7 条；Lancer 入口由 Observation 与结果交付共用，不改 ADR-0004 的观测边界。<code>rules.md:18</code> 改成「Lancer 写入只经 Lancer 入口」</td>
 <td>文档链接检查 + 用户评审</td>
-<td>用户（报告 §7 前 3 项 + 发布车门槛）</td>
+<td>用户</td>
+</tr>
+<tr>
+<td>S0b</td>
+<td>ADR-0007 范围改动。ADR-0007 第 2 条和理由明确只对 <code>ItemEmbQServerV2</code> 放开，并拒绝把「不推理」推广到打分族。F1 与它冲突，所以 F1 不进当前承诺范围，等用户重评后再定</td>
+<td>不进本批</td>
+<td>用户</td>
 </tr>
 </tbody>
 </table>
@@ -207,14 +350,14 @@ code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}a{
 <td>D2</td>
 <td>1c 删 V1 predict 链</td>
 <td>先查 Paladin 动态绑定，单独成片</td>
-<td>先 Paladin 查询结果入 MR 描述；B + R(fine/coarse/trade/fs) + X</td>
+<td>C-1 三证入 MR 描述（静态、Paladin 与 conf、运行时流量）；B + R(fine/coarse/trade/fs) + X</td>
 <td>同上</td>
 </tr>
 <tr>
 <td>D3</td>
 <td>1d 删下载脚本里的死类型分支</td>
 <td>python 单元，不进 C++</td>
-<td>先查线上 dnn_task 是否下发；<code>test_aa_download.py</code> + 单 pod 目录 diff</td>
+<td>C-1 三证：线上 dnn_task 是否下发、conf、下载流量；<code>test_aa_download.py</code> + 单 pod 目录 diff</td>
 <td>随下载脚本发布</td>
 </tr>
 <tr>
@@ -259,7 +402,7 @@ code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}a{
 <td>E2</td>
 <td>Redis（3c）：读「拒绝并计数」、写「记录」</td>
 <td>E1</td>
-<td>同 E1，加 <code>log_item_bytes</code>、<code>user_spec_bytes</code> 不变</td>
+<td>同 E1，加 <code>log_item_bytes</code>、<code>user_spec_bytes</code> 不变；加 C-2 的 P 对比</td>
 <td>无</td>
 <td>随发布车</td>
 </tr>
@@ -267,7 +410,7 @@ code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}a{
 <td>E3</td>
 <td>Galaxy 直连（3d）：QSBertV2 两条 Qwen 路径改走 <code>call_galaxy</code></td>
 <td>E1</td>
-<td>fake transport 单测 + X。replay 不跑 <code>process_bert</code>，覆盖不到，所以不能只靠 replay</td>
+<td>fake transport 单测 + X + C-2 的 P 对比（Qwen 路径延迟不得变长）。replay 不跑 <code>process_bert</code>，覆盖不到，所以不能只靠 replay</td>
 <td>无</td>
 <td>行为面：X 后分批推全；看 Galaxy 指标</td>
 </tr>
@@ -354,9 +497,9 @@ code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}a{
 <tbody>
 <tr>
 <td>C1</td>
-<td>波 4：有界后台排空队列，替换 4 处手写队列；BOSS 只留一套 transport</td>
-<td>E1–E4；用户决定 RecordingTask 留不留</td>
-<td>行为面，需 P + X</td>
+<td>波 4：有界后台排空队列，替换 4 处手写队列；RecordingTask 保留；BOSS 只留一套 transport。队列溢出只丢后台工作并计数，不阻塞请求线程</td>
+<td>E1–E4</td>
+<td>行为面，需 C-2 的 P + X；验收含「请求线程不再取全局锁」</td>
 </tr>
 <tr>
 <td>C2</td>
@@ -386,25 +529,25 @@ code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}a{
 <td>H1</td>
 <td>波 7a：Hermes 重复副本合并</td>
 <td>D4b</td>
-<td>B + R + JNI 单测 + X 看耗时</td>
+<td>B + R + JNI 单测 + X 看耗时 + C-2 的 P 对比（热路径）</td>
 </tr>
 <tr>
 <td>H2</td>
 <td>波 7b：删约 49 个只在注册表里的 op</td>
-<td>拿到 JNI / Flink 图清单</td>
-<td>清单没拿到之前不开工</td>
+<td>拿到 JNI / Flink 图清单，并满足 C-1 三证</td>
+<td>缺任一证据不开工</td>
 </tr>
 <tr>
 <td>F1</td>
-<td>波 8a：Feature Streaming 并入同一套 schedule，5 项输入差异写成显式声明，行为不变；<code>feature_streaming/</code> 改名同一个 MR</td>
-<td>E1–E3；S0 里 ADR-0007 范围</td>
-<td>R(fs，看 <code>lancer_outputs</code> 不变) + X</td>
+<td>波 8a：已移出当前范围。与已接受的 ADR-0007 冲突，见 §3b。重评后再列</td>
+<td>—</td>
+<td>—</td>
 </tr>
 <tr>
 <td>F2</td>
-<td>波 8b：去掉 5 项输入差异</td>
-<td>算法 owner 的决定</td>
-<td>样本 diff + 离线训练评估；不进本计划自动执行</td>
+<td>波 8b：已移出当前范围。改训练样本内容，需算法 owner 决定</td>
+<td>—</td>
+<td>—</td>
 </tr>
 </tbody>
 </table>
@@ -490,8 +633,8 @@ code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}a{
 </table>
 <h2>7. 下一步</h2>
 <ol>
-<li>用户确认 §3 第 4 条的 25 文件上限，和 S0 里的 4 项决定（ADR、<code>rules.md:18</code>、KFC 超时口径、RecordingTask 去留）。</li>
-<li>确认后开 S1。它不进二进制，是最小的第一个 MR，也是后面所有切片的度量工具。</li>
+<li>起草 S0 的 ADR（<code>.scratch/system-layering/ADR-DRAFT.md</code>），用户只判断一件事：入口层要不要成为仓库级约束。</li>
+<li>然后开 S1。它不进二进制，是最小的第一个 MR，也是后面所有切片的度量工具。</li>
 <li>S1 合入后并行开 D1 与 T1。</li>
 </ol></main><!-- to-pages:back-link:start -->
 <style>
