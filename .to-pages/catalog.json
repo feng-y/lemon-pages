@@ -279,12 +279,12 @@
       "title": "DaVinci 系统分层",
       "versions": [
         {
-          "digest": "2928bb74c2cebd6009fc870100a28185f7ed8532ccfe0fc691c5ca023489e31e",
+          "digest": "72ebb56ae590e7c45b9fae05cb3840b991a90a9d437c9b2c446e0151eb1325cd",
           "label": "v1",
           "path": "reports/davinci-system-layering",
           "published_at": "2026-11-26T06:00:34.595985Z",
-          "summary": "新增第 5 节：约 39 个 MR 反复出问题的 5 类结构原因、流程缺口和改造后加一张表的改法；拆分加 1f、4b、5b",
-          "updated_at": "2026-11-26T07:15:39.687707Z"
+          "summary": "第 5 节补上合入时未关的 4 条阻塞意见在 master 上的逐条状态；5b 写明 codec 不用 type_define.h",
+          "updated_at": "2026-11-26T07:33:34.526012Z"
         }
       ]
     },
