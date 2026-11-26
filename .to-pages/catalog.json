@@ -421,6 +421,14 @@
           "published_at": "2026-11-26T17:14:28.683634Z",
           "summary": "三套方案（实例心跳表、Session 租约、粘性回落）与七个系统的调研对照",
           "updated_at": "2026-11-26T17:14:28.683634Z"
+        },
+        {
+          "digest": "a38580673a61be670432d63d59d34a0357239573ef25a644f9be81f5929cb42c",
+          "label": "v2",
+          "path": "reports/rook-backend-affinity-v2",
+          "published_at": "2026-11-26T23:27:25.819411Z",
+          "summary": "v2：推荐 owner 绑定 server，租约过期由任意机器接手；补 Sage、Codex App Server、Slack、Discord、微信 seqsvr 调研",
+          "updated_at": "2026-11-26T23:27:25.819411Z"
         }
       ]
     }
