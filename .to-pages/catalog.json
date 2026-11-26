@@ -262,12 +262,12 @@
       "title": "Rook Runtime 选择器",
       "versions": [
         {
-          "digest": "1219e7bb761e0953b809a6594d2a51931a5d0b7619c5808a1f73c3adaada0900",
+          "digest": "449b72e88d19d87c6e92fb8f23dd3454a1a4e40c8a81d1f2d15a2ea3aa278044",
           "label": "v1",
           "path": "reports/rook-runtime-picker",
           "published_at": "2026-11-26T05:24:12.242996Z",
-          "summary": "重做选择器视觉：图标、单行模型列表、滑杆式思考强度；截图改为大图堆叠",
-          "updated_at": "2026-11-26T06:04:25.748603Z"
+          "summary": "按参考图重做：灰栏、单行模型、深色档位滑杆",
+          "updated_at": "2026-11-26T06:30:00.616984Z"
         }
       ]
     },
