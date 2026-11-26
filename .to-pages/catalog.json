@@ -279,12 +279,12 @@
       "title": "DaVinci 系统分层",
       "versions": [
         {
-          "digest": "e7a41055aa9caf95c96c07e239fb9c12bf327e923678ec6a227e9c9b8f37d776",
+          "digest": "9c1053434dccb9e48ac3d658c6603469a4a1c113a52d83361941cb01d69f01f9",
           "label": "v1",
           "path": "reports/davinci-system-layering",
           "published_at": "2026-11-26T06:00:34.595985Z",
-          "summary": "Feature Streaming 并入 predict 链：L4 改为模型调用 / 结果交付，新增问题 11、第 8 波和两条待决定",
-          "updated_at": "2026-11-26T06:31:19.771078Z"
+          "summary": "新增第 4 节：改造完成后的代码到 runtime 映射；待决定加结果交付目录与 rules.md:18",
+          "updated_at": "2026-11-26T06:47:20.938417Z"
         }
       ]
     },

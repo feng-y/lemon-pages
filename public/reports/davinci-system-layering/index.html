@@ -393,6 +393,7 @@ table.issues td:nth-child(2) { white-space: nowrap; }
 .chart svg .bad { fill: var(--danger); }
 .chart svg .acc { fill: var(--accent-strong); font-weight: 650; }
 td code { white-space: nowrap; }
+table.dest td:last-child, table.dest td:nth-child(2) { white-space: nowrap; }
 .wave { font-family: var(--mono); font-weight: 650; color: var(--accent-strong); white-space: nowrap; }
 </style>
 
@@ -412,6 +413,7 @@ td code { white-space: nowrap; }
   <p>结构问题集中在一处：请求链路上的能力代码直接调用外部系统的 SDK。replay 替代这些调用靠两种办法：一是 <code>replay/</code> 之外 19 处 <code>FLAGS_replay_skip_*</code> 读取，二是 Redis、Lancer 和两条 Galaxy 直连在 replay 里根本没初始化客户端。第二种没有任何检查守着。</p>
   <p>目标分层在能力层和外部系统之间加一层「中间件入口」（这是本文新起的名字）。每个外部系统一个入口，线上实现由 <code>server.cc</code> 装配，replay 实现由 <code>ReplayEnvironment</code> 装配，各装配一次。能力代码不再读 replay flag。</p>
   <p>Feature Streaming 不单列为能力。它和 predict 走同一条链，只是结果契约是「特征样本」：跳过模型调用，交付时写 sink。</p>
+  <p>改造完成后的样子见第 4 节：一套 schedule，7 个阶段各有一个负责目录。三种结果契约只在模型调用和结果交付两处分叉。replay 只在中间件入口换实现。</p>
   <p>拆分按这个目标排成 8 波。第 1 波只删死代码：C++ 约 885 行，python 约 490 行，另有 KFC 死路径未计行数。中间件按系统逐个收敛，最后删掉两个 replay flag，再按角色拆 <code>data/</code>。每个进二进制的 MR 都过 build、replay、评审和 x 集群单机灰度。</p>
 </div>
 
@@ -837,8 +839,210 @@ td code { white-space: nowrap; }
   </div>
 </section>
 
+<section id="target">
+  <h2>4. 改造完成后：代码到 runtime</h2>
+  <hr class="rule">
+  <p class="lede">8 波都落地之后，一次请求按什么顺序经过哪些代码，每段代码经哪个中间件入口碰外部系统，replay 在哪里换实现。列和图 1 一一对应，方便对照。</p>
+
+  <figure class="bleed">
+    <div class="chart wide">
+      <svg viewBox="0 0 1180 392" role="img" aria-label="改造完成后，一次请求只走一套 schedule：入口、解析、取特征、特征执行、模型调用、结果交付、响应后。三种结果契约只在模型调用和结果交付两处分叉。每个阶段的外部调用只经中间件入口，replay 在同一组入口上换实现。">
+        <defs>
+          <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="var(--muted)"/></marker>
+        </defs>
+        <!-- row labels -->
+        <text x="6" y="31" font-size="11" class="muted">阶段 · 代码</text>
+        <text x="6" y="70" font-size="11" class="muted">结果契约</text>
+        <text x="6" y="89" font-size="11">候选预估</text>
+        <text x="6" y="119" font-size="11">只回特征</text>
+        <text x="6" y="149" font-size="11">特征样本</text>
+        <text x="6" y="222" font-size="11" class="muted">线上经</text>
+        <text x="6" y="237" font-size="11" class="muted">中间件入口</text>
+        <text x="6" y="266" font-size="11" class="muted">加载面</text>
+        <text x="6" y="306" font-size="11" class="muted">replay</text>
+        <text x="6" y="321" font-size="11" class="muted">装配一次</text>
+        <line x1="4" y1="200" x2="1176" y2="200" stroke="var(--line)" stroke-width="1"/>
+        <line x1="4" y1="282" x2="1176" y2="282" stroke="var(--line)" stroke-width="1"/>
+
+        <!-- stage headers -->
+        <g stroke="var(--accent)" stroke-width="1.2" fill="var(--accent-tint)">
+          <rect x="88" y="12" width="144" height="46" rx="8"/>
+          <rect x="242" y="12" width="144" height="46" rx="8"/>
+          <rect x="396" y="12" width="144" height="46" rx="8"/>
+          <rect x="550" y="12" width="144" height="46" rx="8"/>
+          <rect x="704" y="12" width="144" height="46" rx="8"/>
+          <rect x="858" y="12" width="144" height="46" rx="8"/>
+          <rect x="1012" y="12" width="144" height="46" rx="8"/>
+        </g>
+        <g font-size="13" class="strong" text-anchor="middle">
+          <text x="160" y="31">入口 · L7</text>
+          <text x="314" y="31">解析 · L6</text>
+          <text x="468" y="31">取特征 · L4</text>
+          <text x="622" y="31">特征执行 · L4</text>
+          <text x="776" y="31">模型调用 · L4</text>
+          <text x="930" y="31">结果交付 · L4</text>
+          <text x="1084" y="31">响应后 · L4</text>
+        </g>
+        <g font-size="10.5" class="mono" text-anchor="middle">
+          <text x="160" y="48">service_impl</text>
+          <text x="314" y="48">modules/</text>
+          <text x="468" y="48">feature_dependency/</text>
+          <text x="622" y="48">feature/ → hermes</text>
+          <text x="776" y="48">predict/</text>
+          <text x="930" y="48">交付（目录待定）</text>
+          <text x="1084" y="48">observation/</text>
+        </g>
+        <g stroke="var(--muted)" stroke-width="1.2" marker-end="url(#a4)">
+          <line x1="233" y1="35" x2="241" y2="35"/>
+          <line x1="387" y1="35" x2="395" y2="35"/>
+          <line x1="541" y1="35" x2="549" y2="35"/>
+          <line x1="695" y1="35" x2="703" y2="35"/>
+          <line x1="849" y1="35" x2="857" y2="35"/>
+          <line x1="1003" y1="35" x2="1011" y2="35"/>
+        </g>
+
+        <!-- contract lanes -->
+        <g stroke="var(--accent)" stroke-width="1.4">
+          <line x1="92" y1="84" x2="990" y2="84"/>
+          <line x1="92" y1="114" x2="700" y2="114"/>
+          <line x1="852" y1="114" x2="990" y2="114"/>
+          <line x1="92" y1="144" x2="700" y2="144"/>
+          <line x1="852" y1="144" x2="990" y2="144"/>
+        </g>
+        <g stroke="var(--faint)" stroke-width="1.2" stroke-dasharray="4 4">
+          <line x1="700" y1="114" x2="852" y2="114"/>
+          <line x1="700" y1="144" x2="852" y2="144"/>
+        </g>
+        <g fill="var(--accent)">
+          <circle cx="314" cy="84" r="3.5"/><circle cx="468" cy="84" r="3.5"/><circle cx="622" cy="84" r="3.5"/>
+          <circle cx="314" cy="114" r="3.5"/><circle cx="468" cy="114" r="3.5"/><circle cx="622" cy="114" r="3.5"/>
+          <circle cx="314" cy="144" r="3.5"/><circle cx="468" cy="144" r="3.5"/><circle cx="622" cy="144" r="3.5"/>
+        </g>
+        <g fill="var(--surface)" stroke="var(--line)" stroke-width="1.2">
+          <rect x="92" y="72" width="136" height="24" rx="6"/>
+          <rect x="92" y="102" width="136" height="24" rx="6"/>
+          <rect x="92" y="132" width="136" height="24" rx="6"/>
+          <rect x="708" y="72" width="136" height="24" rx="6"/>
+          <rect x="862" y="72" width="136" height="24" rx="6"/>
+          <rect x="862" y="102" width="136" height="24" rx="6"/>
+          <rect x="862" y="132" width="136" height="24" rx="6"/>
+          <rect x="1016" y="72" width="136" height="84" rx="6"/>
+        </g>
+        <g fill="var(--ground)" stroke="var(--faint)" stroke-width="1.2" stroke-dasharray="4 3">
+          <rect x="736" y="104" width="80" height="20" rx="6"/>
+          <rect x="736" y="134" width="80" height="20" rx="6"/>
+        </g>
+        <g font-size="11">
+          <text x="100" y="88">预估 RPC</text>
+          <text x="100" y="118">预估 RPC · 只回特征</text>
+          <text x="100" y="148">FS / Items RPC</text>
+          <text x="716" y="88">QServer 族</text>
+          <text x="870" y="88">post · fill → 回分</text>
+          <text x="870" y="118">回 feasign</text>
+          <text x="870" y="148">投影 → 写样本</text>
+          <text x="1024" y="92">采集 · GalaxyIo</text>
+          <text x="1024" y="110">Hermes cost</text>
+          <text x="1024" y="128">都进同一个</text>
+          <text x="1024" y="146">后台排空队列</text>
+        </g>
+        <g font-size="10.5" class="muted" text-anchor="middle">
+          <text x="776" y="118">跳过</text>
+          <text x="776" y="148">跳过</text>
+        </g>
+
+        <!-- observation band -->
+        <rect x="88" y="166" width="1068" height="24" rx="6" fill="var(--ground)" stroke="var(--line)" stroke-width="1.2"/>
+        <text x="100" y="182" font-size="11">观测 · <tspan class="mono">observation/</tspan>：每个阶段交出结果后由同一个 observer 记录，标签带结果契约和模型，不再按 predict / FS 分两套</text>
+
+        <!-- middleware entries (online) -->
+        <g fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.2">
+          <rect x="92" y="212" width="136" height="24" rx="6"/>
+          <rect x="246" y="212" width="136" height="24" rx="6"/>
+          <rect x="400" y="212" width="136" height="24" rx="6"/>
+          <rect x="708" y="212" width="136" height="24" rx="6"/>
+          <rect x="862" y="212" width="136" height="24" rx="6"/>
+          <rect x="1016" y="212" width="136" height="24" rx="6"/>
+        </g>
+        <rect x="554" y="212" width="136" height="24" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="1.2"/>
+        <g font-size="11">
+          <text x="100" y="228">naming（请求复制）</text>
+          <text x="254" y="228">Paladin · abyss</text>
+          <text x="408" y="228">KFC · Redis</text>
+          <text x="562" y="228" class="muted">无，只读 FeaContext</text>
+          <text x="716" y="228">Galaxy</text>
+          <text x="870" y="228">Lancer · Kafka · Redis</text>
+          <text x="1024" y="228">BOSS · Lancer</text>
+        </g>
+
+        <!-- loading plane -->
+        <rect x="396" y="248" width="452" height="24" rx="6" fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="5 4"/>
+        <text x="408" y="264" font-size="11"><tspan class="mono">data/</tspan> 后台线程发布快照（FeatureTable、模型代、Hermes runner），请求只借</text>
+
+        <!-- replay -->
+        <g fill="var(--ok-tint)" stroke="var(--ok)" stroke-width="1.2">
+          <rect x="92" y="294" width="136" height="24" rx="6"/>
+          <rect x="246" y="294" width="136" height="24" rx="6"/>
+          <rect x="400" y="294" width="136" height="24" rx="6"/>
+          <rect x="400" y="324" width="136" height="24" rx="6"/>
+          <rect x="554" y="294" width="136" height="24" rx="6"/>
+          <rect x="708" y="294" width="136" height="24" rx="6"/>
+          <rect x="862" y="294" width="136" height="24" rx="6"/>
+          <rect x="1016" y="294" width="136" height="24" rx="6"/>
+        </g>
+        <g font-size="11">
+          <text x="100" y="310">runner 还原请求</text>
+          <text x="254" y="310">从 case 还原</text>
+          <text x="408" y="310">从 case 还原</text>
+          <text x="408" y="340">未采集的表报未覆盖</text>
+          <text x="562" y="310">本地执行</text>
+          <text x="716" y="310">记录输入，不发请求</text>
+          <text x="870" y="310">记录输出</text>
+          <text x="1024" y="310">不运行</text>
+        </g>
+
+        <!-- legend -->
+        <rect x="88" y="366" width="22" height="14" rx="4" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.2"/>
+        <text x="116" y="377" font-size="11" class="muted">中间件入口，线上实现由 server.cc 装配</text>
+        <rect x="380" y="366" width="22" height="14" rx="4" fill="var(--ok-tint)" stroke="var(--ok)" stroke-width="1.2"/>
+        <text x="408" y="377" font-size="11" class="muted">同一组入口的 replay 实现，由 ReplayEnvironment 装配</text>
+        <rect x="720" y="366" width="22" height="14" rx="4" fill="var(--ground)" stroke="var(--faint)" stroke-width="1.2" stroke-dasharray="4 3"/>
+        <text x="748" y="377" font-size="11" class="muted">该结果契约跳过这一阶段</text>
+      </svg>
+    </div>
+    <figcaption>改造完成后只有一套 schedule。三种结果契约只在两处分叉：模型调用（调用或跳过），结果交付（回分、回 feasign、写样本）。每个阶段的外部调用只经中间件入口。replay 在同一组入口上换实现，能力代码里没有 replay flag。和图 1 比，下面两行没有红色。</figcaption>
+  </figure>
+
+  <h3>代码去向</h3>
+  <p>每个目录只负责链路上的一段，依赖只往下走：入口 → 编排 → 能力 → 中间件入口 → 外部系统。加载面不在请求链路上，它由后台线程运行，能力层只借它发布的快照。</p>
+  <div class="table-wrap bleed">
+    <table class="dest">
+      <thead><tr><th>目标位置</th><th>层</th><th>负责的 runtime 阶段</th><th>从今天怎么来</th><th>哪一波</th></tr></thead>
+      <tbody>
+        <tr><td><code>server.cc</code> · <code>service_impl</code></td><td>L7 入口</td><td>入口；装配线上中间件入口</td><td>FS / Items RPC 先转成 <code>ModelServerRequest</code>，再进同一套 schedule</td><td>3、8a</td></tr>
+        <tr><td><code>modules/</code></td><td>L6 编排</td><td>解析；按结果契约排阶段</td><td>V1 predict 链删除；<code>module_schedule_fs.conf</code> 并入同一套 schedule</td><td>1c、8a</td></tr>
+        <tr><td><code>feature_dependency/</code></td><td>L4 能力</td><td>取特征</td><td>KFC、Redis 调用改经入口；replay flag 删除</td><td>3c、3e、3f</td></tr>
+        <tr><td><code>feature/</code></td><td>L4 能力</td><td>特征执行。spec 和 Hermes 输入只在这里组装</td><td>收进 <code>data/spec_converter</code>、<code>hermes_input</code>、<code>normal_hermes_input_spec</code>；FS 的 5 项输入差异写成结果契约的声明</td><td>5、8a</td></tr>
+        <tr><td><code>predict/</code></td><td>L4 能力</td><td>模型调用，按 QServer 族</td><td>收进 <code>data/onerec_qsv2_model</code>、<code>galaxy_shard_planner</code>、<code>predict_execution_context</code>；QSBertV2 直连改经 Galaxy 入口；死代码删除</td><td>1a、3d、5</td></tr>
+        <tr><td>结果交付（目录待定）</td><td>L4 能力</td><td>结果交付</td><td><code>feature_streaming/</code> 只剩投影和采样；sink 代码进入口；FS 自己的 schedule、选模型和输入准备删除；只回特征推广到所有族</td><td>3a–3c、8a</td></tr>
+        <tr><td><code>observation/</code></td><td>L4 能力</td><td>观测；响应后</td><td>GalaxyIo、RecordingTask、粗排采样、ReplayCapture 的手写队列换成一个后台排空队列</td><td>4</td></tr>
+        <tr><td><code>client/</code> → 中间件入口</td><td>L1（和 <code>ftable/</code> 同层）</td><td>所有外部调用</td><td>收进 <code>peta_kfc_client</code>、<code>lancer_sdk_wrapper</code>、<code>boss_client</code>、<code>feature_streaming/</code> 的 Kafka producer、5 个目录里的 Redis 调用</td><td>2–4</td></tr>
+        <tr><td><code>replay/</code></td><td>离线验证</td><td>装配 replay 实现</td><td><code>ReplayEnvironment</code> 装配一次；两个 replay flag 删除</td><td>3f</td></tr>
+        <tr><td><code>data/</code></td><td>L5 加载面</td><td>后台线程，不在请求链路上</td><td>只剩加载生命周期：<code>model_curator</code>、<code>hermes_curator</code>、<code>model_family</code>、watcher、dict codec、<code>model_kfc_tables</code></td><td>5</td></tr>
+        <tr><td><code>session_data</code></td><td>L3 请求载体</td><td>贯穿全链路</td><td>不变</td><td>—</td></tr>
+        <tr><td><code>fea/</code> <code>sequence/</code> <code>gr_sequence/</code> <code>rt_unified_sequence/</code> · <code>//hermes</code></td><td>L2 Hermes</td><td>特征执行的算子</td><td>死代码和重复副本删除</td><td>1e、7a、7b</td></tr>
+        <tr><td><code>ftable/</code></td><td>L1 FeatureTable</td><td>取特征读的表</td><td>不变</td><td>—</td></tr>
+        <tr><td><code>types/</code> · <code>config/</code></td><td>L0 基础</td><td>—</td><td>收进配置声明：<code>model_config</code>、<code>data_define</code> 等</td><td>5</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <div class="callout-title">两处要先定</div>
+    <p>结果交付的目录名没有定。<code>feature_streaming/</code> 改名会动很多文件，不改名又和它的新职责对不上。另外 <code>rules.md</code> 第 18 行只允许 observation surface 写 Lancer，而特征样本写 sink 是交付，不是观测。两处都列进第 6 节。</p>
+  </div>
+</section>
+
 <section id="split">
-  <h2>4. 拆分</h2>
+  <h2>5. 拆分</h2>
   <hr class="rule">
   <p class="lede">顺序按「先删再加、每步可验证」排。每一波都从上面的目标推出来，不是独立的清理项。</p>
 
@@ -864,7 +1068,7 @@ td code { white-space: nowrap; }
         <tr><td class="wave">7a</td><td>Hermes 合并重复副本：<code>S_GetRtAdSeq</code> 并进 <code>S_GetSeq</code>，先迁调用方再删；三个 runner 的 Init / ToFeatureResult / Clear 样板收进 <code>FeaRunnerBase</code>；<code>init_pro_runner</code> 改走 <code>BuildRunnerPool</code></td><td>减负，热路径上行为不变</td><td class="num">~230</td><td>replay fine / fs / mixer + JNI 单测 + x 集群单机看耗时（replay 不判耗时）</td></tr>
         <tr><td class="wave">7b</td><td>删约 49 个只在注册表里出现的 op：2026-05 之后没人改过，29,826 张抓到的图、feature_store 快照和仓库里的配置都没引用</td><td>减负</td><td class="num">~1.4k 估</td><td>1e 已合入；拉新的 feature_store <code>hermes_store</code>，拿到 JNI / Flink 图清单后再删</td></tr>
         <tr><td class="wave">8a</td><td>Feature Streaming 并进 predict 链：FS / Items 请求照旧在入口转成 <code>ModelServerRequest</code>，打分意图声明「特征样本」和样本模型；跑模型阶段按结果契约跳过模型调用，把 ADR-0007 的只回特征从 ItemEmbQServerV2 推广到所有族；交付阶段经 Lancer、Kafka、Redis 入口写样本。5 项输入差异先写成这个结果契约的显式声明，行为不变</td><td>问题 11；删 FS 自己的 schedule、选模型和输入准备</td><td class="num">待量</td><td>replay fs（看 <code>lancer_outputs</code> 不变）+ replay fine + 单机</td></tr>
-        <tr><td class="wave">8b</td><td>去掉 5 项输入差异，样本与线上预估同口径</td><td>训练与线上一致</td><td class="num">—</td><td>先有算法 owner 的决定（见第 5 节）；样本 diff + 离线训练评估</td></tr>
+        <tr><td class="wave">8b</td><td>去掉 5 项输入差异，样本与线上预估同口径</td><td>训练与线上一致</td><td class="num">—</td><td>先有算法 owner 的决定（见第 6 节）；样本 diff + 离线训练评估</td></tr>
       </tbody>
     </table>
   </div>
@@ -876,7 +1080,7 @@ td code { white-space: nowrap; }
 </section>
 
 <section id="decide">
-  <h2>5. 待决定</h2>
+  <h2>6. 待决定</h2>
   <hr class="rule">
   <div class="table-wrap">
     <table>
@@ -888,6 +1092,8 @@ td code { white-space: nowrap; }
         <tr><td>下载脚本里的死类型是否还被线上 <code>dnn_task</code> 引用</td><td>查线上 Paladin 后再删</td><td>先查。即便还在引用，C++ 也已拒绝这些模型，删掉只是停止无用下载</td><td>1d</td></tr>
         <tr><td>ADR-0007 的范围：只回特征目前只对 ItemEmbQServerV2 生效</td><td>A 改 ADR，「特征样本」成为所有族都能声明的结果契约；B 保持，FS 继续单独一套</td><td>A。FS 已经复用同一套 FD、Hermes 和 ModelCurator，剩下的分叉只有选模型、输入覆盖和投影</td><td>8a 之前</td></tr>
         <tr><td>FS 样本的 5 项输入差异：<code>request_time_ms</code> 为 0，GR、GR General、dense 为空（<code>feature_streaming_input.cpp:40-43</code>），rt_unified 只有样本填（<code>:107-112</code>，线上 <code>PrepareContext</code> 不填）。当前 28 张图用 <code>S_GetRtUnifiedSeq</code>，线上拿到的永远是空。FS 还按 spec 重建长行为视图（<code>:45</code>），和线上是否相同没有核对</td><td>A 是有意保留的历史口径，写进结果契约；B 是训练与线上的偏差，统一成线上口径</td><td>需要算法 owner 判断。8a 先按 A 做，行为不变</td><td>8b</td></tr>
+        <tr><td>结果交付放在哪个目录</td><td>A <code>feature_streaming/</code> 改名，收进 fill 和只回特征的投影；B 不改名，只在第 4 节的表里写明职责</td><td>A。名字和职责不符，agent 会按名字把新代码放错地方；改名放在 8a 同一个 MR 里，只动一次</td><td>8a</td></tr>
+        <tr><td><code>rules.md:18</code> 只允许 observation surface 写 Lancer；特征样本写 sink 是交付，不是观测</td><td>A 改规则：结果交付也可以经 Lancer、Kafka、Redis 入口写样本；B 特征样本的写出归 <code>observation/</code></td><td>A。样本是结果契约的产出，丢了或格式变了是契约问题；观测按 ADR-0004 不得改变结果</td><td>3a 之前</td></tr>
         <tr><td>GR General 一族，约 1.2k 行：抓到的图里有 34 张引用，fine_ads 的 hermes_statistics 里没有；在线 flag 默认关，靠 abyss 打开</td><td>A 保留；B 删除</td><td>先用 <code>model-locator</code> 和 abyss 实验状态确认是否还在跑</td><td>7b 之后</td></tr>
       </tbody>
     </table>
