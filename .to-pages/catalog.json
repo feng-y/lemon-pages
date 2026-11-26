@@ -389,6 +389,23 @@
           "updated_at": "2026-11-26T10:54:02.495904Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/rook-skill-installation",
+      "project": "Rook",
+      "title": "Rook skill 安装方案",
+      "versions": [
+        {
+          "digest": "828d1c8137599c5a1b91daf3cdb6bdd33d61b6aee5b2d013c79996328f9a7c72",
+          "label": "v1",
+          "path": "reports/rook-skill-installation",
+          "published_at": "2026-11-26T12:24:06.531800Z",
+          "summary": "系统 skill 共享安装、管理员直接更新、个人 skill 目录和 Runtime 加载",
+          "updated_at": "2026-11-26T12:24:06.531800Z"
+        }
+      ]
     }
   ]
 }
