@@ -17,7 +17,7 @@ h1 { margin: 0; font-size: 34px; line-height: 1.25; letter-spacing: -.01em; }
 h2 { margin: 44px 0 14px; font-size: 18px; }
 p { margin: 10px 0; }
 figure { margin: 0; }
-.shots { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 34px; }
+.shots { display: grid; grid-template-columns: 1fr; gap: 26px; margin-top: 34px; max-width: 820px; }
 .shots img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
 figcaption { margin-top: 10px; color: var(--muted); font-size: 13px; }
 figcaption strong { color: var(--text); font-weight: 600; }
@@ -79,7 +79,8 @@ footer { padding: 28px 24px 48px; color: var(--muted); font-size: 12.5px; border
   <h2>验证</h2>
   <ul>
     <li><code>npm run check</code>（lint、rds 检查、tsc）通过。</li>
-    <li>选择器、能力表和 Web 管理页测试通过。</li>
+    <li><code>npm test</code> 330 通过，0 失败，126 跳过。</li>
+    <li><code>npm run build</code> 通过。</li>
     <li>页面截图为真实组件和 <code>web/style.css</code> 的 fixture 渲染。</li>
   </ul>
 
