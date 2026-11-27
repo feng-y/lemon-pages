@@ -657,6 +657,23 @@
           "updated_at": "2026-11-27T17:01:42.145871Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/automation-first-release-merge-assessment",
+      "project": "",
+      "title": "自动化任务首版合入评估",
+      "versions": [
+        {
+          "digest": "3809fa227dc9f30c158a4727847f6282d1a1d01f5e2cb24e7f53dab3bcdacc6f",
+          "label": "v1",
+          "path": "reports/automation-first-release-merge-assessment",
+          "published_at": "2026-11-27T23:21:51.067220Z",
+          "summary": "",
+          "updated_at": "2026-11-27T23:21:51.067220Z"
+        }
+      ]
     }
   ]
 }
