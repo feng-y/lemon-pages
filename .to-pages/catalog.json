@@ -555,6 +555,14 @@
           "published_at": "2026-11-27T12:57:44.029426Z",
           "summary": "管理员绑定身份、在交付中请求和停止审查、查看结论",
           "updated_at": "2026-11-27T12:57:44.029426Z"
+        },
+        {
+          "digest": "7ce4e9db4a0cee9735dc89159c7fb986fcc444152bf4673debfe40914103ed22",
+          "label": "v2",
+          "path": "reports/rook-review-bot-ui-v2",
+          "published_at": "2026-11-27T13:08:13.929001Z",
+          "summary": "将创建和管理移到左侧主导航的智能体入口",
+          "updated_at": "2026-11-27T13:08:13.929001Z"
         }
       ]
     }
