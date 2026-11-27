@@ -590,6 +590,23 @@
           "updated_at": "2026-11-27T13:59:57.511775Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/multica-047e0f2-deploy-verify",
+      "project": "",
+      "title": "Multica 部署验收：main 047e0f2",
+      "versions": [
+        {
+          "digest": "5a6e6a0442176e91ac03f71f171aa652ce3898d2c61afd6741685c68b9720981",
+          "label": "v1",
+          "path": "reports/multica-047e0f2-deploy-verify",
+          "published_at": "2026-11-27T15:26:14.075298Z",
+          "summary": "Multica 部署 main 047e0f2 的验收结果：A 全过，B 5/6，C 5/6（C1 未测），B6 发现 Stop 后立即下一轮报 native_context_changed",
+          "updated_at": "2026-11-27T15:26:14.075298Z"
+        }
+      ]
     }
   ]
 }
