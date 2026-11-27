@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rook Chat 方案</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+
+/* 报告专用样式 */
+.flow-label { font: 12px var(--sans); fill: var(--muted); }
+.flow-state { font: 600 14px var(--sans); fill: var(--ink-strong); }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-title">On this page</div>
+  <a href="#tldr">TL;DR</a>
+  <a href="#s1">Session 与常驻进程</a>
+  <a href="#s2">持久化</a>
+  <a href="#s3">恢复</a>
+  <a href="#s4">Turn、追加与取消</a>
+  <a href="#s5">过长的对话：压缩</a>
+  <a href="#s6">多用户适配</a>
+  <a href="#s7">发布</a>
+  <a href="#s8">顺序与验收</a>
+  <a href="#s9">待定与风险</a>
+</nav>
+
+<main>
+
+  <header>
+    <div class="head-top">
+      <h1>Rook Chat 方案</h1>
+      <span class="tag neutral">方案，未实现</span>
+    </div>
+    <p class="subtitle">让用户用 Rook 和用 dsh 一样，支持 Pi、Claude Code、Codex 三种 Runtime。依据 dsh 源码、三种 Runtime 的实测和业界做法。</p>
+  </header>
+
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">TL;DR</div>
+    <p>dsh 怎么做，Rook 就怎么做。只为两类差异做适配：多个 agent runtime，以及多用户（公司认证与 Session 隔离）。不破坏用户隔离的地方都复用 dsh。</p>
+    <p>每个 Session 一个常驻进程，和 Claude Code、Codex 在终端里的形态相同。不限制活跃 Session，容量靠扩容。不活跃的 Session 冻结，有新消息时恢复。实例退出和冻结后恢复走同一个机制。</p>
+    <p>恢复照 dsh 的 resume：关闭被中断的 Turn，不自动继续。过长的对话靠压缩：Pi 由 Rook 照 dsh 实现，Claude Code 和 Codex 用原生压缩。</p>
+  </div>
+
+  <div class="callout">
+    <div class="callout-title">术语</div>
+    <p>「常驻进程」是本方案新起的叫法，指一个 Session 在一个执行实例上的长期 Runtime 进程。「压缩」指 Runtime 在同一原生会话内用摘要替换旧历史。会话交互按 Session、Turn、Step 三层。文中标注「实测」的来自源码或运行结果，「推断」的还没有验证。</p>
+  </div>
+
+  <section id="s1">
+    <h2>Session 与常驻进程</h2>
+    <hr class="rule">
+    <p class="lede">一个 Session 由一个进程承载，Turn 写进同一个进程。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>dsh</th><th>Rook</th><th>偏离原因</th></tr></thead>
+        <tbody>
+          <tr><td>执行单元</td><td>Web host：一个进程装多个 Session（实测）。终端：一个 Session 一个进程</td><td>每个 Session 一个常驻进程，在执行实例上</td><td>照终端形态。Claude Code、Codex 原生就是一个 Session 一个进程，Rook 不改它们。uid 只要求不同用户不共用进程，不决定进程个数</td></tr>
+          <tr><td>Turn</td><td>写进同一个 agent</td><td>写进同一个常驻进程</td><td>无</td></tr>
+          <tr><td>写入方</td><td>每个 Session 一个写入方</td><td>Session 记录上的执行实例（已有）</td><td>多实例部署，写入锁要跨机器，放在 MySQL</td></tr>
+          <tr><td>回收</td><td>不回收</td><td>不活跃就冻结，有新消息就恢复</td><td>进程在服务端，不在用户终端。容量靠扩容</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <ul class="points">
+      <li><strong>不限制活跃 Session。</strong>不做内存预算，不做 LRU，不按个数回收。</li>
+      <li><strong>冻结。</strong>Session 超过 T 分钟没有 Turn，就停掉常驻进程。T 待定，建议 30。</li>
+      <li><strong>实例退出就是冻结。</strong>发布、缩容、崩溃和冻结后恢复走同一个机制，不单独设计交接。</li>
+    </ul>
+
+    <figure>
+      <div class="chart">
+        <svg viewBox="0 0 720 240" role="img" aria-label="常驻进程的状态">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/>
+            </marker>
+          </defs>
+          <rect x="20" y="88" width="140" height="56" rx="10" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/>
+          <text x="90" y="121" text-anchor="middle" class="flow-state">运行 Turn</text>
+          <rect x="210" y="88" width="140" height="56" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="280" y="121" text-anchor="middle" class="flow-state">空闲</text>
+          <rect x="400" y="88" width="140" height="56" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="470" y="121" text-anchor="middle" class="flow-state">已冻结</text>
+          <rect x="580" y="88" width="120" height="56" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="640" y="121" text-anchor="middle" class="flow-state">恢复</text>
+
+          <line x1="160" y1="104" x2="208" y2="104" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"/>
+          <text x="184" y="98" text-anchor="middle" class="flow-label">Turn 结束</text>
+          <line x1="210" y1="130" x2="162" y2="130" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"/>
+          <text x="186" y="148" text-anchor="middle" class="flow-label">新消息</text>
+          <line x1="350" y1="116" x2="398" y2="116" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"/>
+          <text x="374" y="108" text-anchor="middle" class="flow-label">T 分钟</text>
+          <line x1="540" y1="116" x2="578" y2="116" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"/>
+          <text x="559" y="108" text-anchor="middle" class="flow-label">新消息</text>
+
+          <path d="M90 88 C90 30, 470 30, 470 86" fill="none" stroke="var(--danger)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arr)"/>
+          <text x="280" y="30" text-anchor="middle" class="flow-label">实例退出：Turn 被中断</text>
+          <path d="M640 144 C640 210, 90 210, 90 146" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"/>
+          <text x="365" y="228" text-anchor="middle" class="flow-label">关闭中断的 Turn，再执行这条新消息</text>
+        </svg>
+      </div>
+      <figcaption>实例退出和空闲超时进入同一个「已冻结」状态，恢复只有一条路径。</figcaption>
+    </figure>
+  </section>
+
+  <section id="s2">
+    <h2>持久化</h2>
+    <hr class="rule">
+    <p class="lede">dsh 的 Session 是仅追加的事件日志，按事件写，200 ms 批量；模型请求前、顶层工具执行前、下一个 Step 前强制 flush（实测）。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Rook 存的层</th><th>用途</th><th>现状</th></tr></thead>
+        <tbody>
+          <tr><td>RunEvent 日志</td><td>页面显示与 follow</td><td>Pi 已有。Claude Code、Codex 不转发实时事件，要补</td></tr>
+          <tr><td>原生 context</td><td>Runtime 恢复用的会话文件</td><td>已按仅追加的分块存进 MySQL</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <ul class="points">
+      <li><strong>为什么是两层。</strong>Claude Code 和 Codex 的模型历史在它们自己的会话文件里，Rook 不能从事件日志派生。</li>
+      <li><strong>检查点照 dsh 的屏障。</strong>工具开始前、每个 Step 结束时，把原生文件的增量追加进 MySQL。三种 Runtime 的原生文件都只追加（实测）。Pi 用 Step 和工具开始事件，Claude Code 用 stream-json 的 <code>tool_use</code>、<code>tool_result</code>，Codex 用 <code>item/started</code>、<code>item/completed</code>。</li>
+      <li><strong>去掉 16 MiB 原生 context 上限。</strong>dsh 不限制存储大小。原生文件压缩后不变小（实测）。Pi 超过上限后 Rook 不再提交检查点，恢复时会丢历史（实测）。</li>
+    </ul>
+  </section>
+
+  <section id="s3">
+    <h2>恢复</h2>
+    <hr class="rule">
+    <p class="lede">照 dsh 的 <code>resumeWith</code>（实测）。恢复只补齐中断的 Turn，不替用户继续。</p>
+
+    <ol>
+      <li>用户操作这个 Session 时才恢复。启动时不批量恢复。</li>
+      <li>拿写入权，从检查点写回原生文件。HOME 和路径规则不变。</li>
+      <li>关闭被中断的 Turn。已开始、无结果的工具记「结果未知」，只读或幂等才重试，有副作用先核实或问用户。未开始的工具记「未开始」。再补 <code>step/end</code> 和 <code>turn/end {reason: interrupted}</code>。</li>
+      <li>不自动继续，等用户发下一条。</li>
+    </ol>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Runtime</th><th>第 3 步写进原生文件的方式</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>Pi</td><td>在 Pi 的消息里追加 tool result</td><td><span class="tag neutral">推断，待实测</span></td></tr>
+          <tr><td>Claude Code</td><td>在会话 jsonl 里追加 <code>tool_result</code></td><td><span class="tag neutral">推断，待实测</span></td></tr>
+          <tr><td>Codex</td><td>未知</td><td><span class="tag warn">待实测</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2>Turn、追加与取消</h2>
+    <hr class="rule">
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>dsh</th><th>Pi</th><th>Claude Code</th><th>Codex</th></tr></thead>
+        <tbody>
+          <tr><td>开始 Turn</td><td>prompt</td><td>现有</td><td>常驻 <code>claude -p --input-format stream-json</code>，stdin 写 user 消息（推断）</td><td>常驻 <code>codex app-server</code>，同一 thread 上 <code>turn/start</code>（推断）</td></tr>
+          <tr><td>Turn 中追加</td><td>steer、followup</td><td>Pi steer、followUp</td><td>stdin 再写一条（推断）</td><td>未核实</td></tr>
+          <tr><td>取消</td><td>保留已推给用户的文本，标 interrupted</td><td>照 dsh</td><td>照 dsh</td><td>照 dsh</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>follow 先给快照，再推实时事件。三种 Runtime 都推 RunEvent，包括压缩状态。</p>
+  </section>
+
+  <section id="s5">
+    <h2>过长的对话：压缩</h2>
+    <hr class="rule">
+    <p class="lede">dsh 没有跨会话交接，只有压缩（实测）。Rook 照搬它的做法。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>dsh 的环节</th><th>做法</th></tr></thead>
+        <tbody>
+          <tr><td>触发</td><td>每个 Step 发请求前检查。阈值 <code>min(0.8W, W−O−65536)</code>，W 是窗口，O 是输出上限。Step 之间同步压缩，Turn 不中断</td></tr>
+          <tr><td>先剪工具结果</td><td>超过 8192 字符的只留前 4096 和后 1024。剪完低于阈值就不做摘要</td></tr>
+          <tr><td>再做摘要</td><td>同一个模型，8 个固定小节。最近 <code>(W−O)×0.16</code> 逐字保留。摘要前导语要求直接继续、不提压缩</td></tr>
+          <tr><td>超限补救</td><td>模型返回上下文超限时，最大缩减后重试同一请求，最多 1 次</td></tr>
+          <tr><td>失败</td><td>记 warn，用原历史继续</td></tr>
+          <tr><td>页面</td><td>日志只追加，页面保留完整历史，压缩处显示一行「上下文已压缩」</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Runtime</th><th>做法</th></tr></thead>
+        <tbody>
+          <tr><td>Pi</td><td>Rook 照 dsh 实现，删掉现有的上下文预算拦截。它在 Pi 的阈值之前就拒绝发送：1M 窗口时 Rook 在 782,609 token 拒绝，Pi 到 983,616 才压缩（实测）。线上 Session 反复报上下文预算错误，原因很可能在这里（推断）</td></tr>
+          <tr><td>Claude Code</td><td>原生压缩，不改参数。默认开启，Rook 没有关（实测）。页面显示 <code>compact_boundary</code></td></tr>
+          <tr><td>Codex</td><td>原生压缩，不改参数。默认开启（实测）。页面显示 <code>contextCompaction</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s6">
+    <h2>多用户适配</h2>
+    <hr class="rule">
+    <p class="lede">这是 Rook 相对 dsh 的第二类差异。现有的隔离做法都保留。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>项</th><th>做法</th><th>原因</th></tr></thead>
+        <tbody>
+          <tr><td>运行身份</td><td>每个用户一个数字 uid（100000 + 用户记录 id），用 <code>setpriv</code> 切换，不创建 Linux 用户（现有，实测）</td><td>用户隔离</td></tr>
+          <tr><td>HOME</td><td>每个 uid 一个目录，权限 0700，同一用户的 Session 共用（现有，不改）</td><td>用户隔离</td></tr>
+          <tr><td>工作目录</td><td>每个用户一个，属主为该 uid（现有）</td><td>用户隔离</td></tr>
+          <tr><td>公司认证凭据</td><td>Turn 开始时比对凭据摘要。变了就按「恢复」一节重启常驻进程，再执行这个 Turn</td><td>凭据在进程环境里，运行中的进程换不了</td></tr>
+          <tr><td>skill</td><td>Runtime 启动时传一个 skill 目录，目录对用户只读</td><td>系统 skill 目录另行检查，不在本方案</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s7">
+    <h2>发布</h2>
+    <hr class="rule">
+    <ul class="points">
+      <li><strong>收到 SIGTERM。</strong>不再接新 Turn（已有）。空闲的常驻进程立即冻结。正在跑的 Turn 等到平台宽限结束。</li>
+      <li><strong>宽限内没跑完的 Turn。</strong>下次用到时按「恢复」一节处理。</li>
+      <li><strong>删掉 SIGTERM 后 5 秒取消 Run。</strong></li>
+      <li><strong>宽限时间待定。</strong>现在是 60 秒，一个 Turn 最长 1 小时。</li>
+    </ul>
+
+    <div class="callout warn">
+      <div class="callout-title">要删掉的</div>
+      <p>Claude Code、Codex 的单次执行；按空闲进程个数回收；Pi 的上下文预算拦截；16 MiB 原生 context 上限；SIGTERM 后 5 秒取消。</p>
+    </div>
+  </section>
+
+  <section id="s8">
+    <h2>顺序与验收</h2>
+    <hr class="rule">
+    <p class="lede">每一步单独验收，三种 Runtime 分别记录结果。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="num">步</th><th>内容</th><th>验收</th></tr></thead>
+        <tbody>
+          <tr><td class="num">0</td><td>探测，不改产品代码：Claude Code 一个进程跑多个 Turn 和 Turn 中追加；Codex 同一 thread 连续 <code>turn/start</code> 和 steer；三种 Runtime 写入中断补齐后换实例能否 resume</td><td>结果写进 Runtime 契约文档</td></tr>
+          <tr><td class="num">1</td><td>Pi 压缩照 dsh。修的是线上正在发生的失败，不依赖其他步骤</td><td>长 Session 跨过阈值后继续，不再报上下文预算错误</td></tr>
+          <tr><td class="num">2</td><td>Claude Code、Codex 改成常驻进程，推送实时事件和压缩事件</td><td>同一 Session 连续 3 个 Turn 只有一个进程；页面实时显示 Step</td></tr>
+          <tr><td class="num">3</td><td>冻结取代按个数回收；检查点改成 dsh 的屏障；恢复时补齐中断的 Turn；去掉 16 MiB 上限</td><td>冻结后恢复、杀掉实例后在另一实例恢复，历史完整，中断的工具记为结果未知</td></tr>
+          <tr><td class="num">4</td><td>发布等待</td><td>发布期间有 Turn 在跑，Turn 正常结束或下次恢复为已中断，不出现 5 秒取消</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="s9">
+    <h2>待定与风险</h2>
+    <hr class="rule">
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>待定项</th><th>建议</th></tr></thead>
+        <tbody>
+          <tr><td>冻结时间 T</td><td>30 分钟</td></tr>
+          <tr><td>发布宽限</td><td>现在 60 秒</td></tr>
+          <tr><td>去掉 16 MiB 上限</td><td>照 dsh 去掉，需确认</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>风险</th><th>等级</th></tr></thead>
+        <tbody>
+          <tr><td>第 0 步可能推翻 Claude Code、Codex 常驻进程和追加的推断</td><td><span class="risk medium">中</span></td></tr>
+          <tr><td>Claude Code 不认识网关模型名，按约 1M 窗口算阈值（实测）。网关真实窗口更小时，只能靠超限后的那一次补救（推断）</td><td><span class="risk medium">中</span></td></tr>
+          <tr><td>第 1 步线上失败的原因是推断，没有查询线上 Session 核实</td><td><span class="risk low">低</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>不在本方案：系统 skill 目录的检查项；以后把 dsh 本身作为一个 Runtime 接入；跨 Runtime 的交接。</p>
+  </section>
+
+  <footer>
+    Sources: dsh 源码（dsh-agent-loop、dsh-session、dsh-compaction-basic、dsh-api-session-controller）、Pi / Claude Code / Codex 本地实测、Rook 源码 &nbsp;—&nbsp; generated 2026-11-27
+  </footer>
+
+</main>
+
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

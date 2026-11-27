@@ -456,6 +456,23 @@
           "updated_at": "2026-11-27T03:45:10.292050Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/rook-chat-plan",
+      "project": "Rook",
+      "title": "Rook Chat 方案",
+      "versions": [
+        {
+          "digest": "0e92115c5e653900ef28bdcecfa8e4b67f74d0af53a822c8dfd49d034211b74b",
+          "label": "v1",
+          "path": "reports/rook-chat-plan",
+          "published_at": "2026-11-27T05:48:02.981364Z",
+          "summary": "照 dsh：常驻进程、冻结恢复、恢复时关闭中断的 Turn、压缩，适配多 Runtime 与多用户",
+          "updated_at": "2026-11-27T05:48:02.981364Z"
+        }
+      ]
     }
   ]
 }
