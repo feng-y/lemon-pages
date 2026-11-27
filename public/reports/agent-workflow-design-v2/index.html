@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>智能体与 SuperAgent 设计方案</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+
+/* 报告专用样式 */
+.demo { border: var(--border); border-radius: var(--radius); background: var(--surface); margin: 16px 0 24px; overflow: hidden; }
+.demo-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: var(--border); }
+.demo-head h3 { margin: 0; }
+.demo-body { padding: 16px 18px; }
+.demo-meta { color: var(--muted); }
+.demo-body p { margin: 0 0 10px; }
+.demo-body p:last-child { margin-bottom: 0; }
+.demo-list { margin: 0; padding: 0; list-style: none; }
+.demo-list > li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.demo-list > li:last-child { border-bottom: 0; }
+.demo-list strong { display: block; color: var(--ink-strong); }
+.demo > .demo-controls { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 18px; border-top: var(--border); }
+.demo-button { font: inherit; color: var(--accent-strong); background: var(--accent-tint); border: var(--border); border-radius: var(--radius-sm); padding: 5px 12px; cursor: pointer; }
+.demo-button[aria-pressed="true"] { color: var(--surface); background: var(--accent-strong); }
+.demo-button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.wire { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.wire > .demo { margin: 0; }
+@media (max-width: 600px) { .wire { grid-template-columns: minmax(0, 1fr); } .demo-head, .demo-body { padding-inline: 12px; } }
+</style>
+</head>
+<body>
+<nav class="toc" aria-label="方案目录">
+  <div class="toc-title">方案目录</div>
+  <a href="#position">产品分工</a>
+  <a href="#kanban">Kanban 首版</a>
+  <a href="#interface">界面</a>
+  <a href="#execution">持续执行</a>
+  <a href="#delivery">实施与验收</a>
+</nav>
+<main>
+  <header>
+    <div class="head-top"><h1>智能体与 SuperAgent 设计方案</h1></div>
+    <p class="subtitle">公开版 · 交互演示使用虚构示例</p>
+  </header>
+  <div class="tldr">
+    <div class="tldr-label">方案摘要</div>
+    <p>智能体是一位长期协作者，可以接收对话、工作来源和自动化。先从一个内置的 Kanban 协作者做起。验收人在 Task 中提及它，它对照评审标准检查交付证据，把缺项和建议写回原时间线。处理人补证后在 Task 留言，智能体接着处理，验收人负责通过或退回。</p>
+    <p>后续项目可将故障 Webhook 绑定给专门的智能体。SuperAgent 负责在事件之间保存状态并恢复工作。Chat 提供直接问答，每次发送推进一轮对话。</p>
+  </div>
+
+  <section id="position">
+    <h2>产品分工</h2><hr class="rule">
+    <p class="lede">智能体定义谁处理工作。SuperAgent 负责工作跨事件继续。Chat 承载直接对话。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">概念</th><th scope="col">职责</th><th scope="col">例子</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">智能体</th><td>有持续的身份、职责、运行环境、工作记录和访问权限。用户随时可以找到它，查看待处理事项和结果。</td><td>内置「工作台助手」负责 Kanban 协作，项目配置「项目值班助手」处理故障。</td></tr>
+          <tr><th scope="row">Bot</th><td>Orca Bot、OpenBot 和 Grok Bot 所代表的长期协作者形态。对话、工作来源、定时任务和历史围绕同一位协作者组织。</td><td>工作台沿用「智能体」名称，采用这一聚合方式。</td></tr>
+          <tr><th scope="row">SuperAgent</th><td>保存工作进展，接收下一次唤醒，恢复对应会话并写回结果。</td><td>收到恢复事件后结束本轮故障跟进。</td></tr>
+          <tr><th scope="row">Chat</th><td>管理用户的对话和历史。用户可从智能体主页开始一条绑定该智能体的对话。</td><td>问助手如何准备回滚演练，答案保存在这条对话里。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Orca 把待人处理、进行中的工作和对话放在 Bot 主页。此处参考的是 CopilotKit 的 OpenBot，它可组合不同的智能体、模型和运行环境。Grok Bot 让团队在已有渠道里找同一位协作者，也支持事件和定时唤醒。Multica 补充了工作区分工和权限的参考。</p>
+  </section>
+
+  <section id="kanban">
+    <h2>Kanban 首版</h2><hr class="rule">
+    <p class="lede">首版在现有 Task 评论里接收明确交办。内置智能体负责澄清需求、审查交付和给出验收建议。</p>
+    <div class="demo" id="kanban-demo">
+      <div class="demo-head"><h3>Task · 验证发布流程</h3><span class="demo-meta">时间线演示</span></div>
+      <div class="demo-body" aria-live="polite">
+        <ul class="demo-list">
+          <li><strong>验收人</strong>@工作台助手 对照评审标准检查这次交付。</li>
+          <li><strong>工作台助手 · 请人处理</strong>超时监控有验证记录。回滚演练缺少证据，建议处理人补齐。</li>
+          <li data-after hidden><strong>处理人</strong>评审材料里已补上回滚演练记录。</li>
+          <li data-after hidden><strong>工作台助手 · 已更新建议</strong>回滚项已有验证记录，建议进入验收。已通知验收人。</li>
+        </ul>
+        <p class="demo-meta">Task 状态 <strong>待验收</strong></p>
+      </div>
+      <div class="demo-controls" aria-label="Kanban 演示步骤">
+        <button type="button" class="demo-button" data-step="before" aria-pressed="true">首次审查</button>
+        <button type="button" class="demo-button" data-step="after" aria-pressed="false">补证并留言后</button>
+      </div>
+    </div>
+    <p>每次审查按当前 Task 提供的评审标准、执行证据和待验收交付说明判断。只有链接时标记为待核对。智能体可以通知处理人或验收人，验收人用 Kanban 完成通过或退回。首版验收使用 Task 内已有材料。后续读取代码审查和构建记录时，先核对仓库授权。</p>
+  </section>
+
+  <section id="interface">
+    <h2>界面与入口</h2><hr class="rule">
+    <p>首版先验收 Kanban。后续在主导航添加独立的智能体入口，其他入口沿用原位置和行为。设置中的管理操作迁入智能体主页。以下线框按功能展示，Chat 放在最后。</p>
+    <div class="wire">
+      <article class="demo">
+        <div class="demo-head"><h3>智能体目录</h3><span class="demo-meta">管理员可创建</span></div>
+        <div class="demo-body"><ul class="demo-list">
+          <li><strong>工作台助手</strong>内置 · 审查交付和验收建议</li>
+          <li><strong>项目值班助手</strong>项目配置 · 响应故障 Webhook</li>
+        </ul></div>
+      </article>
+      <article class="demo">
+        <div class="demo-head"><h3>智能体主页</h3><a href="#chat">开始对话</a></div>
+        <div class="demo-body">
+          <p><strong>工作台助手</strong> · 已启用 · 运行身份可用</p>
+          <p class="demo-meta">工作记录　来源绑定　配置</p>
+          <ul class="demo-list"><li><strong>待你处理</strong><a href="#kanban-demo">查看最新验收建议</a></li><li><strong>进行中</strong>等待处理人补充验证记录。</li><li><strong>近期结果</strong>已整理另一项需求的验收范围。</li></ul>
+        </div>
+      </article>
+      <article class="demo">
+        <div class="demo-head"><h3>故障处理记录</h3><span class="demo-meta">项目值班助手</span></div>
+        <div class="demo-body"><ul class="demo-list">
+          <li><strong>等待后续事件</strong>最近一轮只读诊断已完成。</li>
+          <li><strong>结果已送达</strong>诊断摘要已写回绑定的故障来源。</li>
+        </ul></div>
+      </article>
+      <article class="demo" id="chat">
+        <div class="demo-head"><h3>Chat · 与工作台助手对话</h3></div>
+        <div class="demo-body">
+          <p>对话对象随会话保存。发送首问后创建会话，追问沿用它。</p>
+          <p class="demo-meta">示例提问　我该怎么准备回滚演练？</p>
+        </div>
+      </article>
+    </div>
+    <p>目录与主页显示启用状态、运行身份可用性和工作进展。故障记录单列处理进展与写回状态。Chat 首版只向智能体负责人开放。切换智能体新开草稿，现有对话保留。</p>
+  </section>
+
+  <section id="execution">
+    <h2>持续执行</h2><hr class="rule">
+    <p>同一个智能体可以通过多个入口工作。每项持续工作按来源保留独立会话、授权和结果去向。执行环境可在两次唤醒之间释放。首版通过每项工作的会话保留上下文，跨工作记忆后续按权限独立验收。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">入口</th><th scope="col">继续条件</th><th scope="col">结果</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Kanban</th><td>提及后建立参与，后续 Task 评论串行推进。同一个 Task 上的多个评论可以合批。</td><td>写回 Task 时间线。Task 完成或参与结束后停止跟进。</td></tr>
+          <tr><th scope="row">故障 Webhook</th><td>来源绑定决定处理权限。同一故障轮次的事件续用会话，恢复事件结束本轮。</td><td>故障处理记录与来源写回。新一轮故障创建独立会话。</td></tr>
+          <tr><th scope="row">自动化任务</th><td>按已有计划向目标会话投递。持续工作需要定时复查时，由调度器产生唤醒事件。</td><td>投递记录与目标会话。</td></tr>
+          <tr><th scope="row">Chat</th><td>普通消息触发一轮。用户明确确认对象、唤醒条件和结果去向后，可在后续版本交办持续跟进。</td><td>普通回复进入当前对话，持续工作的结果发往确认的目的地。</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>故障 Webhook 的处理规则</h3>
+    <ol class="points">
+      <li>后端在确认收到前认证来源并持久化事件。来源绑定与事件标识共同去重。故障标识和发生轮次决定会话，来源有序版本决定是否接受状态更新。</li>
+      <li>后端串行推进同一轮故障。恢复后丢弃晚到的旧事件。只读诊断在执行边界强制限制项目和操作范围。</li>
+      <li>后端把诊断结果和送达状态分开保存。服务重启后继续处理待送达结果，重试前检查外部写回是否已成功。重试耗尽时保留待人工处理的记录。只有明确授权的目的地接收结果。</li>
+      <li>后端在派发和写回前复核权限。解绑、停用或权限撤销后停止进一步派发与写回。跨入口引用只传递当前用户可读取的摘要，历史、续问和分享继续校验来源权限。</li>
+    </ol>
+  </section>
+
+  <section id="delivery">
+    <h2>实施与验收</h2><hr class="rule">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">顺序</th><th scope="col">验收场景</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Kanban 闭环</th><td>真实运行身份完成提及、缺项审查、补证追评、通知和人工验收。验证同一会话续接和公开材料边界。</td></tr>
+          <tr><th scope="row">目录与直接对话</th><td>验证独立入口、刷新、权限可见性和原有草稿恢复。验证首问、追问、切换智能体、停用与撤权。</td></tr>
+          <tr><th scope="row">单个故障来源</th><td>先确定故障轮次与顺序、认证、诊断权限和写回目的地。验证重复与乱序事件、服务重启恢复、故障结束和跨故障隔离。</td></tr>
+          <tr><th scope="row">后续扩展</th><td>按需验收跨入口引用、显式持续交办和下游交付。每种运行环境分别记录验收结果。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Sources:
+    <a href="https://orca.dev/docs/bots">Orca Bots</a> ·
+    <a href="https://open.bot/">OpenBot</a> ·
+    <a href="https://x.ai/news/grok-bot-1-0">Grok Bot</a> ·
+    <a href="https://github.com/multica-ai/multica">Multica</a> ·
+    <a href="https://docs.github.com/en/copilot/how-tos/copilot-on-github/use-copilot-agents/copilot-code-review">GitHub Copilot code review</a> ·
+    <a href="https://claude.com/resources/articles/building-always-on-agents">Building always-on agents</a>
+    — generated 2026-11-27
+  </footer>
+</main>
+<script>
+const demo = document.querySelector('#kanban-demo');
+const steps = demo.querySelectorAll('[data-step]');
+for (const step of steps) {
+  step.addEventListener('click', () => {
+    const showFollowUp = step.dataset.step === 'after';
+    for (const item of demo.querySelectorAll('[data-after]')) item.hidden = !showFollowUp;
+    for (const button of steps) button.setAttribute('aria-pressed', String(button === step));
+  });
+}
+</script>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

@@ -488,6 +488,14 @@
           "published_at": "2026-11-27T11:01:38.984463Z",
           "summary": "公开版方案与交互示例",
           "updated_at": "2026-11-27T11:01:38.984463Z"
+        },
+        {
+          "digest": "9de4a81af6698b7877a6160789181129eb9b2058d8e6d2e2644ee6bf64580021",
+          "label": "v2",
+          "path": "reports/agent-workflow-design-v2",
+          "published_at": "2026-11-27T11:11:09.882755Z",
+          "summary": "修订 Bot 定位和智能体主页，补充公开产品参考",
+          "updated_at": "2026-11-27T11:11:09.882755Z"
         }
       ]
     }
