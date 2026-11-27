@@ -647,6 +647,14 @@
           "published_at": "2026-11-27T16:58:23.186895Z",
           "summary": "新增独立执行详情页，现有运行记录提供入口",
           "updated_at": "2026-11-27T16:58:23.186895Z"
+        },
+        {
+          "digest": "f5922e3085e6ba67743bc5d040a0c4dc31f7de7ca6404dca2c0b8900e3a8714d",
+          "label": "v3",
+          "path": "reports/automation-execution-ui-v3",
+          "published_at": "2026-11-27T17:01:42.145871Z",
+          "summary": "按 DSH 保留指令预览和展开，另加单次执行详情",
+          "updated_at": "2026-11-27T17:01:42.145871Z"
         }
       ]
     }
