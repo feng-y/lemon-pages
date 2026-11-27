@@ -674,6 +674,23 @@
           "updated_at": "2026-11-27T23:21:51.067220Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "agent-kanban-progress",
+      "project": "",
+      "title": "智能体与 Kanban 推进记录",
+      "versions": [
+        {
+          "digest": "2561f1e2d264ce11019acf689195928c2dcec50b53a65c83095f63f70e2082e5",
+          "label": "v1",
+          "path": "reports/agent-kanban-progress",
+          "published_at": "2026-11-27T23:34:24.408651Z",
+          "summary": "建立脱敏推进记录，记录交付批次与验收标准",
+          "updated_at": "2026-11-27T23:34:24.408651Z"
+        }
+      ]
     }
   ]
 }
