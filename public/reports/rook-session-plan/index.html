@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rook Chat 会话方案</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: single reading column, tables scroll inside their own box, status chips mark 实测/推断/计划. */
+:root {
+  --bg: #f7f8fa; --surface: #ffffff; --fg: #1b2230; --muted: #5c6678; --line: #dde2ea; --accent: #2b5fd9;
+  --ok: #1f7a4d; --ok-bg: #e3f4ea; --warn: #8a5a00; --warn-bg: #fbf0d9; --plan: #4a4f8c; --plan-bg: #e9e9f7;
+  --display: "Space Grotesk", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  --body: "Inter", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161d; --surface: #1a1f28; --fg: #e4e8ef; --muted: #9aa4b5; --line: #2c3441; --accent: #7aa2ff;
+  --ok: #6fd39f; --ok-bg: #173326; --warn: #f0c46a; --warn-bg: #3a2e14; --plan: #b5b8f2; --plan-bg: #262844; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161d; --surface: #1a1f28; --fg: #e4e8ef; --muted: #9aa4b5; --line: #2c3441; --accent: #7aa2ff;
+  --ok: #6fd39f; --ok-bg: #173326; --warn: #f0c46a; --warn-bg: #3a2e14; --plan: #b5b8f2; --plan-bg: #262844; color-scheme: dark }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.7 var(--body); }
+main { max-width: 860px; margin: 0 auto; padding-block: 2.5rem 4rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 2rem; }
+main > * { min-width: 0; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.3; margin: 0; }
+h1 { font-size: 1.9rem; }
+h2 { font-size: 1.3rem; padding-top: .5rem; border-top: 1px solid var(--line); }
+h3 { font-size: 1.02rem; color: var(--muted); }
+section { display: grid; gap: .8rem; }
+p, ul, ol { margin: 0; max-width: 68ch; }
+li + li { margin-top: .3rem; }
+.meta { color: var(--muted); font-size: .9rem; }
+code { font-family: var(--mono); font-size: .86em; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 0 .3em; overflow-wrap: anywhere; }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .9rem; }
+th, td { text-align: left; vertical-align: top; padding: .55rem .7rem; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 500; color: var(--muted); font-size: .8rem; letter-spacing: .04em; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+.chip { display: inline-block; font-size: .75rem; font-weight: 600; letter-spacing: .03em; padding: 0 .45em; border-radius: 4px; margin-right: .3em; white-space: nowrap; }
+.ok { color: var(--ok); background: var(--ok-bg); }
+.warn { color: var(--warn); background: var(--warn-bg); }
+.plan { color: var(--plan); background: var(--plan-bg); }
+.callout { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1rem; }
+a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<main>
+<header style="display:grid;gap:.5rem">
+  <h1>Rook Chat 会话方案</h1>
+  <p class="meta">2026-11-27 · 分支 <code>release_fix/session-freeze-20261127</code>（基于 main <code>3946f37</code>） · 标注：<span class="chip ok">实测</span>本地 MySQL 和真实 Runtime 跑过 <span class="chip warn">推断</span>读代码得出 <span class="chip plan">计划</span>未实现</p>
+</header>
+
+<section>
+  <h2>原则</h2>
+  <ul>
+    <li>Rook 驱动原生 Runtime，做法和 t3code、Orca 一样。压缩、skill、历史和子代理交给 Runtime 自己处理。</li>
+    <li>Rook 只写多用户这一层：Session 的用户隔离（执行 UID）、ClawSec 与用户 SSO 的绑定、Queue、定时任务、智能体的 <code>owner</code> 身份。</li>
+    <li>参考代码：t3code（MIT，<code>56dbca3bc5</code>）、Orca（MIT，<code>b9f7d01b3b4</code>）、本机 dsh、t3code 生成的 Codex app-server 协议 schema。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>能力对照</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>能力</th><th>t3code</th><th>Orca</th><th>Rook 现状</th><th>Rook 目标</th></tr></thead>
+    <tbody>
+      <tr><td>Pi 驱动</td><td><code>pi --mode rpc</code>，<code>switch_session</code> 恢复</td><td>rpc</td><td><span class="chip ok">实测</span>每个 Session 一个 persistent worker</td><td>保持</td></tr>
+      <tr><td>Claude Code</td><td>Agent SDK <code>query</code> 跨 Turn 常驻</td><td>自有 adapter</td><td>每个 Turn 起进程，结束退出</td><td><span class="chip plan">计划</span>每个 Session 一个常驻 <code>query</code></td></tr>
+      <tr><td>Codex</td><td>每个 <code>CODEX_HOME</code> 一个共享 app-server</td><td>shared server pool</td><td>每个 Turn 起一个 app-server</td><td><span class="chip plan">计划</span>每个用户一个 app-server</td></tr>
+      <tr><td>空闲处理</td><td>无空闲回收</td><td><code>ProviderRelayIdleStop</code></td><td><span class="chip ok">实测</span>空闲 30 分钟冻结（本分支，Pi）</td><td>三个 Runtime 同一规则</td></tr>
+      <tr><td>服务重启</td><td>SQLite resume cursor，中断提示最多重发 3 次</td><td><code>session/load</code> / <code>resume</code></td><td>MySQL checkpoint，部署恢复已上线</td><td>保持；自动重发待定</td></tr>
+      <tr><td>子代理</td><td>delegation，子 thread 单独展示</td><td>跟踪 Codex <code>spawnAgent</code>，Stop 停到子 thread</td><td>Codex 子代理被关闭</td><td><span class="chip plan">计划</span>打开原生子代理，归到父 Turn</td></tr>
+      <tr><td>多智能体</td><td>委派结果回父 thread</td><td><code>src/main/bots</code></td><td>阶段 0、1 只接通 Pi</td><td><span class="chip plan">计划</span>三个 Runtime 都可当智能体</td></tr>
+      <tr><td>多用户</td><td>单用户</td><td>单用户</td><td>执行 UID + 执行用户的 SSO</td><td>覆盖 app-server 和子代理</td></tr>
+      <tr><td>定时任务</td><td>无</td><td>bot automations</td><td>每小时验证创建者 SSO</td><td>智能体自己保存 SSO 并续期</td></tr>
+    </tbody>
+  </table></div>
+  <p>Runtime 驱动和子代理要补到和 t3code、Orca 同级。多用户、SSO 和定时任务是 Rook 独有的。</p>
+</section>
+
+<section>
+  <h2>冻结与恢复</h2>
+  <h3>规则</h3>
+  <ul>
+    <li>有进行中的 Turn、待处理的审批、后台任务或 Queue 消息时，Session 不算空闲。这条沿用 Orca 的 idle stop。</li>
+    <li>空闲 30 分钟冻结（<code>IDLE_WORKER_FREEZE_MS</code>）。<code>ROOK_CHAT_MAX_IDLE_WORKERS</code> 数量上限（默认 4）保留。</li>
+    <li>每个 Turn 结束时 checkpoint 已经写进 MySQL，所以冻结不另写 checkpoint，只停进程，保留本地文件。</li>
+  </ul>
+  <h3>恢复：本地文件对比 MySQL head（revision、nativeSessionId、bytes、sha256）</h3>
+  <div class="scroll"><table style="min-width:480px">
+    <thead><tr><th>本地文件</th><th>处理</th></tr></thead>
+    <tbody>
+      <tr><td>与 head 一致</td><td>直接用本地文件，不读 MySQL 全文</td></tr>
+      <tr><td>缺失</td><td>从 MySQL 拉到本地，再恢复</td></tr>
+      <tr><td>与 head 不一致</td><td>以 MySQL 为准（MySQL 更新，或本地被改过）</td></tr>
+      <tr><td>含保存失败的 Turn</td><td>该 Run 失败时删除本地文件，下一个 Turn 从 MySQL 恢复</td></tr>
+    </tbody>
+  </table></div>
+  <p>随后原生恢复：Pi 打开 session 文件，Claude Code 用 <code>resume</code>，Codex 用 <code>thread/resume</code>。BOSS 上的旧 checkpoint 仍每次从 BOSS 读，下次保存时转进 MySQL。</p>
+  <h3>各 Runtime 怎么冻结</h3>
+  <ul>
+    <li><span class="chip ok">实测</span>Pi：停掉 persistent worker。</li>
+    <li><span class="chip plan">计划</span>Claude Code：结束该 Session 的 <code>query</code>，然后停进程。</li>
+    <li><span class="chip warn">推断</span>Codex：发 <code>thread/unsubscribe</code>，等到 <code>thread/closed</code>。用户名下没有加载中的 thread 时，停掉该用户的 app-server。<code>notLoaded</code> 不代表已停，只有 <code>idle</code> 或 <code>systemError</code> 才算（Orca）。<code>thread/closed</code> 之前不发 <code>thread/resume</code>（t3code）。</li>
+  </ul>
+  <h3>中断的 Turn（已定：断开提示 + t3code 续跑规则）</h3>
+  <ul>
+    <li>每个 interrupted 的 Turn 显示「Rook 服务重启，这一轮被中断」，并写明是否已自动续上。</li>
+    <li>未开始工具：原样重发 prompt，每个 Run 最多 3 次（t3code <code>MAX_RESENDS</code>）。</li>
+    <li>已开始工具：发续跑 Turn，要求模型先确认改状态的命令有没有生效再决定是否重复（t3code <code>CONTINUE_PROMPT</code>，MIT）。5 分钟内最多连续 3 轮。</li>
+    <li>只留提示和「继续」按钮：Session 已删除或归档、用户按过 Stop、有待处理审批、SSO 验证失败。</li>
+    <li>重发前重新验证执行用户的 SSO。Chat、智能体 Task、自动化任务共用这套规则，仍受 <code>ROOK_UPGRADED_FLEET</code> 控制。</li>
+    <li>Orca 没有证据时标 unverifiable。Rook 的 MySQL 租约过期就是证据，不需要这个状态。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Runtime 驱动</h2>
+  <ul>
+    <li>Pi：保持 persistent worker。</li>
+    <li>Claude Code：每个 Session 一个 Agent SDK <code>query</code>，streaming input 送后续消息，<code>resume</code> / <code>resumeSessionAt</code> 恢复。WIP 在 <code>c724b6c</code>，未验证。</li>
+    <li>Codex：每个用户一个 app-server，<code>CODEX_HOME</code> 放在用户目录，以执行 UID 运行，只 <code>initialize</code> 一次，出错整个淘汰。一个用户的多个 Session 是同一 app-server 上的多个 thread。</li>
+    <li>app-server 按用户划分，一个 app-server 里不会出现两个用户的 thread。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>多智能体</h2>
+  <h3>Turn 内的子代理（Runtime 原生）</h3>
+  <ul>
+    <li>Codex：去掉 <code>agents.enabled=false</code> 和 <code>features.multi_agent_v2=false</code>。<code>collabAgentToolCall</code> 的 <code>receiverThreadIds</code> 记到父 Turn 下，Stop 能停到子 thread。</li>
+    <li>Claude Code：Task 工具的子代理事件归到父 Turn，作为折叠的 Step 展示。</li>
+    <li>Pi：没有原生子代理。按 dsh <code>dsh-subagent</code> 做 Pi extension，子代理是同一 worker 里的新 Pi session。排在最后。</li>
+    <li>子代理不新增权限：执行 UID、ClawSec 身份和 Provider 都和父 Turn 一样。</li>
+  </ul>
+  <h3>Rook 智能体之间的协作</h3>
+  <ul>
+    <li>阶段 0、1（目录、<code>@名称</code>、agent-inbox、Task 会话、<code>owner</code> 的 SSO）扩展到 Claude Code 和 Codex，Runtime 由智能体配置决定。</li>
+    <li>委派：智能体在 Task 里 <code>@</code> 另一个智能体，结果回到同一个 Task。参考 t3code delegated completion 和 dsh <code>dsh-experimental-agent-team</code>。</li>
+    <li><code>tools</code> 白名单在执行边界生效（当前未生效）。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>SSO、定时任务与续期</h2>
+  <ul>
+    <li>Web 请求先校验 SSO，Run 用执行用户的 SSO。智能体 Task 用 <code>owner</code> 的 SSO。自动化任务用创建者的 SSO，投递前重新验证。子代理继承父 Turn。这些都已实现，智能体只接通了 Pi。</li>
+    <li>已有续期：<code>SsoSessions.remember</code> 在登录时保存 SSO。<code>probeScheduledSessions</code> 每小时验证定时任务创建者和已启用智能体的 <code>owner</code>，验证即保活，失败清除并发企业微信通知。</li>
+    <li><span class="chip plan">计划</span>智能体运行前先 <code>authenticate(owner)</code>，失败时 Task 标成「等待 owner 重新登录」。设置页显示每个智能体的 SSO 状态和最近验证时间。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>实施顺序</h2>
+  <ol>
+    <li><span class="chip ok">实测</span>Pi 冻结与恢复（本分支）。</li>
+    <li>Claude Code 常驻 <code>query</code> 和冻结，基于 <code>c724b6c</code> 重做。</li>
+    <li>Codex 每用户 app-server、<code>thread/unsubscribe</code> 冻结、<code>thread/resume</code> 恢复。</li>
+    <li>打开 Codex 和 Claude Code 原生子代理，归到父 Turn，Stop 停到子代理。</li>
+    <li>智能体扩展到 Claude Code 和 Codex，<code>tools</code> 白名单生效。</li>
+    <li>智能体 SSO 状态展示和运行前验证。</li>
+    <li>Pi 子代理 extension。</li>
+  </ol>
+  <p>每步先用本地 MySQL 和锁定版本的 Runtime 二进制验证，再发布。三个 Runtime 分别记录验收结果。</p>
+</section>
+
+<section>
+  <h2>本分支已实现：Pi 冻结</h2>
+  <ul>
+    <li><code>src/chat/isolated.ts</code>：空闲 worker 30 分钟后停止（新参数 <code>idleFreezeMs</code>）。没有 worker 的 Session 交给新 worker 比对本地文件。checkpoint 保存失败的 Run 删除本地文件。</li>
+    <li><code>src/chat/native.ts</code>：新 worker 读到与 head 一致的本地文件时直接使用。</li>
+    <li><code>tests/pi-persistent.test.ts</code>：驱逐和冻结后不再读 MySQL 全文；保存失败后读 MySQL 全文；200 ms 冻结计时器断言。</li>
+    <li>状态：已实现，本地实测通过。未发布，未验收。</li>
+  </ul>
+</section>
+</main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

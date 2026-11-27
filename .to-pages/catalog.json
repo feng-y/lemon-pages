@@ -515,6 +515,23 @@
           "updated_at": "2026-11-27T11:13:03.434870Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/rook-session-plan",
+      "project": "Rook",
+      "title": "Rook Chat 会话方案",
+      "versions": [
+        {
+          "digest": "71e9f9003aab4b3c9293324c8221ad6e270ce183d720fd54d14f2a85634ae4c1",
+          "label": "v1",
+          "path": "reports/rook-session-plan",
+          "published_at": "2026-11-27T11:18:10.321775Z",
+          "summary": "原生 Runtime、冻结恢复、多智能体与 SSO 续期方案",
+          "updated_at": "2026-11-27T11:18:10.321775Z"
+        }
+      ]
     }
   ]
 }
