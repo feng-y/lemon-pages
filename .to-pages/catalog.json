@@ -607,6 +607,23 @@
           "updated_at": "2026-11-27T15:26:14.075298Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/scheduled-execution-review",
+      "project": "",
+      "title": "独立自动化执行设计评审",
+      "versions": [
+        {
+          "digest": "d277290ae20d30ca23caa8e19ac91b2720aecd43a6fab32cfee8e345c33da59a",
+          "label": "v1",
+          "path": "reports/scheduled-execution-review",
+          "published_at": "2026-11-27T16:27:26.709851Z",
+          "summary": "状态机、到期持久化、执行恢复和结果保存",
+          "updated_at": "2026-11-27T16:27:26.709851Z"
+        }
+      ]
     }
   ]
 }

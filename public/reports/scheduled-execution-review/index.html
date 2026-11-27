@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>独立自动化执行 · 设计评审</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+.chart-wrap { overflow:auto; max-width:100%; background:var(--surface); padding:12px; border:var(--border); border-radius:var(--radius-sm); }
+.chart-wrap > svg { display:block; min-width:680px; max-width:none; }
+.fold pre { overflow:auto; }
+
+
+
+/* ▼ 报告专用样式：components.md 没有的才写，只用 token，不重定义 base.css 已有的 class ▼ */
+
+</style>
+</head>
+<body>
+<nav class="toc" aria-label="报告目录"><div class="toc-title">目录</div><a href="#summary">评审结论</a><a href="#boundary">执行边界</a><a href="#states">状态机</a><a href="#durability">可靠性</a><a href="#output">执行结果</a><a href="#review">验收</a></nav>
+<main>
+<header><div class="head-top"><h1>独立自动化执行 · 设计评审</h1></div><p class="subtitle">定时投递、状态机、故障恢复与执行结果</p></header>
+<div class="tldr" id="summary"><div class="tldr-label">评审结论</div><p>每次定时到期、立即执行和试跑都拥有独立的 Runtime Session。共用 timer 和 Scheduler，执行器直接消费持久投递，结果在自动化任务里查看。「不漏执行」要求每个有效到期都有可追踪的处置记录。对外部动作结果不明的投递，保留证据并进入待核对。</p></div>
+
+<section id="boundary"><h2>一、执行边界</h2><hr class="rule">
+<p>任务定义负责指令、计划、创建者身份和运行配置。创建只保存定义。共用 Scheduler 处理定时到期，立即执行和试跑直接创建投递记录，三者进入同一执行器。执行器直接调用 Runtime，独立于对话发送、对话队列和对话历史。工作区与 Runtime 可以共用，原生 context 按投递隔离。</p>
+<div class="table-wrap"><table><thead><tr><th>参考实现</th><th>采用的做法</th></tr></thead><tbody>
+<tr><td>DSH</td><td>沿用定时规则、创建与执行分离，以及 <code>new</code> 每次新建 Session 的语义。借鉴投递回执与追加 Session 日志分别保存的做法。DSH 自带 timer 和会话收件箱，整套接入会引入另一套调度入口。</td></tr>
+<tr><td>t3code</td><td>借鉴 <code>new_thread</code> 和确定性启动请求。调度受理与 Runtime 终态分别记录。</td></tr>
+<tr><td>Orca</td><td>单次 Run 详情可直接查看状态、结果、错误和可用用量。信息结构可供参考。</td></tr>
+<tr><td>Codex App Server</td><td>借鉴持久原生标识和 Turn 事件。新投递新建 Thread；同次投递能否恢复由 Runtime 的确认能力决定。</td></tr>
+</tbody></table></div></section>
+
+<section id="states"><h2>二、完整状态机</h2><hr class="rule">
+<p><strong>任务定义。</strong> 启用的任务拥有下一到期点。暂停阻止新投递，也阻止尚未进入启动边界的定时投递。恢复时，从保存的计划游标按策略处理停顿区间。删除采用软删除，保留执行历史和终态。只有规则无后续时点时结束。已进入启动边界的执行沿用快照，需显式停止。编辑以版本和生效时间界定新旧规则，审计记录版本切换。</p>
+<details class="fold"><summary>展开单次投递状态图和 Mermaid 源文</summary><div class="chart-wrap" tabindex="0" role="region" aria-label="单次投递状态图"><svg xmlns="http://www.w3.org/2000/svg" class="pele pele-state" viewBox="0 0 1651 1108" width="1651" height="1108" style="max-width:100%;height:auto;--_bg:var(--pele-bg,#fff);--_fg:var(--pele-fg,#1f1f1f);--_m:var(--pele-muted,#6e6e6e);--_l:var(--pele-line,#1f1f1f);--_s:var(--pele-surface,#f3f3f3);--_a:var(--pele-surface-alt,#e6e6e6);--_b:var(--pele-border,#8a8a8a);--_c:var(--pele-accent,#5b7bd5);color:var(--_fg);--_tw:var(--pele-title-weight,bold);--_fm:var(--pele-font-mono,monospace);font:16px sans-serif;letter-spacing:normal;word-spacing:normal;text-transform:none;direction:ltr;font-family:var(--pele-font,sans-serif)" fill="var(--_fg)" role="graphics-document document" aria-roledescription="state"><style>
+.pele {
+  --pele-bg: #ffffff;
+  --pele-fg: #1c1c1c;
+  --pele-muted: #656565;
+  --pele-line: #808080;
+  --pele-surface: #fcfcfc;
+  --pele-surface-alt: #f1f1f1;
+  --pele-border: #c9c9c9;
+}
+.pele .blue rect { fill: #c3e0ff; }
+.pele .orange rect { fill: #f0d3bf; }
+.pele .purple rect { fill: #e3d5ff; }
+.pele .yellow rect { fill: #f0dcbf; }
+.pele .teal rect { fill: #bfe3df; }
+.pele .tan rect { fill: #e5d9ce; }
+.pele .pink rect { fill: #ffcbe6; }
+.pele .breaks rect {
+  fill: #ffecee !important;
+  stroke: #e72e3b !important;
+  stroke-width: 2.5px !important;
+}
+.pele .breaks text {
+  fill: #cd2834 !important;
+}
+.pele .mayBreak rect {
+  fill: #fff3e6 !important;
+  stroke: #e8730c !important;
+  stroke-width: 2.5px !important;
+}
+.pele .mayBreak text {
+  fill: #b85a06 !important;
+}
+.pele .bugPath rect {
+  stroke: #1680f3 !important;
+  stroke-width: 2.5px !important;
+}
+.pele .repeats rect {
+  stroke: #9b35d6 !important;
+  stroke-width: 2.5px !important;
+  stroke-dasharray: 6 3;
+}
+@media (prefers-color-scheme: dark) {
+  .pele {
+    --pele-bg: #1f1f1f;
+    --pele-fg: #f5f5f5;
+    --pele-muted: #acacac;
+    --pele-line: #939393;
+    --pele-surface: #121212;
+    --pele-surface-alt: #2c2c2c;
+    --pele-border: #4e4e4e;
+  }
+  .pele .blue rect { fill: #1b3857; }
+  .pele .orange rect { fill: #573117; }
+  .pele .purple rect { fill: #3c2e57; }
+  .pele .yellow rect { fill: #573d17; }
+  .pele .teal rect { fill: #174641; }
+  .pele .tan rect { fill: #3d3127; }
+  .pele .pink rect { fill: #57233e; }
+  .pele .breaks rect {
+    fill: #2e2021 !important;
+    stroke: #cf2b35 !important;
+  }
+  .pele .breaks text {
+    fill: #ff6463 !important;
+  }
+  .pele .mayBreak rect {
+    fill: #2e2619 !important;
+    stroke: #d0700f !important;
+  }
+  .pele .mayBreak text {
+    fill: #ffa257 !important;
+  }
+  .pele .bugPath rect {
+    stroke: #116dd2 !important;
+  }
+  .pele .repeats rect {
+    stroke: #9a3fcf !important;
+  }
+}
+</style><text class="pele-title" font-weight="var(--_tw)" text-anchor="middle" xml:space="preserve"><tspan x="825.5" y="25.6">单次自动化执行</tspan></text><g transform="translate(0,36)"><g class="pele-edges" fill="none" stroke="var(--_l)" stroke-linecap="round"><g class="pele-edge pele-transition" data-id="edge0"><path d="M105.55,22L105.55,59"/><path class="pele-marker" d="M105.55,66L102.19,58L108.91,58Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge1"><path d="M97.55,110C97.55,119.25 63,119.25 63,128.5L63,172"/><path class="pele-marker" d="M63,179L59.64,171L66.36,171Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge2"><path d="M113.55,110C113.55,119.25 183,119.25 183,128.5L183,172"/><path class="pele-marker" d="M183,179L179.64,171L186.36,171Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge3"><path d="M195.85,223C195.85,229.07 421.55,235.43 421.55,241.5L421.55,285"/><path class="pele-marker" d="M421.55,292L418.19,284L424.91,284Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge4"><path d="M179.85,223L179.85,611.5C179.85,639.5 284.37,639.5 284.37,667.5L284.37,673.5"/><path class="pele-marker" d="M284.37,680.5L281.01,672.5L287.73,672.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge5"><path d="M163.85,223C163.85,257.5 67.55,257.5 67.55,292L67.55,724.5C67.55,752.5 368,752.5 368,780.5L368,786.5"/><path class="pele-marker" d="M368,793.5L364.64,785.5L371.36,785.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge6"><path d="M449.55,336L449.55,346.83C449.55,350.31 1563.38,357.27 1563.38,360.75L1563.38,987.75C1563.38,992.44 1083.02,1001.81 1083.02,1006.5L1083.02,1012.5"/><path class="pele-marker" d="M1083.02,1019.5L1079.66,1011.5L1086.38,1011.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge7"><path d="M427.15,336L427.15,349C427.15,377 472,377 472,405L472,560.5"/><path class="pele-marker" d="M472,567.5L468.64,559.5L475.36,559.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge8"><path d="M404.75,336L404.75,349C404.75,377 290,377 290,405L290,611.5C290,639.5 300.37,639.5 300.37,667.5L300.37,673.5"/><path class="pele-marker" d="M300.37,680.5L297.01,672.5L303.73,672.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge9"><path d="M438.35,336L438.35,344.09C438.35,346.7 919.97,351.9 919.97,354.5L919.97,398"/><path class="pele-marker" d="M919.97,405L916.61,397L923.33,397Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge10"><path d="M393.55,336L393.55,349C393.55,377 237.55,377 237.55,405L237.55,724.5C237.55,752.5 384,752.5 384,780.5L384,786.5"/><path class="pele-marker" d="M384,793.5L380.64,785.5L387.36,785.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge11"><path d="M459.18,611.5C459.18,620.75 461.55,620.75 461.55,630L461.55,655C461.55,660.3 316.37,663.57 316.37,668.88L316.37,673.5"/><path class="pele-marker" d="M316.37,680.5L313.01,672.5L319.73,672.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge12"><path d="M475.18,611.5C475.18,623.88 510.55,623.88 510.55,636.25L510.55,724.5C510.55,752.5 400,752.5 400,780.5L400,786.5"/><path class="pele-marker" d="M400,793.5L396.64,785.5L403.36,785.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge13"><path d="M456,567.5L456,554.5C456,501.75 381,501.75 381,449L381,405C381,377 415.95,377 415.95,349L415.95,343"/><path class="pele-marker" d="M415.95,336L419.31,344L412.59,344Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge14"><path d="M953.56,449C953.56,486.13 1359.15,486.13 1359.15,523.25L1359.15,987.75C1359.15,992.7 1075.02,1001.55 1075.02,1006.5L1075.02,1012.5"/><path class="pele-marker" d="M1075.02,1019.5L1071.66,1011.5L1078.38,1011.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge15"><path d="M889.56,449C889.56,466.36 819.54,477 705.28,477C591.03,477 521,492.2 521,517L521,542C521,548.94 488,548.94 488,555.88L488,560.5"/><path class="pele-marker" d="M488,567.5L484.64,559.5L491.36,559.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge16"><path d="M937.56,449C937.56,486.13 1272.04,486.13 1272.04,523.25L1272.04,724.5C1272.04,752.5 1058.92,752.5 1058.92,780.5L1058.92,786.5"/><path class="pele-marker" d="M1058.92,793.5L1055.56,785.5L1062.28,785.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge17"><path d="M921.56,449L921.56,560.5"/><path class="pele-marker" d="M921.56,567.5L918.2,559.5L924.92,559.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge18"><path d="M905.56,449C905.56,473.8 847.42,489 752.56,489C657.7,489 599.55,502.02 599.55,523.25L599.55,648.75C599.55,653.83 876.57,662.42 876.57,667.5L876.57,673.5"/><path class="pele-marker" d="M876.57,680.5L873.21,672.5L879.93,672.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge19"><path d="M1039.59,837.5C1039.59,849.88 997.58,849.88 997.58,862.25L997.58,950.5C997.58,978.5 1059.02,978.5 1059.02,1006.5L1059.02,1012.5"/><path class="pele-marker" d="M1059.02,1019.5L1055.66,1011.5L1062.38,1011.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge20"><path d="M897.56,611.5C897.56,620.44 623.55,627.31 623.55,636.25L623.55,950.5C623.55,978.5 1043.02,978.5 1043.02,1006.5L1043.02,1012.5"/><path class="pele-marker" d="M1043.02,1019.5L1039.66,1011.5L1046.38,1011.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge21"><path d="M945.56,611.5C945.56,646 1189.59,646 1189.59,680.5L1189.59,837.5C1189.59,865.5 1170.58,865.5 1170.58,893.5L1170.58,899.5"/><path class="pele-marker" d="M1170.58,906.5L1167.22,898.5L1173.94,898.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge22"><path d="M929.56,611.5C929.56,623.88 1049.58,623.88 1049.58,636.25L1049.58,761.75C1049.58,771.13 1042.92,771.13 1042.92,780.5L1042.92,786.5"/><path class="pele-marker" d="M1042.92,793.5L1039.56,785.5L1046.28,785.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge23"><path d="M913.56,611.5C913.56,620.75 892.57,620.75 892.57,630L892.57,673.5"/><path class="pele-marker" d="M892.57,680.5L889.21,672.5L895.93,672.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge24"><path d="M874.57,724.5C874.57,736.88 771.57,736.88 771.57,749.25L771.57,950.5C771.57,978.5 1051.02,978.5 1051.02,1006.5L1051.02,1012.5"/><path class="pele-marker" d="M1051.02,1019.5L1047.66,1011.5L1054.38,1011.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge25"><path d="M858.57,724.5C858.57,733.22 701.56,734.28 701.56,743L701.56,768C701.56,771.47 416,778.41 416,781.88L416,786.5"/><path class="pele-marker" d="M416,793.5L412.64,785.5L419.36,785.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge26"><path d="M906.57,724.5C906.57,733.75 979.58,733.75 979.58,743L979.58,768C979.58,774.94 1026.92,774.94 1026.92,781.88L1026.92,786.5"/><path class="pele-marker" d="M1026.92,793.5L1023.56,785.5L1030.28,785.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge27"><path d="M1142.58,950.5L1142.58,994C1142.58,1000.94 1067.02,1000.94 1067.02,1007.88L1067.02,1012.5"/><path class="pele-marker" d="M1067.02,1019.5L1063.66,1011.5L1070.38,1011.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge28"><path d="M1158.58,950.5C1158.58,959.75 1303.15,959.75 1303.15,969L1303.15,994C1303.15,1000.75 1417.15,1001.12 1417.15,1007.88L1417.15,1012.5"/><path class="pele-marker" d="M1417.15,1019.5L1413.79,1011.5L1420.51,1011.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge29"><path d="M1067.59,837.5L1067.59,881C1067.59,887.94 1154.58,887.94 1154.58,894.88L1154.58,899.5"/><path class="pele-marker" d="M1154.58,906.5L1151.22,898.5L1157.94,898.5Z" fill="var(--_l)" stroke="none"/></g><g class="pele-edge pele-transition" data-id="edge30"><path d="M890.57,724.5L890.57,874.75C890.57,880.42 1138.58,887.83 1138.58,893.5L1138.58,899.5"/><path class="pele-marker" d="M1138.58,906.5L1135.22,898.5L1141.94,898.5Z" fill="var(--_l)" stroke="none"/></g></g><g class="pele-edge-labels" font-size="14"><g class="pele-edge-label" data-id="edge1"><rect x="10" y="130.5" width="106" height="21" rx="3" fill="var(--_bg)"/><text x="63" y="145.9" text-anchor="middle">按补跑策略记账</text></g><g class="pele-edge-label" data-id="edge2"><rect x="137" y="130.5" width="92" height="21" rx="3" fill="var(--_bg)"/><text x="183" y="145.9" text-anchor="middle">事务写入投递</text></g><g class="pele-edge-label" data-id="edge3"><rect x="389.55" y="243.5" width="64" height="21" rx="3" fill="var(--_bg)"/><text x="421.55" y="258.9" text-anchor="middle">领取租约</text></g><g class="pele-edge-label" data-id="edge4"><rect x="140.85" y="416.5" width="78" height="21" rx="3" fill="var(--_bg)"/><text x="179.85" y="431.9" text-anchor="middle">启动前跳过</text></g><g class="pele-edge-label" data-id="edge5"><rect x="28.55" y="416.5" width="78" height="21" rx="3" fill="var(--_bg)"/><text x="67.55" y="431.9" text-anchor="middle">启动前取消</text></g><g class="pele-edge-label" data-id="edge6"><rect x="1486.27" y="692" width="154.23" height="21" rx="3" fill="var(--_bg)"/><text x="1563.38" y="707.4" text-anchor="middle">确认失败 or 确认未启动</text></g><g class="pele-edge-label" data-id="edge7"><rect x="433" y="416.5" width="78" height="21" rx="3" fill="var(--_bg)"/><text x="472" y="431.9" text-anchor="middle">确认未启动</text></g><g class="pele-edge-label" data-id="edge8"><rect x="251" y="416.5" width="78" height="21" rx="3" fill="var(--_bg)"/><text x="290" y="431.9" text-anchor="middle">启动前跳过</text></g><g class="pele-edge-label" data-id="edge9"><rect x="866.97" y="356.5" width="106" height="21" rx="3" fill="var(--_bg)"/><text x="919.97" y="371.9" text-anchor="middle">持久化启动意图</text></g><g class="pele-edge-label" data-id="edge10"><rect x="198.55" y="579" width="78" height="21" rx="3" fill="var(--_bg)"/><text x="237.55" y="594.4" text-anchor="middle">启动前取消</text></g><g class="pele-edge-label" data-id="edge11"><rect x="422.55" y="632" width="78" height="21" rx="3" fill="var(--_bg)"/><text x="461.55" y="647.4" text-anchor="middle">启动前跳过</text></g><g class="pele-edge-label" data-id="edge12"><rect x="471.55" y="692" width="78" height="21" rx="3" fill="var(--_bg)"/><text x="510.55" y="707.4" text-anchor="middle">启动前取消</text></g><g class="pele-edge-label" data-id="edge13"><rect x="349" y="416.5" width="64" height="21" rx="3" fill="var(--_bg)"/><text x="381" y="431.9" text-anchor="middle">领取租约</text></g><g class="pele-edge-label" data-id="edge14"><rect x="1282.04" y="692" width="154.23" height="21" rx="3" fill="var(--_bg)"/><text x="1359.15" y="707.4" text-anchor="middle">确认失败 or 确认未启动</text></g><g class="pele-edge-label" data-id="edge15"><rect x="482" y="519" width="78" height="21" rx="3" fill="var(--_bg)"/><text x="521" y="534.4" text-anchor="middle">确认未启动</text></g><g class="pele-edge-label" data-id="edge16"><rect x="1212.04" y="579" width="120" height="21" rx="3" fill="var(--_bg)"/><text x="1272.04" y="594.4" text-anchor="middle">执行结果无法确认</text></g><g class="pele-edge-label" data-id="edge17"><rect x="861.56" y="519" width="120.01" height="21" rx="3" fill="var(--_bg)"/><text x="921.56" y="534.4" text-anchor="middle">Runtime 确认启动</text></g><g class="pele-edge-label" data-id="edge18"><rect x="567.55" y="579" width="64" height="21" rx="3" fill="var(--_bg)"/><text x="599.55" y="594.4" text-anchor="middle">请求停止</text></g><g class="pele-edge-label" data-id="edge19"><rect x="965.58" y="918" width="64" height="21" rx="3" fill="var(--_bg)"/><text x="997.58" y="933.4" text-anchor="middle">完成核对</text></g><g class="pele-edge-label" data-id="edge20"><rect x="591.55" y="805" width="64" height="21" rx="3" fill="var(--_bg)"/><text x="623.55" y="820.4" text-anchor="middle">确认失败</text></g><g class="pele-edge-label" data-id="edge21"><rect x="1129.58" y="692" width="120.01" height="21" rx="3" fill="var(--_bg)"/><text x="1189.59" y="707.4" text-anchor="middle">Runtime 返回结果</text></g><g class="pele-edge-label" data-id="edge22"><rect x="989.58" y="692" width="120" height="21" rx="3" fill="var(--_bg)"/><text x="1049.58" y="707.4" text-anchor="middle">执行结果无法确认</text></g><g class="pele-edge-label" data-id="edge23"><rect x="860.57" y="632" width="64" height="21" rx="3" fill="var(--_bg)"/><text x="892.57" y="647.4" text-anchor="middle">请求停止</text></g><g class="pele-edge-label" data-id="edge24"><rect x="739.57" y="805" width="64" height="21" rx="3" fill="var(--_bg)"/><text x="771.57" y="820.4" text-anchor="middle">确认失败</text></g><g class="pele-edge-label" data-id="edge25"><rect x="641.55" y="745" width="120.01" height="21" rx="3" fill="var(--_bg)"/><text x="701.56" y="760.4" text-anchor="middle">Runtime 确认停止</text></g><g class="pele-edge-label" data-id="edge26"><rect x="919.58" y="745" width="120" height="21" rx="3" fill="var(--_bg)"/><text x="979.58" y="760.4" text-anchor="middle">执行结果无法确认</text></g><g class="pele-edge-label" data-id="edge27"><rect x="1110.58" y="971" width="64" height="21" rx="3" fill="var(--_bg)"/><text x="1142.58" y="986.4" text-anchor="middle">确认失败</text></g><g class="pele-edge-label" data-id="edge28"><rect x="1257.15" y="971" width="92" height="21" rx="3" fill="var(--_bg)"/><text x="1303.15" y="986.4" text-anchor="middle">提交结果引用</text></g><g class="pele-edge-label" data-id="edge29"><rect x="1007.58" y="858" width="120.01" height="21" rx="3" fill="var(--_bg)"/><text x="1067.59" y="873.4" text-anchor="middle">Runtime 返回结果</text></g><g class="pele-edge-label" data-id="edge30"><rect x="830.56" y="805" width="120.01" height="21" rx="3" fill="var(--_bg)"/><text x="890.57" y="820.4" text-anchor="middle">Runtime 返回结果</text></g></g><g class="pele-nodes"><g class="pele-node pele-state" data-id="s0" transform="translate(105.55,88)"><rect x="-48" y="-22" width="96" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">等待到期</text></g><g class="pele-node pele-state" data-id="s1" transform="translate(63,201)"><rect x="-40" y="-22" width="80" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">已错过</text></g><g class="pele-node pele-state" data-id="s2" transform="translate(183,201)"><rect x="-40" y="-22" width="80" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">待领取</text></g><g class="pele-node pele-state" data-id="s3" transform="translate(421.55,314)"><rect x="-40" y="-22" width="80" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">已领取</text></g><g class="pele-node pele-state" data-id="s4" transform="translate(305.55,702.5)"><rect x="-40" y="-22" width="80" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">已跳过</text></g><g class="pele-node pele-state" data-id="s5" transform="translate(392,815.5)"><rect x="-40" y="-22" width="80" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">已停止</text></g><g class="pele-node pele-state" data-id="s6" transform="translate(1063.02,1041.5)"><rect x="-32" y="-22" width="64" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">失败</text></g><g class="pele-node pele-state" data-id="s7" transform="translate(471.18,589.5)"><rect x="-48" y="-22" width="96" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">等待重试</text></g><g class="pele-node pele-state" data-id="s8" transform="translate(919.97,427)"><rect x="-48" y="-22" width="96" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">正在启动</text></g><g class="pele-node pele-state" data-id="s9" transform="translate(1039.59,815.5)"><rect x="-40" y="-22" width="80" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">待核对</text></g><g class="pele-node pele-state" data-id="s10" transform="translate(921.56,589.5)"><rect x="-40" y="-22" width="80" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">执行中</text></g><g class="pele-node pele-state" data-id="s11" transform="translate(880.57,702.5)"><rect x="-48" y="-22" width="96" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">正在停止</text></g><g class="pele-node pele-state" data-id="s12" transform="translate(1154.58,928.5)"><rect x="-48" y="-22" width="96" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">保存结果</text></g><g class="pele-node pele-state" data-id="s13" transform="translate(1417.15,1041.5)"><rect x="-32" y="-22" width="64" height="44" rx="10" fill="var(--_s)" stroke="var(--_b)"/><text class="pele-label" x="0" y="5.6" text-anchor="middle">成功</text></g><g class="pele-node pele-state-start" data-id="root_start" transform="translate(105.55,15)"><circle r="7" fill="var(--_l)"/></g></g></g></svg></div><details><summary>Mermaid 源文</summary><pre><code>---
+title: &quot;单次自动化执行&quot;
+---
+stateDiagram-v2
+  s0: 等待到期
+  s1: 已错过
+  s2: 待领取
+  s3: 已领取
+  s4: 已跳过
+  s5: 已停止
+  s6: 失败
+  s7: 等待重试
+  s8: 正在启动
+  s9: 待核对
+  s10: 执行中
+  s11: 正在停止
+  s12: 保存结果
+  s13: 成功
+  [*] --&gt; s0
+  s0 --&gt; s1: 按补跑策略记账
+  s0 --&gt; s2: 事务写入投递
+  s2 --&gt; s3: 领取租约
+  s2 --&gt; s4: 启动前跳过
+  s2 --&gt; s5: 启动前取消
+  s3 --&gt; s6: 确认失败 or 确认未启动
+  s3 --&gt; s7: 确认未启动
+  s3 --&gt; s4: 启动前跳过
+  s3 --&gt; s8: 持久化启动意图
+  s3 --&gt; s5: 启动前取消
+  s7 --&gt; s4: 启动前跳过
+  s7 --&gt; s5: 启动前取消
+  s7 --&gt; s3: 领取租约
+  s8 --&gt; s6: 确认失败 or 确认未启动
+  s8 --&gt; s7: 确认未启动
+  s8 --&gt; s9: 执行结果无法确认
+  s8 --&gt; s10: Runtime 确认启动
+  s8 --&gt; s11: 请求停止
+  s9 --&gt; s6: 完成核对
+  s10 --&gt; s6: 确认失败
+  s10 --&gt; s12: Runtime 返回结果
+  s10 --&gt; s9: 执行结果无法确认
+  s10 --&gt; s11: 请求停止
+  s11 --&gt; s6: 确认失败
+  s11 --&gt; s5: Runtime 确认停止
+  s11 --&gt; s9: 执行结果无法确认
+  s12 --&gt; s6: 确认失败
+  s12 --&gt; s13: 提交结果引用
+  s9 --&gt; s12: Runtime 返回结果
+  s11 --&gt; s12: Runtime 返回结果
+</code></pre></details><p>图来自单次投递模型，省略不改变用户可见状态的内部事件。完整转移见下表。</p></details>
+<div class="table-wrap"><table><thead><tr><th>投递状态</th><th>进入条件与下一步</th></tr></thead><tbody>
+<tr><td><code>pending</code> 待领取</td><td>到期或手动请求写入投递，冻结指令及资源引用。并发领取用条件更新转到 <code>leased</code>。启动前取消可记为 <code>stopped</code>，计划被暂停、删除或显式替代时记为 <code>skipped</code>。</td></tr>
+<tr><td><code>leased</code> 已领取</td><td>保存执行者、租约期限和单调递增的代次。重验创建者身份、权限、Provider 及资源。临时错误进入 <code>retry_wait</code>，确定拒绝进入 <code>failed</code>。通过后先提交启动意图，再调用 Runtime。</td></tr>
+<tr><td><code>starting</code> 正在启动</td><td>保存启动幂等键和独立 Session 关联。Runtime 确认开始进入 <code>running</code>。明确未受理才可安全重试；受理结果未知时查原生记录，无法确认则进入 <code>needs_review</code>。</td></tr>
+<tr><td><code>running</code> 执行中</td><td>续租并追加执行事件。收到 Runtime 终态后写入可恢复的终态证据，进入 <code>finalizing</code>。执行者失联则优先按原生标识查询、续接或隔离；无法判定结果且可能已执行时进入 <code>needs_review</code>。</td></tr>
+<tr><td><code>finalizing</code> 保存结果</td><td>以确定性键提交输出、错误和交付物清单。短暂存储错误只重试保存。提交成功、确认失败或确认取消后写对应终态。必需的交付物缺失时，记录失败阶段为结果保存，保留 Runtime 的实际终态。</td></tr>
+<tr><td><code>retry_wait</code> 等待重试</td><td>保存错误、尝试次数和下次可领取时间。仅重试尚未启动或 Runtime 明确保证可安全重放的投递。租约换代，投递 ID 保持稳定。达到预算后标为失败。</td></tr>
+<tr><td><code>stopping</code> 正在停止</td><td>记录停止意图，向原生执行发出取消。Runtime 确认取消才记为 <code>stopped</code>。如果正常终态先确认，按实际结果保存。无法确认时进入 <code>needs_review</code>。</td></tr>
+<tr><td><code>needs_review</code> 待核对</td><td>保存已有结果、trace 和可能的外部动作。可补查终态后进入结果保存。永久未知时由授权用户记录处置后关闭。重新运行是一次明确的新投递。</td></tr>
+<tr><td>终态</td><td><code>succeeded</code>、<code>failed</code>、<code>stopped</code>、<code>skipped</code>、<code>missed</code>。终态对重复消息幂等。失败和停止保留已产生的可见输出。<code>missed</code> 明确表示计划时点按策略未执行。</td></tr>
+</tbody></table></div></section>
+
+<section id="durability"><h2>三、如何保证到期不丢</h2><hr class="rule">
+<div class="table-wrap"><table><thead><tr><th>崩溃窗口</th><th>保存与恢复约定</th></tr></thead><tbody>
+<tr><td>扫描到期后，事务提交前退出</td><td>在同一事务内写入投递或错过记录、任务版本及指令快照，再推进持久游标。任何一步失败，整笔回滚。时间统一用实际计划时点而非扫描时钟。</td></tr>
+<tr><td>事务已提交，唤醒丢失</td><td>投递记录本身就是可领取的持久工作。启动和周期扫描会补领。唤醒只缩短等待。多个 Scheduler 用计划 ID 与到期时点的唯一键去重。立即执行和试跑用带任务范围的请求 ID 去重。</td></tr>
+<tr><td>停机跨过多个到期点</td><td>建议严格任务逐次补跑，按计划顺序分批入队并限制处理速度。允许合并的任务可以显式选择「只补最近一次」，其余写入 <code>missed</code> 记录或区间并保存首尾时点、数量和规则版本。默认策略在迁移时要明确，背压期间不覆盖已受理投递。</td></tr>
+<tr><td>领取后实例退出或恢复过慢</td><td>租约到期后按阶段回收。领取和状态写入使用代次校验，旧实例不能覆盖新状态。分页扫描待领取、待恢复及待保存记录，避免旧长任务堵住后面的完成记录。</td></tr>
+<tr><td>已调用 Runtime，启动回执未写入</td><td>先持久化启动意图与幂等键。只有 Runtime 确认未受理，或提供可靠去重时，才允许重新发送。外部写工具需独立幂等键或后置核对。无法确认时保留待核对状态。</td></tr>
+<tr><td>Runtime 已结束，交付物尚未完成</td><td>先持久化原生终态与输出引用，按相同对象键重试保存并校验完整性。最后提交用户可见的结果和终态。清理未引用对象需有保留窗口，避免与保存重试竞争。</td></tr>
+</tbody></table></div>
+<p><strong>保证边界。</strong> 本地唯一键和原子事务可以保证有效到期被记录一次。实际执行完成依赖存储恢复、可用 Runtime、有效权限和明确的补跑策略。通用系统无法凭本地租约断定外部写入是否已发生。用户需要逐次执行时，应在启用任务时明确选择补跑策略。</p></section>
+
+<section id="output"><h2>四、保存与展示</h2><hr class="rule">
+<div class="table-wrap"><table><thead><tr><th>数据</th><th>保存内容</th><th>查看方式</th></tr></thead><tbody>
+<tr><td>投递与执行摘要</td><td>投递 ID、任务版本、计划与实际时间、触发方式、尝试次数、Runtime、状态、失败阶段、错误码及可用 trace ID。</td><td>执行列表与单次详情的页头。</td></tr>
+<tr><td>追加事件</td><td>以投递 ID、尝试代次和事件序号去重。记录领取、鉴权结果、启动、工具开始和结束、耗时、重试、取消和终态。只展示 Runtime 确实上报的事实。</td><td>展开执行过程，支持分页和按序续读。工具参数、输出和错误只保留有界、脱敏预览。</td></tr>
+<tr><td>文本与 HTML 交付物</td><td>保留最终文本、失败时的已生成输出，以及每份报告的对象引用、格式和完整性信息。每份报告只关联这次投递。</td><td>详情直接读文本、预览或下载 HTML。授权使用任务权限，HTML 在隔离环境中预览。</td></tr>
+</tbody></table></div>
+<p>执行结果、工具事件和交付物都可以用投递 ID 追溯。报告可以是 HTML，执行事件继续使用结构化记录。保留期内详情允许授权用户复核，凭据和原生私有 context 不作为用户可见输出。</p></section>
+
+<section id="review"><h2>五、评审结果与验收</h2><hr class="rule">
+<p><strong>三轮评审。</strong> 第一轮核对现行执行边界，确认默认 Session 复用和 Chat 投递都要替换。第二轮逐步检查故障窗口，确认先推进游标会漏执行，结果不明仍重试可能产生重复外部动作。第三轮核对用户可见结果，要求独立保留事件与报告、区分受理和执行终态，并用分页避免较早的长执行挡住其他结果。</p>
+<div class="table-wrap"><table><thead><tr><th>评审项</th><th>验收标准</th></tr></thead><tbody>
+<tr><td>任务语义与权限</td><td>创建不启动 Runtime。连续两次到期、立即执行和试跑生成独立 Session。原生 context 不串用。使用创建者权限，撤销后任务不能启动。Kanban 同一任务的 timer 仍续接它自己的 Task 会话。</td></tr>
+<tr><td>掉电、重复和积压</td><td>在提交前后、启动前后、结果保存前后逐处故障注入。双实例扫同一时点只有一条有效投递。漏唤醒可补领，停机时段逐条或按区间可对账。大量长期执行不会饿死终态保存。</td></tr>
+<tr><td>停止和副作用</td><td>分别测试排队停止、启动中停止、正常结束与停止并发、旧租约写回、工具已开始后失联。停止结果遵循 Runtime 证据。副作用结果不明时无自动重放。</td></tr>
+<tr><td>输出与隔离</td><td>两次报告可独立预览下载。失败保留部分输出。工具事件和用量符合真实 Runtime 能力。不同用户无法访问对方的 trace、产物或结果。</td></tr>
+<tr><td>迁移和上线</td><td>先按部署批次启用读取和新执行入口，再切换到期归属。旧路径已受理的投递沿原路径结算，未受理的投递按切换点只进入一边。验证历史仍可读、旧实例不会重复领取。</td></tr>
+</tbody></table></div>
+<details class="fold"><summary>模型检查范围</summary>
+<p>TLC 在两个到期时点模型中遍历 3,307 个状态。到期记录、成功结果、启动后禁止无条件重放、工具执行前置条件、跳过状态及无死锁检查均通过。单次投递视图遍历 58 个状态。故意去掉投递写入，只推进游标后，TLC 在一步内发现到期丢失。</p><p>状态模型覆盖两个到期时点、两代租约、启动中失联、停止和结果保存。它将存储提交抽象为原子动作，省略实际 SQL、时区边界、手动入口、权限撤销、文件存储、真实 Runtime 和补跑时钟。结论只适用于所检查的状态空间，落地后按上表做故障注入。</p>
+</details>
+</section>
+<footer>来源 · <a href="https://claude.com/resources/articles/building-always-on-agents#timers">Anthropic Timers</a> · <a href="https://github.com/pingdotgg/t3code">t3code</a> · <a href="https://github.com/stablyai/orca">Orca</a> · <a href="https://learn.chatgpt.com/docs/app-server">Codex App Server</a> · DSH 随包 Schedule 与 Session 持久化说明。设计评审，尚未部署。<br>生成日期 · 2026-11-27</footer>
+
+</main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>
