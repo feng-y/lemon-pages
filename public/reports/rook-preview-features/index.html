@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>预览功能开关</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+
+
+/* ▼ 报告专用样式：components.md 没有的才写，只用 token，不重定义 base.css 已有的 class ▼ */
+
+</style>
+</head>
+<body>
+<nav class="toc">
+  <div class="toc-title">On this page</div>
+  <a href="#tldr">TL;DR</a>
+  <a href="#common">共用机制</a>
+  <a href="#a">方案一 用户列表加列</a>
+  <a href="#b">方案二 按功能管理名单</a>
+  <a href="#c">方案三 功能开放配置</a>
+  <a href="#compare">对比</a>
+  <a href="#pick">推荐与首批接入</a>
+  <a href="#verify">验证计划</a>
+</nav>
+
+<main>
+
+  <header>
+    <div class="head-top">
+      <h1>预览功能开关</h1>
+    </div>
+    <p class="subtitle">Rook 按用户开放页面和功能的三套方案。三套都只控制页面可见，不做服务端权限。</p>
+  </header>
+
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">TL;DR</div>
+    <p>三套方案共用一个通用机制。每个页面、按钮或菜单项的接入方式相同：功能清单 <code>previewFeatures</code> 加一行，入口加一个 <code>identity.features.includes('key')</code> 判断，<code>/api/me</code> 返回当前用户可见的功能键。</p>
+    <p>三套方案的区别在于授权存在哪里，以及管理员在哪里操作。方案一在用户列表加一列，改动最小。方案二新增「功能开放」页，按功能管理名单，授权仍记在用户准入记录上。方案三也新增「功能开放」页，授权单独存成一份功能配置，另外支持不发布就对所有人开放或收回。</p>
+    <p>推荐方案三。原因有两个：它按功能保存名单，和管理员「把某个功能给几个人」的操作方式一致；功能开放后出了问题，不用发布就能收回。</p>
+  </div>
+
+  <section id="common">
+    <h2>共用机制</h2>
+    <hr class="rule">
+    <p class="lede">这部分三套方案完全相同，决定了它是通用的。</p>
+<pre><code>// src/features.ts，前后端共用
+export const previewFeatures = {
+  'native-runtimes': 'Claude Code 和 Codex',
+  agents: '智能体',
+} as const;
+export type PreviewFeature = keyof typeof previewFeatures;
+
+// GET /api/me 增加
+features: PreviewFeature[]   // 管理员拿到全部键
+
+// 前端入口
+{identity.features.includes('agents') &amp;&amp; &lt;AgentsEntry /&gt;}</code></pre>
+    <ul class="points">
+      <li><strong>接入一个功能只要两行。</strong>清单加一行，入口加一个判断。管理界面按清单自动生成，不用为每个功能改界面。</li>
+      <li><strong>下线时不用迁移数据。</strong>服务端读取授权后与清单取交集，删掉清单里的键之后，残留的授权数据会被忽略。</li>
+      <li><strong>不是安全边界。</strong>开关只隐藏入口，避免用户误用还没测完的功能。普通用户直接调用接口仍然能用。需要真正限制的功能，在服务端单独校验。</li>
+      <li><strong>不合并现有的 <code>managementTabs</code>。</strong>反馈管理在服务端有校验，属于权限，不归这套开关管。</li>
+    </ul>
+  </section>
+
+  <section id="a">
+    <h2>方案一：用户列表加列</h2>
+    <hr class="rule">
+    <p class="lede">授权记在用户准入记录上，管理员在现有的用户列表里逐个勾选。</p>
+    <figure>
+      <div class="chart wide">
+        <svg viewBox="0 0 760 190" role="img" aria-label="方案一示意：用户准入列表增加一列预览功能，每行一组复选框">
+          <rect x="1" y="1" width="758" height="188" rx="12" fill="none" stroke="var(--line)"/>
+          <text x="22" y="34" font-size="16" fill="var(--ink-strong)" font-weight="650">用户准入</text>
+          <g font-size="12" fill="var(--muted)">
+            <text x="22" y="66">公司邮箱</text><text x="230" y="66">角色</text><text x="320" y="66">并发 Run</text><text x="420" y="66">管理页面权限</text><text x="560" y="66" fill="var(--accent-strong)" font-weight="600">预览功能（新增）</text>
+          </g>
+          <line x1="22" y1="76" x2="738" y2="76" stroke="var(--line)"/>
+          <g font-size="13" fill="var(--ink)">
+            <text x="22" y="104">alice@example.com</text><text x="230" y="104">普通用户</text><text x="320" y="104">默认</text><text x="420" y="104">无权限</text>
+            <rect x="560" y="92" width="14" height="14" rx="3" fill="var(--accent)"/><text x="580" y="104">Claude Code 和 Codex</text>
+            <rect x="560" y="114" width="14" height="14" rx="3" fill="none" stroke="var(--line)"/><text x="580" y="126">智能体</text>
+          </g>
+          <line x1="22" y1="140" x2="738" y2="140" stroke="var(--line-soft)"/>
+          <g font-size="13" fill="var(--ink)">
+            <text x="22" y="166">carol@example.com</text><text x="230" y="166">管理员</text><text x="320" y="166">不限</text><text x="420" y="166">全部管理页面</text><text x="560" y="166" fill="var(--muted)">全部可见</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>示意图，邮箱为示例。</figcaption>
+    </figure>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>项</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>存储</td><td><code>AdmissionUser.features?: PreviewFeature[]</code>，和 <code>managementTabs</code> 存在同一份记录里</td></tr>
+          <tr><td>写入</td><td>现有的用户更新接口 <code>PUT</code> 增加 <code>features</code> 字段。不带这个字段时保留原值</td></tr>
+          <tr><td>改动文件</td><td><code>src/features.ts</code>、<code>src/user-admission.ts</code>、<code>src/server.ts</code>、<code>web/main.tsx</code>、<code>web/user-admission.tsx</code></td></tr>
+          <tr><td>优点</td><td>改动最小，没有新页面，也没有新存储</td></tr>
+          <tr><td>缺点</td><td>给 10 个人开放同一个功能要打开 10 行。看不出某个功能现在开放给了哪些人。功能多了以后这一列会很挤</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="b">
+    <h2>方案二：按功能管理名单</h2>
+    <hr class="rule">
+    <p class="lede">存储与方案一相同，但管理员在「系统管理 → 功能开放」里按功能管理名单。</p>
+    <figure>
+      <div class="chart wide">
+        <svg viewBox="0 0 760 250" role="img" aria-label="方案二示意：功能开放页每个功能一张卡片，列出已开放的用户和添加用户的输入框">
+          <rect x="1" y="1" width="758" height="248" rx="12" fill="none" stroke="var(--line)"/>
+          <line x1="170" y1="1" x2="170" y2="249" stroke="var(--line)"/>
+          <text x="22" y="36" font-size="13" fill="var(--muted)">系统管理</text>
+          <text x="22" y="70" font-size="14" fill="var(--ink)">用户管理</text>
+          <rect x="12" y="84" width="146" height="30" rx="7" fill="var(--accent-tint)"/>
+          <text x="22" y="104" font-size="14" fill="var(--accent-strong)" font-weight="600">功能开放</text>
+          <text x="22" y="138" font-size="14" fill="var(--ink)">使用统计</text>
+          <text x="22" y="168" font-size="14" fill="var(--muted)">…</text>
+          <text x="196" y="40" font-size="18" fill="var(--ink-strong)" font-weight="650">功能开放</text>
+          <rect x="196" y="58" width="540" height="124" rx="10" fill="none" stroke="var(--line)"/>
+          <text x="214" y="84" font-size="15" fill="var(--ink-strong)" font-weight="600">Claude Code 和 Codex</text>
+          <text x="718" y="84" font-size="12" fill="var(--muted)" text-anchor="end">已开放 2 人 · 管理员始终可见</text>
+          <rect x="214" y="98" width="160" height="28" rx="14" fill="var(--line-soft)"/>
+          <text x="228" y="117" font-size="12.5" fill="var(--ink)">alice@example.com  ×</text>
+          <rect x="384" y="98" width="150" height="28" rx="14" fill="var(--line-soft)"/>
+          <text x="398" y="117" font-size="12.5" fill="var(--ink)">bob@example.com  ×</text>
+          <rect x="214" y="140" width="420" height="30" rx="7" fill="none" stroke="var(--line)"/>
+          <text x="226" y="160" font-size="12.5" fill="var(--muted)">输入公司邮箱，从已准入用户中选择</text>
+          <rect x="644" y="140" width="74" height="30" rx="7" fill="var(--accent)"/>
+          <text x="681" y="160" font-size="13" fill="var(--surface)" text-anchor="middle">添加</text>
+          <rect x="196" y="194" width="540" height="42" rx="10" fill="none" stroke="var(--line)"/>
+          <text x="214" y="220" font-size="15" fill="var(--ink-strong)" font-weight="600">智能体</text>
+          <text x="718" y="220" font-size="12" fill="var(--muted)" text-anchor="end">尚未开放给普通用户 · 展开</text>
+        </svg>
+      </div>
+      <figcaption>示意图，邮箱为示例。每张卡片由功能清单生成。</figcaption>
+    </figure>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>项</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>存储</td><td>与方案一相同，<code>AdmissionUser.features</code></td></tr>
+          <tr><td>写入</td><td>添加或移除一个用户时，对这个用户调用一次 <code>PUT</code>。并发冲突沿用 <code>409 configuration_conflict</code></td></tr>
+          <tr><td>改动文件</td><td>方案一的服务端文件，另加 <code>web/preview-features.tsx</code> 和 <code>web/management.tsx</code></td></tr>
+          <tr><td>优点</td><td>能直接看到每个功能开放给了谁，适合「把某个功能给几个人」</td></tr>
+          <tr><td>缺点</td><td>界面按功能组织，数据却按用户存，一次批量添加要发多次请求。用户准入记录多了一个和准入无关的字段</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="c">
+    <h2>方案三：功能开放配置</h2>
+    <hr class="rule">
+    <p class="lede">每个功能单独记录开放范围，单独存成一份配置文档。管理界面与方案二相同，每张卡片多一个开放范围选择。</p>
+<pre><code>// ConfigurationStore 中新的一份文档 'preview-features'
+type FeatureAccess = { scope: 'admins' | 'listed' | 'everyone'; users: string[] };
+type PreviewFeatureConfig = Partial&lt;Record&lt;PreviewFeature, FeatureAccess&gt;&gt;;
+// 清单里有、配置里没有的功能，按 { scope: 'admins', users: [] } 处理</code></pre>
+    <figure>
+      <div class="chart wide">
+        <svg viewBox="0 0 760 170" role="img" aria-label="方案三示意：功能卡片顶部有三段式开放范围选择，仅管理员、指定用户、所有人">
+          <rect x="1" y="1" width="758" height="168" rx="12" fill="none" stroke="var(--line)"/>
+          <text x="22" y="36" font-size="15" fill="var(--ink-strong)" font-weight="600">Claude Code 和 Codex</text>
+          <rect x="420" y="18" width="318" height="30" rx="8" fill="var(--line-soft)"/>
+          <text x="473" y="38" font-size="12.5" fill="var(--muted)" text-anchor="middle">仅管理员</text>
+          <rect x="526" y="20" width="106" height="26" rx="7" fill="var(--accent)"/>
+          <text x="579" y="38" font-size="12.5" fill="var(--surface)" text-anchor="middle" font-weight="600">指定用户</text>
+          <text x="685" y="38" font-size="12.5" fill="var(--muted)" text-anchor="middle">所有人</text>
+          <rect x="22" y="64" width="160" height="28" rx="14" fill="var(--line-soft)"/>
+          <text x="36" y="83" font-size="12.5" fill="var(--ink)">alice@example.com  ×</text>
+          <rect x="192" y="64" width="150" height="28" rx="14" fill="var(--line-soft)"/>
+          <text x="206" y="83" font-size="12.5" fill="var(--ink)">bob@example.com  ×</text>
+          <rect x="22" y="106" width="610" height="30" rx="7" fill="none" stroke="var(--line)"/>
+          <text x="34" y="126" font-size="12.5" fill="var(--muted)">输入或粘贴多个公司邮箱，用逗号分隔</text>
+          <rect x="644" y="106" width="94" height="30" rx="7" fill="var(--accent)"/>
+          <text x="691" y="126" font-size="13" fill="var(--surface)" text-anchor="middle">保存</text>
+          <text x="22" y="158" font-size="12" fill="var(--muted)">选择「所有人」时名单保留不删，切回「指定用户」后恢复原名单。</text>
+        </svg>
+      </div>
+      <figcaption>示意图，邮箱为示例。名单只在「指定用户」时生效。</figcaption>
+    </figure>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>项</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>存储</td><td><code>ConfigurationStore</code> 中新的一份文档，带 revision。不改用户准入记录</td></tr>
+          <tr><td>写入</td><td>新增管理员接口 <code>PUT /api/admin/preview-features</code>，一次保存一个功能的开放范围和整份名单。revision 不一致时返回 <code>409</code></td></tr>
+          <tr><td>读取</td><td><code>/api/me</code> 读取这份文档，与清单取交集，再按当前用户计算可见的功能</td></tr>
+          <tr><td>改动文件</td><td><code>src/features.ts</code>（同时放读写函数）、<code>src/server.ts</code>、<code>web/main.tsx</code>、<code>web/preview-features.tsx</code>、<code>web/management.tsx</code></td></tr>
+          <tr><td>优点</td><td>按功能存、按功能改，和界面一致。批量添加只写一次。开放后出问题可以不发布就收回。不碰用户准入</td></tr>
+          <tr><td>缺点</td><td>多一份配置文档和一个管理员接口。功能处于「所有人」时，代码里的开关还在，需要记得在下次发布时删掉</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="compare">
+    <h2>对比</h2>
+    <hr class="rule">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>方案一 用户列表加列</th><th>方案二 按功能管理名单</th><th>方案三 功能开放配置</th></tr></thead>
+        <tbody>
+          <tr><td>改动文件数（推断）</td><td class="num">5</td><td class="num">7</td><td class="num">5</td></tr>
+          <tr><td>新页面</td><td>无</td><td>功能开放</td><td>功能开放</td></tr>
+          <tr><td>新存储</td><td>无</td><td>无</td><td>一份配置文档</td></tr>
+          <tr><td>看某个功能开放给了谁</td><td><span class="tag warn">要逐行看</span></td><td><span class="tag ok">一张卡片</span></td><td><span class="tag ok">一张卡片</span></td></tr>
+          <tr><td>一次开放给多人</td><td><span class="tag warn">逐行勾选</span></td><td><span class="tag neutral">逐个添加</span></td><td><span class="tag ok">粘贴后保存一次</span></td></tr>
+          <tr><td>不发布就对所有人开放或收回</td><td><span class="tag danger">不支持</span></td><td><span class="tag danger">不支持</span></td><td><span class="tag ok">支持</span></td></tr>
+          <tr><td>动到用户准入记录</td><td>是</td><td>是</td><td>否</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="pick">
+    <h2>推荐与首批接入</h2>
+    <hr class="rule">
+    <p><strong>推荐方案三。</strong>管理员的实际操作是「把某个功能开放给一批人」，方案三的存储、接口和界面都按功能组织，一次保存一个功能。功能对所有人开放后如果发现问题，管理员可以直接切回「指定用户」，不用发布。代价是多一份配置文档，和方案二相比改动文件数差不多。</p>
+    <p>如果只想要最快上线，选方案一。之后需要按功能管理时，可以再迁移到方案三，迁移时只需要把每个用户的 <code>features</code> 转换成每个功能的名单。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>功能键</th><th>入口</th><th>现在</th><th>接入后</th></tr></thead>
+        <tbody>
+          <tr><td><code>native-runtimes</code></td><td>Chat 的 Runtime 选择器</td><td>只有管理员能选 Claude Code 和 Codex。无法开放给部分用户</td><td>按开放范围决定。没有开放的用户看到两项置灰。已建好的 Session 继续可用</td></tr>
+          <tr><td><code>agents</code></td><td>设置页的「智能体」</td><td>所有通过准入的用户可见</td><td>按开放范围决定，没有开放的用户看不到入口</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warn">
+      <div class="callout-title">智能体入口会对现有用户收起</div>
+      <p>接入发布后，智能体默认只对管理员可见。如果需要保留现有的使用者，发布后先把它设成「所有人」，或者把现有使用者加入名单。方案一和方案二需要在发布前逐个勾选。</p>
+    </div>
+  </section>
+
+  <section id="verify">
+    <h2>验证计划</h2>
+    <hr class="rule">
+    <ul class="points">
+      <li><strong>服务端测试。</strong>写入后能读回。清单外的键返回 400。删掉清单里的键之后，残留授权被忽略。分别核对管理员、名单内用户、名单外用户和没有准入记录的用户，<code>/api/me</code> 返回的 <code>features</code> 是否正确。方案三另测三种开放范围的切换，以及 revision 冲突。</li>
+      <li><strong>界面测试。</strong>沿用现有的 Runtime 选择器测试，把判断条件从「是否管理员」改为「是否有 <code>native-runtimes</code>」。</li>
+      <li><strong>浏览器验收。</strong>用真实构建分别以管理员、名单内用户和名单外用户登录，检查 Runtime 选择器、智能体入口和「功能开放」页。</li>
+      <li><strong>常规检查。</strong>运行 <code>npm run check</code>、完整测试和 <code>npm run build</code>。</li>
+    </ul>
+  </section>
+
+  <footer>
+    Sources: Rook 源码 <code>src/user-admission.ts</code>、<code>src/configuration-store.ts</code>、<code>src/server.ts</code>、<code>web/main.tsx</code>、<code>web/management.tsx</code>、<code>web/user-admission.tsx</code>、<code>web/settings.tsx</code> 与 <code>CONTEXT.md</code> 的阅读结果；三套方案都尚未实现，改动文件数为推断 &nbsp;—&nbsp; generated 2026-11-27
+  </footer>
+
+</main>
+
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

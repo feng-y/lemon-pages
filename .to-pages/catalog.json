@@ -439,6 +439,23 @@
           "updated_at": "2026-11-27T00:02:41.431818Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/rook-preview-features",
+      "project": "Rook",
+      "title": "预览功能开关：三套方案",
+      "versions": [
+        {
+          "digest": "7c971c39fc3d2b6ac810317b63c270a9a576dd2f08685ffeebe4d67a033eb623",
+          "label": "v1",
+          "path": "reports/rook-preview-features",
+          "published_at": "2026-11-27T03:45:10.292050Z",
+          "summary": "按用户开放页面和功能的三套方案，推荐方案三",
+          "updated_at": "2026-11-27T03:45:10.292050Z"
+        }
+      ]
     }
   ]
 }
