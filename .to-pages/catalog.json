@@ -540,6 +540,23 @@
           "updated_at": "2026-11-27T11:18:10.321775Z"
         }
       ]
+    },
+    {
+      "category": "设计原型",
+      "description": "",
+      "id": "reports/rook-review-bot-ui",
+      "project": "Rook",
+      "title": "Rook Review Bot 界面预览",
+      "versions": [
+        {
+          "digest": "092039dce50cc2168914acfa694cba92a1d265cb00c32e8aefd76ca99b600655",
+          "label": "v1",
+          "path": "reports/rook-review-bot-ui",
+          "published_at": "2026-11-27T12:57:44.029426Z",
+          "summary": "管理员绑定身份、在交付中请求和停止审查、查看结论",
+          "updated_at": "2026-11-27T12:57:44.029426Z"
+        }
+      ]
     }
   ]
 }
