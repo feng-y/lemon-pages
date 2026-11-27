@@ -473,6 +473,23 @@
           "updated_at": "2026-11-27T05:48:02.981364Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/agent-workflow-design",
+      "project": "智能体设计",
+      "title": "智能体与 SuperAgent 设计方案",
+      "versions": [
+        {
+          "digest": "84510a76dd452b593bc38f9305bf461b364166e5f7c1531d7ff9a6d475dae0e1",
+          "label": "v1",
+          "path": "reports/agent-workflow-design",
+          "published_at": "2026-11-27T11:01:38.984463Z",
+          "summary": "公开版方案与交互示例",
+          "updated_at": "2026-11-27T11:01:38.984463Z"
+        }
+      ]
     }
   ]
 }
