@@ -563,6 +563,14 @@
           "published_at": "2026-11-27T13:08:13.929001Z",
           "summary": "将创建和管理移到左侧主导航的智能体入口",
           "updated_at": "2026-11-27T13:08:13.929001Z"
+        },
+        {
+          "digest": "d56ca6d0fb81d6de32548f4c1a459ba6d47bac57cbba5df18ea798f48d0901d7",
+          "label": "v3",
+          "path": "reports/rook-review-bot-ui-v3",
+          "published_at": "2026-11-27T13:19:24.123994Z",
+          "summary": "创建弹窗、模板预填与运行时配置",
+          "updated_at": "2026-11-27T13:19:24.123994Z"
         }
       ]
     }

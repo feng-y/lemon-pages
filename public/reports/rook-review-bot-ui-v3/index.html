@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rook Review Bot 界面预览</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+.preview { background:var(--surface); border:var(--border); border-radius:var(--radius); overflow:hidden; }
+.preview-bar { padding:.65rem 1rem; background:var(--line-soft); border-bottom:var(--border); color:var(--muted); font-size:.85rem; }
+.settings-frame { display:grid; grid-template-columns:minmax(5rem, 8rem) minmax(0,1fr); }
+.preview-nav { padding:.8rem; border-right:var(--border); background:var(--ground); font-size:.87rem; }
+.preview-nav span { display:block; padding:.3rem .5rem; border-radius:var(--radius-sm); }
+.preview-nav span[aria-current] { background:var(--accent-tint); color:var(--accent-strong); font-weight:650; }
+.preview-content { min-width:0; padding:1rem; }
+.preview-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem; }
+.preview-form { display:grid; gap:.45rem; margin-top:.8rem; border-top:var(--border); padding-top:.75rem; }
+.preview-form[hidden] { display:none; }
+.preview-dialog { box-sizing:border-box; width:min(34rem,calc(100% - 1.5rem)); max-height:calc(100dvh - 1.5rem); color:var(--ink); background:var(--surface); border:var(--border); border-radius:var(--radius); padding:1rem; }
+.preview-dialog::backdrop { background:var(--ink); opacity:.35; }
+.preview-dialog h3 { margin:0; }
+.preview-form select { max-width:100%; }
+.template-options { display:grid; justify-items:start; gap:.7rem; margin-block:1rem; }
+.preview-form label { display:grid; gap:.2rem; font-size:.9rem; }
+.preview-form input, .preview-form textarea { width:100%; font:inherit; color:var(--ink); background:var(--ground); border:var(--border); border-radius:var(--radius-sm); padding:.4rem; }
+.preview-content h3 { margin:0 0 .65rem; }
+.preview-content p { margin:.35rem 0; }
+.preview-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+.preview-actions { margin-top:.8rem; }
+.ui-button { border:var(--border); border-radius:var(--radius-sm); background:var(--surface); color:var(--ink); padding:.42rem .7rem; font:inherit; font-size:.86rem; min-height:2.25rem; }
+.ui-button:not(:disabled) { cursor:pointer; }
+.ui-button:disabled { color:var(--muted); }
+.ui-button[hidden] { display:none; }
+.ui-button.primary { border-color:var(--accent-strong); color:var(--accent-strong); background:var(--accent-tint); font-weight:650; }
+.ui-button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.ui-note { color:var(--muted); font-size:.86rem; }
+.ui-result { margin-top:1rem; padding:.75rem .9rem; border-radius:var(--radius-sm); background:var(--accent-tint); }
+.preview-kicker { margin:0 0 .3rem; color:var(--muted); font-size:.86rem; }
+@media(max-width:520px) {
+  .settings-frame { grid-template-columns:1fr; }
+  .preview-nav { display:flex; flex-wrap:wrap; border-right:0; border-bottom:var(--border); padding:.4rem .55rem; }
+  .preview-content { padding:.8rem; }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <p class="preview-kicker">Kanban · 首版审查</p>
+  <h1>Rook Review Bot 界面预览</h1>
+  <p class="subtitle">按当前实现制作的交互示意。使用虚构交付与账号状态，首版功能仍在本地验证阶段。</p>
+</header>
+<section aria-labelledby="setup">
+  <h2 id="setup">左侧主导航 · 智能体</h2>
+  <p>从左侧主导航进入「智能体」。管理员可点右上角「创建智能体」，也可以在内置 Rook 那一行绑定运行身份。</p>
+  <div class="preview">
+    <div class="preview-bar">主导航 / 智能体</div>
+    <div class="settings-frame">
+      <div class="preview-nav" aria-label="主导航示意">
+        <span>新会话</span><span>自动化任务</span><span>Kanban</span><span aria-current="page">智能体</span><span>CPU 资源</span><span>GPU 资源</span>
+      </div>
+      <div class="preview-content">
+        <div class="preview-heading"><h3>智能体</h3><button class="ui-button primary" type="button" id="create" aria-haspopup="dialog">＋ 创建智能体</button></div>
+        <p><strong>@Rook</strong> <small class="ui-note">· 内置</small></p>
+        <p>澄清需求、审查交付、给出验收建议。</p>
+        <p class="ui-note">Pi · 沿用运行身份的模型 · 运行身份 <span id="identity" aria-live="polite">未绑定</span></p>
+        <div class="preview-row preview-actions">
+          <button class="ui-button" disabled title="此处展示按钮位置">编辑</button>
+          <button class="ui-button" disabled title="示例已启用">停用</button>
+          <button class="ui-button primary" id="bind" type="button">以我的身份运行</button>
+        </div>
+        <dialog class="preview-dialog" id="create-dialog" aria-labelledby="create-title">
+          <div class="preview-heading"><h3 id="create-title">创建智能体</h3><button class="ui-button" type="button" id="close" aria-label="关闭">×</button></div>
+          <form class="preview-form" id="create-form">
+            <label>名称<input id="name" required maxlength="32" pattern="[\p{L}\p{N}_\-]+" placeholder="例如 交付审阅" autofocus></label>
+            <small>名称用于 @提及。支持文字、数字、下划线和连字符，最多 32 个字符。</small>
+            <label>职责与指令<textarea id="instruction" required rows="4" maxlength="8000" placeholder="它负责什么，收到交办后如何处理"></textarea></label>
+            <label>Runtime<select><option>Pi</option></select></label>
+            <details><summary>更多配置</summary><label>描述<input id="description" maxlength="500"></label><label>模型<input placeholder="沿用运行身份的模型"></label><label>可见范围<select><option>仅创建者</option><option>默认组</option></select></label><label>工具白名单<input placeholder="暂不按连接器操作拦截"></label></details>
+            <p class="ui-note">创建后，在 Kanban 评论中用 @名称 交办。结论会写回 Task。</p>
+            <div class="preview-row"><button class="ui-button" type="button" id="browse">浏览模板</button><button class="ui-button" type="button" id="cancel">取消</button><button class="ui-button primary">创建智能体</button></div>
+          </form>
+          <div id="template-pane" hidden>
+            <p class="ui-note">模板预填名称、描述和职责。</p>
+            <div class="template-options">
+              <button class="ui-button" type="button" data-template="review">使用「交付审阅」</button>
+              <button class="ui-button" type="button" data-template="planning">使用「需求梳理」</button>
+            </div>
+            <button class="ui-button" type="button" id="back">返回表单</button>
+          </div>
+        </dialog>
+        <p id="created" class="ui-note" aria-live="polite"></p>
+      </div>
+    </div>
+  </div>
+</section>
+<section aria-labelledby="constraints">
+  <h2 id="constraints">创建与启用</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>行为</th><th>Orca</th><th>Rook 首版</th></tr></thead>
+    <tbody>
+      <tr><th>表单</th><td>填写名称和可选职责。选择有可用执行器的电脑。Orca 使用该电脑上的执行器账号。</td><td>管理员填写名称和职责，选择 Runtime。服务端保存配置并绑定创建者的运行身份。</td></tr>
+      <tr><th>模板</th><td>可取消附带的 skill。计划创建为关闭。事件与连接器在首次聊天配置。</td><td>模板预填三项文本。内置 Rook 独立显示在目录中。</td></tr>
+      <tr><th>开始工作</th><td>创建后打开 Bot 首页，发起首次 Turn。</td><td>通过 Kanban 评论交办。内置 Rook 的审查由验收人从待验收交付发起。</td></tr>
+    </tbody>
+  </table></div>
+  <p><a href="https://orca.dev/docs/bots">Orca Bots quickstart</a></p>
+</section>
+<section aria-labelledby="review">
+  <h2 id="review">Kanban · 待验收交付</h2>
+  <p>验收人在当前交付里请求审查。点击预览里的按钮，可以查看等待期间的操作和写回后的结论。</p>
+  <div class="preview">
+    <div class="preview-bar">Kanban / Task 详情</div>
+    <div class="preview-content">
+      <h3>为导出增加日期筛选</h3>
+      <div class="preview-row"><strong>提交交付</strong><span class="tag">待验收</span></div>
+      <p>已提交筛选功能及日期边界测试记录。</p>
+      <div class="preview-row preview-actions">
+        <button class="ui-button primary" type="button" id="request">请求 Rook 审查</button>
+        <button class="ui-button" type="button" disabled>退回</button>
+        <button class="ui-button" type="button" disabled>通过并完成</button>
+      </div>
+      <p class="ui-note" id="state" aria-live="polite"></p>
+      <div class="ui-result" id="result" hidden>
+        <strong>Rook · 审查 Bot</strong> <small class="ui-note">· Rook 审查结论</small>
+        <p>日期边界已有测试记录。请补充跨时区导出的测试证据后再验收。</p>
+      </div>
+    </div>
+  </div>
+</section>
+<footer>界面依据为当前主导航、智能体和 Kanban Task 界面。示意页的操作和审查内容均为本地模拟。</footer>
+</main>
+<script>
+const createDialog = document.getElementById('create-dialog');
+const createForm = document.getElementById('create-form');
+const templatePane = document.getElementById('template-pane');
+const nameInput = document.getElementById('name');
+const title = document.getElementById('create-title');
+const templates = {
+  review: ['交付审阅', '核对证据与验收标准', '逐项核对交付与验收标准，列出通过项、证据缺口和建议。'],
+  planning: ['需求梳理', '整理目标、范围和待确认项', '整理 Task 的目标、范围和验收标准，列出待确认的问题。']
+};
+function showTemplates(open) {
+  templatePane.hidden = !open;
+  createForm.hidden = open;
+  title.textContent = open ? '智能体模板' : '创建智能体';
+  (open ? templatePane.querySelector('button') : nameInput).focus();
+}
+document.getElementById('create').addEventListener('click', () => {
+  createForm.reset();
+  createDialog.showModal();
+  showTemplates(false);
+});
+for (const id of ['close', 'cancel']) document.getElementById(id).addEventListener('click', () => createDialog.close());
+document.getElementById('browse').addEventListener('click', () => showTemplates(true));
+document.getElementById('back').addEventListener('click', () => showTemplates(false));
+for (const choice of templatePane.querySelectorAll('[data-template]')) choice.addEventListener('click', () => {
+  const [name, description, instruction] = templates[choice.dataset.template];
+  nameInput.value = name;
+  document.getElementById('description').value = description;
+  document.getElementById('instruction').value = instruction;
+  showTemplates(false);
+});
+createForm.addEventListener('submit', event => {
+  event.preventDefault();
+  document.getElementById('created').textContent = '预览 · 已创建 @' + nameInput.value;
+  createDialog.close();
+});
+const bind = document.getElementById('bind');
+bind.addEventListener('click', () => {
+  document.getElementById('identity').textContent = '示例管理员';
+  bind.disabled = true;
+});
+const request = document.getElementById('request');
+const state = document.getElementById('state');
+const result = document.getElementById('result');
+let timer;
+function finish(message, showResult) {
+  clearTimeout(timer);
+  timer = undefined;
+  request.textContent = '请求 Rook 审查';
+  state.textContent = message;
+  result.hidden = !showResult;
+}
+request.addEventListener('click', () => {
+  if (timer !== undefined) {
+    finish('预览 · 已停止审查', false);
+    return;
+  }
+  result.hidden = true;
+  request.textContent = '停止 Rook 审查';
+  state.textContent = '预览 · 审查中';
+  timer = setTimeout(() => finish('预览 · 审查结论已写回当前交付', true), 3500);
+});
+</script>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>
