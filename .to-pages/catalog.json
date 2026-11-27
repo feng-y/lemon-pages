@@ -624,6 +624,23 @@
           "updated_at": "2026-11-27T16:32:31.383830Z"
         }
       ]
+    },
+    {
+      "category": "设计原型",
+      "description": "",
+      "id": "reports/automation-execution-ui",
+      "project": "",
+      "title": "自动化任务执行详情原型",
+      "versions": [
+        {
+          "digest": "0fd64844349e7b2a3571022ef01821515b13db105e715ae30f12172b53f18f3f",
+          "label": "v1",
+          "path": "reports/automation-execution-ui",
+          "published_at": "2026-11-27T16:56:28.390695Z",
+          "summary": "在运行记录中展开输出、工具步骤、错误与补跑结果",
+          "updated_at": "2026-11-27T16:56:28.390695Z"
+        }
+      ]
     }
   ]
 }
