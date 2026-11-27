@@ -496,6 +496,14 @@
           "published_at": "2026-11-27T11:11:09.882755Z",
           "summary": "修订 Bot 定位和智能体主页，补充公开产品参考",
           "updated_at": "2026-11-27T11:11:09.882755Z"
+        },
+        {
+          "digest": "c7d00bd43248df011c566fe61374e5efda2388864c6735064ed3bc23c65f396c",
+          "label": "v3",
+          "path": "reports/agent-workflow-design-v3",
+          "published_at": "2026-11-27T12:30:08.345534Z",
+          "summary": "同一 Task 多 Bot 分工、独立 Session、状态机和首版验收",
+          "updated_at": "2026-11-27T12:30:08.345534Z"
         }
       ]
     },
