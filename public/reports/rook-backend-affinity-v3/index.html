@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rook 多机执行归属</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+
+/* 报告专用样式 */
+.scheme-head { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; margin-top:28px; }
+.scheme-head h3 { margin:0; }
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-title">On this page</div>
+  <a href="#tldr">TL;DR</a>
+  <a href="#now">现状和问题</a>
+  <a href="#refs">调研和参考</a>
+  <a href="#rec">推荐：Session 跟着执行机器</a>
+  <a href="#success">成功率</a>
+  <a href="#alt">备选方案</a>
+  <a href="#compare">对比</a>
+  <a href="#plan">顺序和风险</a>
+</nav>
+
+<main>
+
+  <header>
+    <div class="head-top">
+      <h1>Rook 多机执行归属</h1>
+    </div>
+    <p class="subtitle">多台 Rook Backend 共用一个 MySQL 时，一项工作该由谁执行。目标按优先级排：用户响应快、执行成功率高、Session 留在上次执行的机器上。依据是 Rook main 的代码、Sage 与 Multica 源码、Codex App Server 源码和公开系统的一手资料；方案经过一轮对照代码的独立 review。</p>
+  </header>
+
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">TL;DR</div>
+    <p>会话目录在容器本地盘上，换机器就没有了；原生 context 存在 MySQL，换机器能恢复。所以跟着机器走的单位是 Session，不是用户。推荐每台 Backend 每 5 秒写一行心跳，Session 记下上次的执行机器。那台还活着，就只由它执行；它丢了、draining 或缺能力，任何没满的机器都能接手。新 Session 交给任何没满的机器，扩容的 pod 立刻能接到。Chat 和离线任务组用同一条规则，离线任务按任务分发，每个任务落到它的 Task 会话。成功率另靠五件事：能力门槛、满载不报错、单用户上限按全局统计、发布时排空、离线任务中断后安全重排。只执行一次仍靠现有的 <code>FOR UPDATE</code> 和 <code>active_run_id</code>。</p>
+  </div>
+
+  <section id="now">
+    <h2>现状和问题</h2>
+    <hr class="rule">
+    <p class="lede">今天谁在领取工作，靠什么保证只执行一次，哪里会让用户等或者失败。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>入口</th><th>周期</th><th>怎么领取</th><th>依据</th></tr></thead>
+        <tbody>
+          <tr><td>用户直接发送，Session 空闲</td><td>请求时</td><td>接收 POST 的 Backend 当场 <code>beginRun</code></td><td><code>src/chat/manager.ts:298</code></td></tr>
+          <tr><td>外部 Agent、MCP 直接发送</td><td>请求时</td><td>同上，不经过 Queue</td><td><code>src/chat/agent-operations.ts:98</code>、<code>src/mcp.ts:100</code></td></tr>
+          <tr><td>Queue 派发（排队消息、智能体跟进、定时任务）</td><td class="num">1 s</td><td><code>beginRun</code> 对 Session 行加 <code>FOR UPDATE</code>，写 <code>active_run_id</code> 和 30 秒 <code>lease_expires_at</code>，再 CAS 消费 Queue 项</td><td><code>src/chat/manager.ts:114</code>、<code>src/chat/store.ts:455-487</code></td></tr>
+          <tr><td>Run 续约</td><td class="num">5 s</td><td>续约前核对 <code>active_run_id</code> 等于自己的 runId</td><td><code>src/chat/store.ts:715-722</code></td></tr>
+          <tr><td>Kanban 跟进</td><td class="num">10 s</td><td>按批次占用，再进 Queue</td><td><code>src/agent-tasks.ts:312-331</code></td></tr>
+          <tr><td>定时任务</td><td class="num">5 s</td><td>CAS 落定时调用；<code>queueWrites</code> 开启时入队，关闭时抢到 tick 的机器直接 <code>send</code></td><td><code>src/automation/service.ts:927-939</code></td></tr>
+          <tr><td>优雅退出</td><td>SIGTERM</td><td>最多等 25 秒，之后正在跑的 Run 标 <code>interrupted</code></td><td><code>src/server.ts:556-562</code>、<code>src/chat/store.ts:774</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="points">
+      <li><strong>只执行一次已经有保障（实测代码）。</strong>Session 行锁、<code>active_run_id</code> 校验和 Queue 消费在同一个 MySQL 事务里（<code>src/chat/manager.ts:191-193</code>），作用接近 Kleppmann 说的 fencing token。MySQL 之外的副作用不受这层保护（推断）。</li>
+      <li><strong>会话文件只在执行过的机器上（实测）。</strong><code>/data</code> 是容器本地盘，不挂数据卷，Pod 替换后重建（<code>deployment.md:771</code>）。会话仓库根是同一 Session 所有 Run 共用的目录（<code>CONTEXT.md:65</code>）。原生 context 的 checkpoint 只存 MySQL（<code>CONTEXT.md:57</code>），换机器能恢复，文件不能。今天 Multica 和 Rook 正式环境共用 MySQL，一个 Session 的下一条排队消息可能被另一个部署领走，在那边看不到上次的文件（推断）。</li>
+      <li><strong>满载直接报错（实测代码）。</strong>直接发送碰到本机 <code>activeRuns</code>（默认 4）或单用户上限，返回 503 <code>chat_run_overloaded</code>（<code>src/chat/manager.ts:277-282</code>），即使别的机器空着。</li>
+      <li><strong>并发上限是单机的（实测代码）。</strong><code>userActiveRuns</code>（默认 2）只统计本机（<code>src/chat/manager.ts:281</code>）。智能体 Run 的 actor 是 <code>runAs</code>（<code>src/agent-tasks.ts:328</code>），内置 Rook 的全部跟进和管理员自己的 Chat 共用这 2 个名额。</li>
+      <li><strong>发布会打断离线任务且不重跑（实测代码）。</strong>智能体批次落成「智能体运行中断。」（<code>src/agent-tasks.ts:393-395</code>），Queue 暂停（<code>src/chat/manager.ts:173-175</code>）。</li>
+      <li><strong>旧版本不看任何新规则（实测）。</strong>Multica 发布后，<code>tools</code> 为空的 RK-24 用例仍拿到了凭据。旧代码派发全部 target（<code>src/chat/manager.ts:148-150</code>），丢掉不认识的 Queue 字段。</li>
+      <li><strong>浏览器不固定连一台机器（实测）。</strong>SLB 上只有一条 <code>/</code> 路由，没有 hash 或 cookie。SSE 从 MySQL 每 200 毫秒读事件（<code>src/chat/api.ts:283-307</code>），停止走 MySQL 的 <code>stopping</code> 加续约检查（<code>src/chat/store.ts:617</code>、<code>:708</code>），所以接请求的机器不必是执行的机器。</li>
+    </ul>
+  </section>
+
+<section id="refs">
+    <h2>调研和参考</h2>
+    <hr class="rule">
+    <p class="lede">分布式调度、IM、Agent 服务端三类系统怎么回答「一项工作由谁执行」。数字都来自原始文档或源码，链接在本节末尾。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>系统</th><th>归属单位</th><th>怎么找到持有者</th><th>关键数字</th><th>持有者丢失后</th><th>Rook 借鉴什么</th></tr></thead>
+        <tbody>
+          <tr><td>微信 seqsvr</td><td>uid 段（10 万个 uid）</td><td>仲裁者写路由表，AllocSvr 在响应里带回路由表，客户端自己纠正</td><td>每天万亿次调用；p99.9 小于 3 ms</td><td>AllocSvr 读不到配置 N 秒就停止服务，新持有者等 N 秒后才接手</td><td>按用户归属一台机器；新持有者等旧租约过期再接手</td></tr>
+          <tr><td>Slack</td><td>channel（可以是用户、团队、频道）</td><td>channel ID 一致性哈希，环由 CHARM 管理、Consul 发布；Gateway 持有 websocket</td><td>每台峰值约 1600 万 channel；全球投递约 500 ms</td><td>替换的 Channel Server 20 秒内接管</td><td>连接层和持有者分开，Rook 的 SSE 已经是这样</td></tr>
+          <tr><td>Discord</td><td>guild 一个 Elixir 进程，每个客户端一个 session 进程</td><td>一致性哈希环</td><td>重启后 50 万 session 约 30 s 查环</td><td>计划内迁移会复制状态再切换；客户端按序号 <code>s</code> Resume 补事件</td><td>按序号补事件，Rook 的 Run 事件 <code>seq</code> 已经支持</td></tr>
+          <tr><td>Codex App Server</td><td>thread</td><td>单机；一个进程可接多个客户端，同一 thread 的事件推给所有订阅连接</td><td>无订阅且空闲 60 s 后卸载 thread</td><td>每个 thread 一个写锁文件（<code>flock</code>），另一进程 resume 会报冲突；不支持多机或故障转移</td><td>一个 thread 同一时刻只有一个写者；客户端断开不打断 Turn</td></tr>
+          <tr><td>Sage（c051d8b）</td><td>Session；定时任务</td><td>接住 WebSocket 的 pod 执行；定时任务每个 pod 轮询，CAS 选一个</td><td>Turn 租约 90 s、5 s 续约；定时轮询 60 s</td><td>下一个请求在租约过期后领取，孤儿 Turn 标中断不重跑；定时 run 按阶段回收</td><td>每次领取换新 token、写前写后都校验；定时 CAS 加唯一键</td></tr>
+          <tr><td>Multica（c33158b）</td><td>智能体绑定 runtime</td><td>任务带 <code>runtime_id</code>，只有在线且心跳新鲜的那个 runtime 能领</td><td>心跳 15 s；150 s 判离线</td><td>不转给别的 runtime，换 runtime 要重新绑定</td><td>能力按名字声明（<code>X-Client-Capabilities</code>）；Rook 缺能力不领，而不是让任务失败</td></tr>
+          <tr><td>Temporal sticky</td><td>workflow</td><td>执行过的 worker 轮询一条只有它能读的 sticky 队列</td><td>sticky 超时默认 5 s</td><td>5 秒没人领就回到普通队列</td><td>备选方案 C 的原型</td></tr>
+          <tr><td>Kubernetes Lease</td><td>任意对象</td><td><code>holderIdentity</code>、<code>renewTime</code>，<code>resourceVersion</code> 乐观并发</td><td>client-go 默认 15 s 租约、10 s 续约截止、2 s 重试</td><td>租约到期后其他候选者抢；client-go 明说不提供 fencing</td><td>绑定租约的写法；需要选主时直接套用</td></tr>
+          <tr><td>Orleans</td><td>grain</td><td>成员表每个 silo 一行，键含启动 epoch</td><td>10 s 探测，3 次未响应起疑，2 票判死</td><td>被判死的 silo 只能以新 epoch 回来</td><td>实例身份用 pod 名加启动 UUID</td></tr>
+          <tr><td>Akka Cluster Sharding</td><td>分片</td><td>最老节点上的单例协调者分配</td><td>10 s 重平衡；交接超时 60 s</td><td>崩溃节点移出集群后重新分配</td><td>滚动发布时不往旧版本节点分配</td></tr>
+          <tr><td>Kleppmann 分布式锁</td><td>锁</td><td>锁服务发单调递增 token</td><td>无</td><td>存储拒绝更小的 token</td><td>租约不等于互斥，保留 <code>active_run_id</code> 校验</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="points">
+      <li><strong>都是三层。</strong>无状态的连接层、每个 key 一个有状态持有者、持久日志。消息通过共享映射找到持有者，映射带版本或租约。</li>
+      <li><strong>没有系统迁移正在执行的工作。</strong>持有者丢了，新持有者从日志重建；进行中的工作要么重试，要么标中断。Discord 的热迁移只用于计划内迁移。Rook 沿用现有的 <code>recoverExpired</code>。</li>
+      <li><strong>按用户归属有先例。</strong>微信按 uid 段，Slack 的 channel 可以就是一个用户。Multica 也是硬绑定，只是它不转移，Rook 要在租约过期后转移。</li>
+      <li><strong>只有 Akka 和 Temporal 主动把工作从旧版本引开。</strong>Sage 靠停机发布，Multica 在领取后才检查能力。</li>
+    </ul>
+    <details class="fold">
+      <summary>参考链接与源码位置</summary>
+      <div class="fold-body">
+        <ul>
+          <li>微信 seqsvr：<a href="https://cloud.tencent.com/developer/article/1004444">架构（一）</a>、<a href="https://cloud.tencent.com/developer/article/1004445">容灾（二）</a>。长连接推送路径未读，未核对。</li>
+          <li>Slack：<a href="https://slack.engineering/real-time-messaging/">Real-time Messaging</a>。离线补拉路径未核对。</li>
+          <li>Discord：<a href="https://discord.com/blog/how-discord-scaled-elixir-to-5-000-000-concurrent-users">5M concurrent users</a>、<a href="https://discord.com/blog/maxjourney-pushing-discords-limits-with-a-million-plus-online-users-in-a-single-server">Maxjourney</a>、<a href="https://discord.com/developers/docs/events/gateway">Gateway Resume</a>、<a href="https://discord.com/blog/how-discord-stores-trillions-of-messages">消息存储</a>。guild 节点崩溃后的行为未核对。</li>
+          <li>WhatsApp：只有<a href="https://blog.whatsapp.com/1-million-is-so-2011">单机 200 万连接</a>一条一手资料，归属模型未核对，表中未列。</li>
+          <li>Codex App Server：<a href="https://learn.chatgpt.com/docs/app-server">协议文档</a>；openai/codex <code>b9e830f</code> 的 <a href="https://github.com/openai/codex/blob/b9e830fb986ae478ce59c3c97408bdfa1bd5ddab/codex-rs/rollout/src/writer_lock.rs#L45">writer_lock.rs</a>、<a href="https://github.com/openai/codex/blob/b9e830fb986ae478ce59c3c97408bdfa1bd5ddab/codex-rs/thread-store/src/local/mod.rs#L402">resume 冲突</a>、<a href="https://github.com/openai/codex/blob/b9e830fb986ae478ce59c3c97408bdfa1bd5ddab/codex-rs/app-server/src/request_processors/thread_processor.rs#L4023">断开只取消订阅</a>、<a href="https://github.com/openai/codex/blob/b9e830fb986ae478ce59c3c97408bdfa1bd5ddab/codex-rs/app-server/src/request_processors/thread_lifecycle.rs#L41">60 s 卸载</a>。崩溃中断的 Turn 怎么处理未核对。</li>
+          <li>Temporal：<a href="https://docs.temporal.io/sticky-execution">sticky execution</a>、<a href="https://docs.temporal.io/worker-versioning">worker versioning</a></li>
+          <li>Kubernetes：<a href="https://kubernetes.io/docs/concepts/architecture/leases/">Leases</a>、<a href="https://github.com/kubernetes/client-go/blob/master/tools/leaderelection/leaderelection.go">client-go leaderelection.go</a></li>
+          <li>Orleans：<a href="https://learn.microsoft.com/en-us/dotnet/orleans/implementation/cluster-management">cluster management</a>。同一页对 IAmAlive 周期有 30 s 和 5 min 两种说法，表中未采用。</li>
+          <li>Akka：<a href="https://doc.akka.io/libraries/akka-core/current/typed/cluster-sharding.html">cluster sharding</a>、<a href="https://doc.akka.io/libraries/akka-core/current/additional/rolling-updates.html">rolling updates</a></li>
+          <li>Kleppmann：<a href="https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html">How to do distributed locking</a></li>
+          <li>Sage <code>c051d8b</code>：<code>src/agent/session-turn-lease.ts:16-18</code>、<code>:122-123</code>、<code>:165-218</code>、<code>:183-207</code>；<code>src/server.ts:507</code>；<code>src/scheduled-tasks/dal.ts:288-291</code>、<code>:413-415</code>、<code>:502-515</code>；<code>docs/schema.sql:156</code>。「SIGSTOP 暂停 61 秒后旧写入被拒」只出现在 Sage 文档里，未复测。</li>
+          <li>Multica <code>c33158b</code>：<code>server/pkg/db/queries/agent.sql:728-789</code>、<code>:850-899</code>；<code>server/internal/service/task.go:200-206</code>；<code>server/internal/daemon/config.go:30</code>；<code>server/internal/handler/daemon.go:2015-2057</code>、<code>:2931</code>。它用的是 PostgreSQL。</li>
+          <li>Rendezvous 哈希只读到 <a href="https://en.wikipedia.org/wiki/Rendezvous_hashing">Wikipedia</a>（二手），原始论文未能提取正文。</li>
+        </ul>
+      </div>
+    </details>
+  </section>
+  <section id="rec">
+    <h2>推荐：Session 跟着执行机器</h2>
+    <hr class="rule">
+    <p class="lede">一条规则覆盖 Chat 和离线任务组。Session 的文件在哪台机器，下一次就在哪台执行。</p>
+    <div class="scheme-head"><h3>实例心跳加 Session 执行机器</h3><span class="tag accent">推荐</span><span class="tag neutral">由方案 A 演变，Orleans、Multica 式</span></div>
+    <ul class="points">
+      <li><strong>数据。</strong>新表 <code>rook_backend_member_v1</code> 每台一行：<code>instance_id</code>（pod 名加启动 UUID）、<code>capabilities</code>、<code>draining</code>、<code>heartbeat_at</code>，每 5 秒写一次，15 秒没更新算丢失。Session 加一列 <code>executor_instance</code>，<code>beginRun</code> 在已经锁住的 Session 行上顺手写入，不多一次事务。</li>
+      <li><strong>规则。</strong>执行机器还活着、没有 draining、有这项工作要的能力，就只由它执行，它满了也等它。否则任何能力合格、没满的机器都能执行，执行时写成自己。新 Session 没有执行机器，谁先领谁执行。</li>
+      <li><strong>为什么满了也等。</strong>换机器会丢掉会话文件，Agent 找不到上一轮写的东西，比多等一会儿更伤成功率。一台不会忙到卡死，因为每台有 <code>activeRuns</code> 上限，新 Session 会落到别的机器。</li>
+      <li><strong>扩容。</strong>新 pod 一上线就能领新 Session 和丢了执行机器的 Session，不需要重平衡。已有 Session 不迁移。</li>
+      <li><strong>发布。</strong>SIGTERM 时先把自己标 <code>draining</code>，别的机器下一秒就能接新工作。Pod 替换后本地盘重建，旧 Session 由谁先领谁执行，原生 context 从 MySQL 恢复。</li>
+    </ul>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>工作</th><th>类别</th><th>在哪执行</th><th>要改什么</th></tr></thead>
+        <tbody>
+          <tr><td>用户直接发送</td><td>Chat</td><td>执行机器是自己或已经不在，就当场执行；否则交给执行机器</td><td>交给别人时入队，接口返回 <code>requestId</code>，Web 按它跟进 Run；修掉 <code>src/chat/manager.ts:302</code> 的 409</td></tr>
+          <tr><td>外部 Agent、MCP 直接发送</td><td>Chat</td><td>同上</td><td>同上</td></tr>
+          <tr><td>排队消息</td><td>Chat</td><td>Session 的执行机器</td><td>Queue 派发先看 <code>executor_instance</code></td></tr>
+          <tr><td>智能体跟进、内置 Rook</td><td>离线任务组</td><td>按任务分发，落到 Task 会话的执行机器；新 Task 会话谁有空谁领</td><td>同上；Kanban 占批次本身不变</td></tr>
+          <tr><td>自动化投递</td><td>离线任务组</td><td>目标 Session 的执行机器</td><td>全部实例升级后打开 <code>queueWrites</code>，不再有直接 <code>send</code></td></tr>
+          <tr><td>自动化试跑</td><td>离线任务组</td><td>接住请求的机器，用独立 Session</td><td>不变</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="points">
+      <li><strong>不按用户绑定（推断）。</strong>按用户绑定的收益是常驻 Pi worker 和本地文件。文件按 Session 存，原生 context 在 MySQL，所以 Session 粒度已经拿到主要收益。常驻 worker 的冷启动代价没量过。按用户绑定还会把内置 Rook 的全部跟进压到一台。</li>
+      <li><strong>不做一致性哈希和重平衡（推断）。</strong>每个应用一个副本（<code>deployment.md:328</code>），每次发布实例身份都会变。新 Session 谁有空谁领，已经能把负载摊开。</li>
+      <li><strong>代价。</strong>一张表加一列，要走 DDL 审批。执行机器满载时，它的 Session 要排队。</li>
+    </ul>
+  </section>
+
+  <section id="success">
+    <h2>成功率：另外五件事</h2>
+    <hr class="rule">
+    <p class="lede">归属解决「在哪执行」。下面五件事解决「会不会失败」，按影响排序。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>问题</th><th>做法</th><th>参考</th></tr></thead>
+        <tbody>
+          <tr><td>旧版本领了新语义的工作（RK-24）</td><td>启动时声明 <code>capabilities</code>，新语义的工作带 <code>requires</code>，领取前核对，没有就不领。Rook 正式环境先升级一次。<code>requires</code> 超过 10 分钟没人能领，就把任务落成失败并说明原因，不永远停在运行中</td><td>Multica 的 <code>X-Client-Capabilities</code>；<code>ROOK_AUTOMATION_DSH_WRITES</code> 先升级再打开的做法</td></tr>
+          <tr><td>满载返回 503</td><td>直接发送碰到本机上限时改为入队，返回 <code>requestId</code>，由执行机器或别的机器接着跑</td><td>Queue 派发已经这样跳过满载（<code>src/chat/manager.ts:199</code>）</td></tr>
+          <tr><td>单用户上限只算本机；内置 Rook 占管理员名额</td><td>在按用户的行锁下从 MySQL 统计正在跑的 Run；智能体 Run 用自己的名额，不占 owner 的 Chat 名额。同步改 <code>CONTEXT.md</code> 的「每人并发 Run 上限」</td><td>无</td></tr>
+          <tr><td>发布打断正在跑的 Run</td><td>SIGTERM 后先 <code>draining</code>，不再领新工作，等正在跑的 Run 结束，等待时长按 Pod 的退出宽限期定</td><td>Akka 滚动发布、Kubernetes 退出宽限期</td></tr>
+          <tr><td>离线任务中断后不重跑</td><td>中断时还没调用过任何工具，自动重排一次；调用过工具的标 unknown，不重跑，让 owner 处置。Chat Run 不自动重跑</td><td>Sage 按阶段回收：<code>prepared</code> 重试，<code>model_started</code> 标 unknown</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="alt">
+    <h2>备选方案</h2>
+    <hr class="rule">
+    <p class="lede">讨论过、没有采用的四套方案。</p>
+    <div class="scheme-head"><h3>方案 D：owner 绑定</h3><span class="tag neutral">微信 seqsvr 式</span></div>
+    <ul class="points">
+      <li><strong>做法。</strong>每个 owner 一行带租约的绑定，Chat、智能体跟进、定时任务都按运行身份找绑定的机器。满载时溢出到别的机器。</li>
+      <li><strong>没采用的原因。</strong>溢出会让 Session 离开它的文件。内置 Rook 以管理员为运行身份，全部跟进集中到一台。</li>
+    </ul>
+    <div class="scheme-head"><h3>方案 D 加一致性哈希和重平衡</h3><span class="tag neutral">Slack、Discord 式</span></div>
+    <ul class="points">
+      <li><strong>做法。</strong>新 owner 按 Rendezvous 哈希放到没满的成员上，副本数稳定变化后释放空闲且目标已变的绑定。</li>
+      <li><strong>没采用的原因。</strong>一个副本、频繁发布时，亲和只在两次发布之间有效，重平衡的稳定窗口还要挡住 <code>maxSurge</code> 和崩溃重建。</li>
+    </ul>
+    <div class="scheme-head"><h3>方案 B：Session 执行租约</h3><span class="tag neutral">Kubernetes Lease 式</span></div>
+    <ul class="points">
+      <li><strong>做法。</strong>Session 加 <code>executor_instance</code> 和 <code>executor_until</code>，持有者给还有 Pi worker 的 Session 续约。</li>
+      <li><strong>没采用的原因。</strong>续约写入随热 Session 数增长；租约一过期，文件还在的 Session 也会被领走。</li>
+    </ul>
+    <div class="scheme-head"><h3>方案 C：粘性派发加超时回落</h3><span class="tag neutral">Temporal sticky 式</span></div>
+    <ul class="points">
+      <li><strong>做法。</strong>Run 结束时在 Queue 文档里记 <code>executor</code>，5 秒内只有它能领。不需要 DDL。</li>
+      <li><strong>没采用的原因。</strong>没有存活判断，执行机器卡顿超过 5 秒，Session 就会离开它的文件。直接发送不受约束。</li>
+    </ul>
+
+    <figure>
+      <div class="chart">
+        <svg viewBox="0 0 640 210" role="img" aria-label="pod 被强杀后多久交接">
+          <line x1="150" y1="20" x2="150" y2="180" stroke="var(--line)" stroke-width="1.5"/>
+          <line x1="150" y1="180" x2="620" y2="180" stroke="var(--line)" stroke-width="1.5"/>
+          <line x1="300" y1="20" x2="300" y2="180" stroke="var(--line-soft)" stroke-width="1"/>
+          <line x1="450" y1="20" x2="450" y2="180" stroke="var(--line-soft)" stroke-width="1"/>
+          <line x1="600" y1="20" x2="600" y2="180" stroke="var(--line-soft)" stroke-width="1"/>
+          <text x="150" y="198" font-size="12" fill="var(--muted)" text-anchor="middle">0 s</text>
+          <text x="300" y="198" font-size="12" fill="var(--muted)" text-anchor="middle">10 s</text>
+          <text x="450" y="198" font-size="12" fill="var(--muted)" text-anchor="middle">20 s</text>
+          <text x="600" y="198" font-size="12" fill="var(--muted)" text-anchor="middle">30 s</text>
+          <text x="140" y="44" font-size="13" fill="var(--ink)" text-anchor="end">推荐 心跳过期</text>
+          <rect x="150" y="30" width="225" height="20" rx="4" fill="var(--accent)"/>
+          <text x="140" y="84" font-size="13" fill="var(--ink)" text-anchor="end">D 绑定租约</text>
+          <rect x="150" y="70" width="450" height="20" rx="4" fill="var(--line)"/>
+          <text x="140" y="124" font-size="13" fill="var(--ink)" text-anchor="end">B 租约过期</text>
+          <rect x="150" y="110" width="450" height="20" rx="4" fill="var(--line)"/>
+          <text x="140" y="164" font-size="13" fill="var(--ink)" text-anchor="end">C 回落窗口</text>
+          <rect x="150" y="150" width="75" height="20" rx="4" fill="var(--line)"/>
+        </svg>
+      </div>
+      <figcaption>pod 被强杀时的最长交接等待（推断，按设计参数算，未实测）。正常发布走 SIGTERM，推荐方案标 draining、D 释放绑定、B 清租约，都能立刻交接；C 仍要等 5 秒。</figcaption>
+    </figure>
+  </section>
+
+  <section id="compare">
+    <h2>对比</h2>
+    <hr class="rule">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>推荐</th><th>D owner 绑定</th><th>B Session 租约</th><th>C 粘性回落</th></tr></thead>
+        <tbody>
+          <tr><td>亲和单位</td><td>Session</td><td>owner</td><td>Session</td><td>Session</td></tr>
+          <tr><td>文件还在时会不会换机器</td><td>不会</td><td>满载溢出时会</td><td>租约过期时会</td><td>5 秒后会</td></tr>
+          <tr><td>覆盖的入口</td><td>全部</td><td>全部</td><td>Queue 派发</td><td>Queue 派发</td></tr>
+          <tr><td>满载时</td><td>已有 Session 等，新 Session 去别处</td><td>溢出到别处</td><td>等</td><td>5 秒后被别人领</td></tr>
+          <tr><td>DDL</td><td>一张表加一列</td><td>一张表</td><td>两列</td><td>无</td></tr>
+          <tr><td>持续写入</td><td>每台每 5 秒 1 行</td><td>每台每 5 秒 1 条</td><td>每台每 5 秒 1 条，影响所有热 Session</td><td>无</td></tr>
+          <tr><td>强杀后交接</td><td class="num">≤ 15 s</td><td class="num">≤ 30 s</td><td class="num">≤ 30 s</td><td class="num">≤ 5 s</td></tr>
+          <tr><td>内置 Rook</td><td>按 Task 会话分散</td><td>集中到管理员绑定的机器</td><td>分散</td><td>分散</td></tr>
+          <tr><td>只执行一次</td><td colspan="4">相同，靠现有 <code>FOR UPDATE</code> 和 <code>active_run_id</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="plan">
+    <h2>顺序和风险</h2>
+    <hr class="rule">
+    <p class="lede">按对成功率的影响排序，每一步单独可验收。</p>
+    <ol>
+      <li>能力门槛：启动时声明 <code>capabilities</code>，Queue、Kanban、自动化三个入口核对 <code>requires</code>。发布 Rook 正式环境，再打开 <code>queueWrites</code>。</li>
+      <li>满载不报错：直接发送碰到上限时入队并返回 <code>requestId</code>，Web 按它跟进 Run。</li>
+      <li>单用户上限按全局统计，智能体 Run 单独名额。</li>
+      <li>发布排空，离线任务在没调用工具时中断就重排一次。</li>
+      <li>按 RDS 规范写 <code>rook_backend_member_v1</code> 和 <code>executor_instance</code> 的 DDL，过 <code>npm run rds:check</code> 和线上 <code>sql_check</code>，提交审批，再实现执行机器规则。</li>
+      <li>用业务用例验收：同一 Session 的连续消息落在同一台；执行机器停止后另一台接手；满载时直接发送不再 503；缺能力的 Backend 不领 <code>tools</code> 为空的工作。两个环境都发布后重跑 RK-24 和定时任务的 SSO 检查。</li>
+    </ol>
+    <div class="callout warn">
+      <div class="callout-title">未验证和风险</div>
+      <p>15 秒心跳过期、10 分钟 <code>requires</code> 超时是参考 Kubernetes 和经验取的，没有实测。<code>activeRuns=4</code> 和单台 16 核 32 GiB 的实际承载力没有量过，调高上限可能是改善排队最便宜的办法。常驻 Pi worker 的冷启动代价没量过。Pod 的退出宽限期没查。Rook 正式环境升级之前，<code>tools</code> 为空的限制在线上仍然不可靠。</p>
+    </div>
+  </section>
+
+  <footer>
+    Sources: Rook main 80b5597 源码（文中标注 file:line）、Sage c051d8b、Multica 团队分支 c33158b、openai/codex b9e830f、调研一节所列公开文档；SLB 路由来自 SLB 平台只读查询；线上现象来自 2026-11-27 Multica 发布验收；方案 review 由另一个模型对照代码完成 &nbsp;—&nbsp; generated 2026-11-27
+  </footer>
+
+</main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

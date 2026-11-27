@@ -429,6 +429,14 @@
           "published_at": "2026-11-26T23:27:25.819411Z",
           "summary": "v2：推荐 owner 绑定 server，租约过期由任意机器接手；补 Sage、Codex App Server、Slack、Discord、微信 seqsvr 调研",
           "updated_at": "2026-11-26T23:27:25.819411Z"
+        },
+        {
+          "digest": "2c235576f04bd7d08e02cef0fe4727bd2515a2968944fbaa88611bd107fc03e9",
+          "label": "v3",
+          "path": "reports/rook-backend-affinity-v3",
+          "published_at": "2026-11-27T00:02:41.431818Z",
+          "summary": "v3：会话文件在本地盘，亲和单位改为 Session；执行机器活着就由它执行；补成功率五件事；吸收独立 review",
+          "updated_at": "2026-11-27T00:02:41.431818Z"
         }
       ]
     }
