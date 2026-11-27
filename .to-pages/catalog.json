@@ -616,12 +616,12 @@
       "title": "独立自动化执行设计评审",
       "versions": [
         {
-          "digest": "d277290ae20d30ca23caa8e19ac91b2720aecd43a6fab32cfee8e345c33da59a",
+          "digest": "c8310d52140b0b86b06b7e5c9d5cc268e1c6a0156c76e1368399496ee8cdcfd1",
           "label": "v1",
           "path": "reports/scheduled-execution-review",
           "published_at": "2026-11-27T16:27:26.709851Z",
-          "summary": "状态机、到期持久化、执行恢复和结果保存",
-          "updated_at": "2026-11-27T16:27:26.709851Z"
+          "summary": "默认展示状态机图，补充触发、执行、记录与 DSH 协同",
+          "updated_at": "2026-11-27T16:32:31.383830Z"
         }
       ]
     }
