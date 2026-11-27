@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>模型迭代端到端 AI-native 建设</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+/* 报告专用样式 */
+
+.brief-toolbar { display:flex; align-items:center; gap:8px; }
+.brief-button { font:inherit; font-size:12px; color:var(--muted); background:var(--surface); border:var(--border); border-radius:var(--radius-sm); padding:6px 11px; cursor:pointer; }
+.brief-button:hover { color:var(--accent-strong); border-color:var(--accent); }
+.brief-button:focus-visible, summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.brief-kicker { color:var(--accent); font:500 11px var(--mono); letter-spacing:.1em; margin-bottom:9px; }
+.brief-section-no { color:var(--accent); font-family:var(--mono); font-size:14px; margin-right:10px; }
+.brief-diagram svg { min-width:860px; font-family:var(--sans); }
+.brief-note { margin-top:14px; color:var(--muted); font-size:13px; }
+.brief-table { min-width:700px; table-layout:fixed; }
+.brief-table td { padding:9px 14px; }
+.brief-table .brief-module { vertical-align:top; font-weight:650; background:var(--line-soft); }
+.brief-table .brief-capability { font-weight:600; }
+.brief-table .brief-group-start td { border-top:1.5px solid var(--line); }
+.brief-source { margin-top:20px; }
+.brief-source h3 { margin-top:18px; }
+.brief-reference-image { display:block; width:100%; height:auto; margin:12px 0 20px; background:var(--surface); border:var(--border); border-radius:var(--radius-sm); }
+.brief-theme-dark .brief-reference-image { background:var(--surface); }
+.brief-boundary { margin-top:20px; }
+@media print {
+  body { padding:0; font-size:12px; }
+  .brief-toolbar, nav.toc, .brief-source { display:none; }
+  main { max-width:none; }
+  header { margin-bottom:20px; }
+  section { break-inside:avoid; margin-bottom:26px; }
+  .chart { padding:12px; }
+  .brief-diagram svg { min-width:0; }
+  .table-wrap { overflow:visible; }
+  .brief-table { min-width:0; }
+}
+
+</style>
+</head>
+<body>
+
+<nav class="toc" aria-label="章节导航">
+  <div class="toc-title">方案讲解</div>
+  <a href="#layers">五层能力</a><a href="#relations">业务场景</a><a href="#flows">任务闭环</a><a href="#focus">模块独立能力</a><a href="#research">相关建设调研</a>
+</nav>
+<main>
+  <header>
+    <div class="brief-kicker">模型工程 · 方案草稿</div>
+    <div class="head-top">
+      <h1>模型迭代端到端 AI-native 建设</h1>
+      <div class="brief-toolbar"><button class="brief-button" id="theme-toggle" type="button" aria-pressed="false">切换深色</button><button class="brief-button" id="print-button" type="button">打印正文</button></div>
+    </div>
+    <p class="subtitle">五层能力架构 · 以业务目标为入口 · 模型迭代与运维开发闭环</p>
+  </header>
+
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">建设目标</div>
+    <p>让 Agent 理解模型工程，具备专业诊断能力，并逐步完成模型迭代与运维开发闭环。</p>
+  </div>
+
+  <section id="layers">
+    <h2><span class="brief-section-no">01</span>五层能力，各有职责</h2>
+    <hr class="rule">
+    <p class="lede">以端到端模型迭代为目标，1 至 3 层提供可独立调用的知识与证据，第四层聚焦单模块及直接上下游的专业诊断，第五层编排调研、实验与运维开发闭环。五层按职责划分，可并行建设。</p>
+    <figure><div class="chart wide brief-diagram"><svg viewBox="0 0 1000 580" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="layers-title layers-desc">
+<title id="layers-title">五层能力架构</title><desc id="layers-desc">代码层、业务理解层和运行态层按需支撑业务诊断与架构探索诊断，再支撑模型迭代与运维开发闭环。五层是职责划分，可按任务组合。</desc>
+<defs><marker id="layers-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"/></marker></defs>
+<text x="30" y="54" fill="var(--accent)" font-size="30" font-weight="650" text-anchor="start">5</text><text x="28" y="80" fill="var(--muted)" font-size="15" font-weight="400" text-anchor="start">目标闭环</text><text x="30" y="209" fill="var(--accent)" font-size="30" font-weight="650" text-anchor="start">4</text><text x="28" y="235" fill="var(--muted)" font-size="15" font-weight="400" text-anchor="start">专业分析</text><text x="30" y="349" fill="var(--accent)" font-size="30" font-weight="650" text-anchor="start">3</text><text x="28" y="375" fill="var(--muted)" font-size="15" font-weight="400" text-anchor="start">实际证据</text><text x="30" y="440" fill="var(--accent)" font-size="30" font-weight="650" text-anchor="start">2</text><text x="28" y="466" fill="var(--muted)" font-size="15" font-weight="400" text-anchor="start">业务语义</text><text x="30" y="531" fill="var(--accent)" font-size="30" font-weight="650" text-anchor="start">1</text><text x="28" y="557" fill="var(--muted)" font-size="15" font-weight="400" text-anchor="start">实现机制</text><path d="M 140 528 H 115 V 291 H 770 M 140 437 H 115 M 140 346 H 115" fill="none" stroke="var(--accent)" stroke-width="1.7"/><path d="M 337 291 V 270" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#layers-arrow)"/><path d="M 770 291 V 270" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#layers-arrow)"/><path d="M 337 165 V 120" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#layers-arrow)"/><path d="M 770 165 V 120" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#layers-arrow)"/><text x="350" y="146" fill="var(--muted)" font-size="15" font-weight="400" text-anchor="start">形成方案</text><text x="784" y="146" fill="var(--muted)" font-size="15" font-weight="400" text-anchor="start">形成方案</text><g class="diagram-node"><rect x="140" y="10" width="395" height="110" rx="10" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/><text x="158" y="40" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">5.1 业务 auto-research</text><text x="158" y="68" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">编排假设验证、改动与多组训练</text><text x="158" y="92" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">按问题验收，交付报告与候选模型</text></g><g class="diagram-node"><rect x="560" y="10" width="420" height="110" rx="10" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/><text x="578" y="40" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">5.2 运维自动能力</text><text x="578" y="68" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">运维开发与验证、模型上线与回滚</text><text x="578" y="92" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">QServer 扩缩容、Abyss 管理与复查</text></g><g class="diagram-node"><rect x="140" y="165" width="395" height="105" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="158" y="195" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">4.1 业务诊断能力</text><text x="158" y="223" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">先后验偏差、样本、特征与结构分析</text><text x="158" y="247" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">单模块及直接上下游的假设验证</text></g><g class="diagram-node"><rect x="560" y="165" width="420" height="105" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="578" y="195" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">4.2 架构探索与诊断能力</text><text x="578" y="223" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">运行机制、资源与模型服务异常分析</text><text x="578" y="247" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">复用 davinci-monitor 等专业 Skill</text></g><g class="diagram-node"><rect x="140" y="312" width="840" height="68" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="158" y="342" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">运行态层</text><text x="158" y="370" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">先后验数据、任务和加载状态、Metrics、Event、切片分布与覆盖</text></g><g class="diagram-node"><rect x="140" y="403" width="840" height="68" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="158" y="433" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">业务理解层</text><text x="158" y="461" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">面向算法策略的本体知识：业务目标、建模依据、先后验口径与效果判据</text></g><g class="diagram-node"><rect x="140" y="494" width="840" height="68" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="158" y="524" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">代码层</text><text x="158" y="552" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">codemap Skill：代码地图、模块职责、架构关系与执行路径</text></g></svg></div>
+    </figure>
+  </section>
+
+  <section id="relations">
+    <h2><span class="brief-section-no">02</span>从业务场景，理解模型能力与效果</h2>
+    <hr class="rule">
+    <p class="lede">用户从业务目标或场景问题出发，无需先知道模型名。知识库关联相关模型、样本、特征与分析数据，运行态提供同口径证据，诊断层据此验证假设。</p>
+    <figure><div class="chart wide brief-diagram"><svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="relations-title relations-desc">
+<title id="relations-title">从业务场景理解模型能力与效果</title><desc id="relations-desc">从业务目标或问题进入，关联业务场景、策略、模型及建模依据，明确先后验口径和效果判据。运行态提供实际切片证据，训练推理等工程链路提供配置、代码与平台依据。</desc>
+<defs><marker id="relations-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"/></marker></defs>
+<path d="M 500 88 V 119 H 170 V 160" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#relations-arrow)"/><path d="M 500 88 V 160" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#relations-arrow)"/><path d="M 500 88 V 119 H 830 V 160" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#relations-arrow)"/><text x="170" y="145" fill="var(--muted)" font-size="15" font-weight="400" text-anchor="middle">明确业务目标</text><text x="510" y="145" fill="var(--muted)" font-size="15" font-weight="400" text-anchor="start">关联模型与建模依据</text><text x="830" y="145" fill="var(--muted)" font-size="15" font-weight="400" text-anchor="middle">关联效果口径</text><path d="M 170 330 V 347 H 830 V 330" fill="none" stroke="var(--accent)" stroke-width="1.7"/><path d="M 500 330 V 390" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#relations-arrow)"/><text x="518" y="365" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">按算法口径查询并对照</text><path d="M 500 535 V 480" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#relations-arrow)"/><text x="518" y="515" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">追溯并核验数据来源</text><g class="diagram-node"><rect x="360" y="10" width="280" height="78" rx="10" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/><text x="378" y="40" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">业务目标与问题</text><text x="378" y="68" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">如：IAA 场景预估偏高</text></g><g class="diagram-node"><rect x="20" y="160" width="300" height="170" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="38" y="190" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">业务目标与策略</text><text x="38" y="218" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">预测目标：CTR、24h ROI 等</text><text x="38" y="242" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">业务语义与场景、人群、资源位映射</text><text x="38" y="266" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">业务指标、约束与效果目标</text><text x="38" y="290" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">模型能力与适用范围</text></g><g class="diagram-node"><rect x="350" y="160" width="300" height="170" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="368" y="190" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">关联模型与建模依据</text><text x="368" y="218" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">业务目标、场景对应哪些模型</text><text x="368" y="242" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">样本、Label、采样与权重</text><text x="368" y="266" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">特征语义、覆盖与模型消费</text><text x="368" y="290" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">模型结构、训练推理关系</text></g><g class="diagram-node"><rect x="680" y="160" width="300" height="170" rx="10" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/><text x="698" y="190" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">效果口径与分析经验</text><text x="698" y="218" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">先后验数据的业务定义与口径</text><text x="698" y="242" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">高估、低估判据及适用条件</text><text x="698" y="266" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">分场景 AUC、PCOC 等指标</text><text x="698" y="290" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">分析表用途、关联方式与诊断经验</text></g><g class="diagram-node"><rect x="20" y="390" width="960" height="90" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="38" y="420" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">运行证据：先后验数据与任意切片对照</text><text x="38" y="448" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">关联模型、场景与时间窗，核对先后验数据、反馈成熟度、样本与特征覆盖、Metrics 和 Event</text></g><g class="diagram-node"><rect x="20" y="535" width="960" height="90" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="38" y="565" fill="var(--ink-strong)" font-size="21" font-weight="650" text-anchor="start">证据来源：算法分析表与工程系统</text><text x="38" y="593" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">自建 Hive 分析表（如先后验评估表），关联业务口径与典型查询</text><text x="38" y="617" fill="var(--muted)" font-size="17" font-weight="400" text-anchor="start">训练系统、样本流程、原始特征生产流、Hermes 与 runtime，关联配置和运行对象</text></g></svg></div>
+    </figure>
+    <p class="brief-note">业务映射、评估口径与分析表说明由算法侧共同维护，支撑同口径切片下的高低估判断；模型输出与最终出价的关系，与检索团队共同梳理。</p>
+  </section>
+
+  <section id="flows">
+    <h2><span class="brief-section-no">03</span>专业分析，支撑模型迭代与运维开发闭环</h2>
+    <hr class="rule">
+    <p class="lede">数仓 Skill 支撑问题发现与定位，模型工程接续调研、训练与部署，承接模型效果问题和常规算法需求；运维问题也可独立进入诊断与开发流程。首版以 IAA × 场景 33／应用激活预估偏高验收，完成假设验证、多组实验、审批上线，并由数仓按原问题切片复查。</p>
+    <figure><div class="chart wide brief-diagram"><svg viewBox="0 0 1000 565" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="flows-title flows-desc">
+<title id="flows-title">模型迭代与运维开发闭环</title><desc id="flows-desc">业务问题经过专业分析、实验和切片验收形成候选模型及报告。候选模型进入上线方案，经现有审批执行，再按原问题复查。运维问题可独立进入，形成方案，按需开发修复并验证，再经审批上线和复查。</desc>
+<defs><marker id="flows-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"/></marker></defs>
+<text x="20" y="91" fill="var(--accent)" font-size="20" font-weight="650" text-anchor="start">业务</text><text x="20" y="350" fill="var(--accent)" font-size="20" font-weight="650" text-anchor="start">运维</text><text x="20" y="376" fill="var(--accent)" font-size="20" font-weight="650" text-anchor="start">开发</text><path d="M 270 113 H 320" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#flows-arrow)"/><path d="M 500 113 H 550" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#flows-arrow)"/><path d="M 730 113 H 780" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#flows-arrow)"/><text x="295" y="99" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="middle">诊断</text><text x="525" y="99" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="middle">实验</text><text x="755" y="99" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="middle">验收</text><path d="M 640 175 V 207 H 410 V 175" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-dasharray="5 5" marker-end="url(#flows-arrow)"/><text x="520" y="231" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="middle">切片未达标或整体回退，继续分析与实验</text><path d="M 870 175 V 264 H 360 V 320" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#flows-arrow)"/><text x="600" y="286" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="middle">提交上线方案</text><text x="100" y="301" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">运维问题 → 架构探索与诊断</text><path d="M 260 375 H 280" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#flows-arrow)"/><path d="M 440 375 H 460" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#flows-arrow)"/><path d="M 620 375 H 640" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#flows-arrow)"/><path d="M 800 375 H 820" fill="none" stroke="var(--accent)" stroke-width="1.7" marker-end="url(#flows-arrow)"/><path d="M 900 435 V 473 H 720 V 435" fill="none" stroke="var(--accent)" stroke-width="1.7" stroke-dasharray="5 5" marker-end="url(#flows-arrow)"/><text x="755" y="497" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="middle">未达预期时，按审批调整或回滚</text><g class="diagram-node"><rect x="90" y="60" width="180" height="115" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="108" y="90" fill="var(--ink-strong)" font-size="20" font-weight="650" text-anchor="start">问题与目标</text><text x="108" y="118" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">模型问题</text><text x="108" y="142" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">或常规算法需求</text></g><g class="diagram-node"><rect x="320" y="60" width="180" height="115" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="338" y="90" fill="var(--ink-strong)" font-size="20" font-weight="650" text-anchor="start">诊断结论</text><text x="338" y="118" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">提出并验证假设</text><text x="338" y="142" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">调用专业分析能力</text></g><g class="diagram-node"><rect x="550" y="60" width="180" height="115" rx="10" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/><text x="568" y="90" fill="var(--ink-strong)" font-size="20" font-weight="650" text-anchor="start">实验结果</text><text x="568" y="118" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">改样本、特征、结构</text><text x="568" y="142" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">多组训练与切片评估</text></g><g class="diagram-node"><rect x="780" y="60" width="180" height="115" rx="10" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/><text x="798" y="90" fill="var(--ink-strong)" font-size="20" font-weight="650" text-anchor="start">候选模型</text><text x="798" y="118" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">假设证据与调研结论</text><text x="798" y="142" fill="var(--muted)" font-size="16" font-weight="400" text-anchor="start">实验对照与切片报告</text></g><g class="diagram-node"><rect x="100" y="320" width="160" height="115" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="118" y="350" fill="var(--ink-strong)" font-size="19" font-weight="650" text-anchor="start">诊断结论</text><text x="118" y="378" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="start">定位机制与瓶颈</text><text x="118" y="402" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="start">形成处理方案</text></g><g class="diagram-node"><rect x="280" y="320" width="160" height="115" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="298" y="350" fill="var(--ink-strong)" font-size="19" font-weight="650" text-anchor="start">开发与验证</text><text x="298" y="378" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="start">按需修改代码配置</text><text x="298" y="402" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="start">或准备上线方案</text></g><g class="diagram-node"><rect x="460" y="320" width="160" height="115" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/><text x="478" y="350" fill="var(--ink-strong)" font-size="19" font-weight="650" text-anchor="start">审批结果</text><text x="478" y="378" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="start">沿用现有审批</text><text x="478" y="402" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="start">明确变更范围</text></g><g class="diagram-node"><rect x="640" y="320" width="160" height="115" rx="10" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/><text x="658" y="350" fill="var(--ink-strong)" font-size="19" font-weight="650" text-anchor="start">运行变更</text><text x="658" y="378" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="start">上线、回滚、扩缩容</text><text x="658" y="402" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="start">Abyss 实验管理</text></g><g class="diagram-node"><rect x="820" y="320" width="160" height="115" rx="10" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/><text x="838" y="350" fill="var(--ink-strong)" font-size="19" font-weight="650" text-anchor="start">复查结果</text><text x="838" y="378" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="start">原问题切片效果</text><text x="838" y="402" fill="var(--muted)" font-size="14" font-weight="400" text-anchor="start">与服务运行状态</text></g><text x="500" y="544" fill="var(--accent)" font-size="17" font-weight="400" text-anchor="middle">调研、实验与上线复查结论 → 知识库 → 下一轮诊断与研究</text></svg></div>
+    </figure>
+    <div class="callout brief-boundary"><p>默认只读，代码以 MR 交付，部署经人审批；训练设 GPU 配额与资源上限，实验自动记录、可复现，场景实验支持预算隔离。</p></div>
+  </section>
+
+  <section id="focus">
+    <h2><span class="brief-section-no">04</span>各模块需要提供的独立能力</h2>
+    <hr class="rule">
+    <p class="lede">以 <a href="https://git.bilibili.co/business/magpie/">Magpie</a> 为建设载体，按业务任务组织知识与能力。下表列出各模块需要建设的独立能力与交付。</p>
+    <div class="table-wrap"><table class="brief-table">
+      <colgroup><col style="width:140px"><col style="width:170px"><col></colgroup>
+      <thead><tr><th>模块</th><th>独立能力</th><th>用途与交付</th></tr></thead>
+      <tbody>
+        <tr><td class="brief-module" rowspan="4">算法业务知识库<br>（跨模块）</td><td class="brief-capability">业务语义映射</td><td>关联业务目标、策略场景与模型，解释场景编码、资源位和人群等业务含义。</td></tr>
+        <tr><td class="brief-capability">效果评估口径</td><td>说明先后验、Label、AUC/PCOC 的定义、时间窗与高低估判据。</td></tr>
+        <tr><td class="brief-capability">分析数据资产</td><td>关联自建 Hive 表的用途、粒度、关联口径、切片与时效，以及经核验的典型问题和查询。</td></tr>
+
+        <tr><td class="brief-capability">历史实验与策略经验</td><td>沉淀已验证结论、失败证据、适用条件与未解决问题，供后续诊断和研究复用。</td></tr>
+
+        <tr class="brief-group-start"><td class="brief-module" rowspan="4">训练系统</td><td class="brief-capability">模型结构开发</td><td>修改网络结构与训练配置，形成可实验方案。</td></tr>
+        <tr><td class="brief-capability">离线实验评估</td><td>对比样本、特征或结构方案，评估整体及问题切片的 AUC、PCOC。</td></tr>
+        <tr><td class="brief-capability">训练任务提交</td><td>提交多组训练任务，跟踪状态、资源使用与产物。</td></tr>
+        <tr><td class="brief-capability">评估报告生成</td><td>汇总方案、整体及切片指标、实验对照与结论。</td></tr>
+
+        <tr class="brief-group-start"><td class="brief-module" rowspan="3">样本流程</td><td class="brief-capability">样本语义</td><td>说明样本流、Label、采样与权重口径。</td></tr>
+        <tr><td class="brief-capability">样本分析</td><td>按切片查看数量、占比、Label 分布与覆盖。</td></tr>
+        <tr><td class="brief-capability">样本流构建</td><td>新增或调整样本流程，并验证产出与训练消费。</td></tr>
+
+        <tr class="brief-group-start"><td class="brief-module" rowspan="3">原始特征生产流</td><td class="brief-capability">数据语义</td><td>说明长序列、物料、feaid 及流批生产消费关系。</td></tr>
+        <tr><td class="brief-capability">数据分析</td><td>按切片分析序列长度、数据覆盖、缺失与新鲜度，追溯消费模型。</td></tr>
+        <tr><td class="brief-capability">生产流构建</td><td>新增或调整生产任务，验证更新与下游消费。</td></tr>
+
+        <tr class="brief-group-start"><td class="brief-module" rowspan="3">Hermes<br>特征抽取</td><td class="brief-capability">Slot 语义</td><td>简述业务含义、输入输出与消费模型。</td></tr>
+        <tr><td class="brief-capability">特征开发</td><td>实现算法提出的新特征或特征调整方案。</td></tr>
+        <tr><td class="brief-capability">特征验证</td><td>核查特征正确性与训练推理一致性。</td></tr>
+
+        <tr class="brief-group-start"><td class="brief-module" rowspan="3">runtime</td><td class="brief-capability">Event 时间线</td><td>记录模型与数据变更事件的发生、生效时间。</td></tr>
+        <tr><td class="brief-capability">部署实验联动</td><td>联动模型部署、切流、回滚与 Abyss 实验，关联生效版本。</td></tr>
+        <tr><td class="brief-capability">运行状态核验</td><td>核验加载版本与服务 Metrics，为效果复查提供变更依据。</td></tr>
+
+        <tr class="brief-group-start"><td class="brief-module">架构支撑<br>（跨模块）</td><td class="brief-capability">架构设计文档</td><td>汇总 FlexRec、Hermes、DaVinci、长序列等系统的职责、依赖与关键设计。</td></tr>
+      </tbody>
+    </table></div>
+    <p>按场景、资源位、人群等维度组合切片，贯穿样本与特征分析、离线评估和上线复查；实验前约定基线与通过标准，用独立数据或时间窗确认问题切片达标、整体不回退，再经审批上线并按同一口径复查。</p>
+  </section>
+  <section id="research">
+    <h2><span class="brief-section-no">05</span>相关建设调研与借鉴</h2>
+    <hr class="rule">
+    <p class="lede">工业推荐研发参考快手、腾讯，自动研究与实验验证参考 Anthropic、OpenAI、Google 和字节，重点借鉴历史实验知识、结论回流与独立验收。模型改进仍优先从样本、特征与结构入手。</p>
+    <div class="table-wrap"><table class="brief-table">
+      <colgroup><col style="width:120px"><col style="width:245px"><col></colgroup>
+      <thead><tr><th>公司</th><th>公开工作与范围</th><th>对本方案的借鉴</th></tr></thead>
+      <tbody>
+        <tr><td>快手</td><td><a href="https://arxiv.org/html/2606.26859v1" target="_blank" rel="noopener noreferrer">AgentX</a> ／ <a href="https://arxiv.org/html/2609.30001v1" target="_blank" rel="noopener noreferrer">AgentX-Model</a><br>工业推荐研发与多轮模型实验</td><td>结合系统知识、历史实验、数据分析和论文形成提案；将线上反馈、失败结论与未解决问题带入下一轮研究。</td></tr>
+        <tr><td>腾讯</td><td><a href="https://arxiv.org/html/2608.11241v1" target="_blank" rel="noopener noreferrer">RecSys Factory</a><br>推荐生命周期中的 Agent 编排</td><td>关键节点由 Agent 判断，稳定流程由工具执行；Skill、任务状态、事件和人工审批共同支撑长任务。</td></tr>
+        <tr><td>字节</td><td><a href="https://arxiv.org/abs/2610.21055" target="_blank" rel="noopener noreferrer">Athanor</a><br>基础模型自主后训练研究</td><td>Agent 选择数据、修改训练并分析结果；平台提供 GPU 作业、固定评估和持久实验记录。可参考研究与执行分工。</td></tr>
+        <tr><td>阿里巴巴</td><td><a href="https://arxiv.org/html/2608.09408v2" target="_blank" rel="noopener noreferrer">DREAM</a><br>淘宝推荐的在线策略控制</td><td>业务语义、策略记忆与线上反馈支撑策略优化。属于相邻方向，不能作为研发、训练、发布全流程自动化的证据。</td></tr>
+        <tr><td>Anthropic</td><td><a href="https://alignment.anthropic.com/2026/automated-alignment-researchers/" target="_blank" rel="noopener noreferrer">Automated Alignment Researchers</a><br>针对可测量问题的自动研究</td><td>提出训练方法、多轮实验；同时检查目标问题、通用能力和独立评测上的泛化。借鉴独立验收设计。</td></tr>
+        <tr><td>OpenAI</td><td><a href="https://openai.com/index/research-acceleration-view-inside-openai/" target="_blank" rel="noopener noreferrer">Research acceleration</a><br>内部模型研究协作</td><td>Agent 承担明确研究任务、代码与实验；人负责研究优先级、结果取舍及部署决策。以有效结论衡量收益。</td></tr>
+        <tr><td>Google</td><td><a href="https://deepmind.google/blog/alphaevolve-a-gemini-powered-coding-agent-for-designing-advanced-algorithms/" target="_blank" rel="noopener noreferrer">AlphaEvolve</a><br>可计算评价的算法优化</td><td>生成候选程序，经自动验证与性能评价驱动下一轮搜索。可参考架构优化和实验搜索的评价闭环。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+  <footer>Sources: 本次 +1 五层分层与 +2 原始目标 · <a href="https://shjd-boss.bilibili.co/sycpb-model-artifact/yanfeng/e0af4109af804cb181f205aa123a2e3f-model-engineering-ai-native.html" target="_blank" rel="noopener noreferrer">原方案 HTML</a> · <a href="https://git.bilibili.co/business/magpie" target="_blank" rel="noopener noreferrer">Magpie 仓库</a><br>generated 2026-11-03 18:23 UTC+8</footer>
+</main>
+<script>
+(() => {
+  const state = {theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'};
+  const button = document.getElementById('theme-toggle');
+  function renderTheme() {
+    document.documentElement.dataset.theme = state.theme;
+    button.textContent = state.theme === 'dark' ? '切换浅色' : '切换深色';
+    button.setAttribute('aria-pressed', String(state.theme === 'dark'));
+  }
+  button.addEventListener('click', () => {state.theme = state.theme === 'dark' ? 'light' : 'dark'; renderTheme();});
+  document.getElementById('print-button').addEventListener('click', () => window.print());
+  renderTheme();
+})();
+</script>
+
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

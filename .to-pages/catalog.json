@@ -573,6 +573,23 @@
           "updated_at": "2026-11-27T13:19:24.123994Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/model-engineering-ai-native",
+      "project": "Magpie",
+      "title": "模型迭代端到端 AI-native 建设",
+      "versions": [
+        {
+          "digest": "2c4d74d74430fa52ba54fc7c1e6b933f0b63d2ad203b6b307e16b6f8da464265",
+          "label": "v1",
+          "path": "reports/model-engineering-ai-native",
+          "published_at": "2026-11-27T13:59:57.511775Z",
+          "summary": "",
+          "updated_at": "2026-11-27T13:59:57.511775Z"
+        }
+      ]
     }
   ]
 }
