@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pi 冻结审查</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: single reading column; findings as rows with a severity stripe. */
+:root {
+  --bg: #f7f8fa; --surface: #ffffff; --fg: #1b2230; --muted: #5c6678; --line: #dde2ea; --accent: #2b5fd9;
+  --ok: #1f7a4d; --ok-bg: #e3f4ea; --warn: #8a5a00; --warn-bg: #fbf0d9; --risk: #a3332b; --risk-bg: #f8e4e2; --plan: #4a4f8c; --plan-bg: #e9e9f7;
+  --display: "Space Grotesk", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  --body: "Inter", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161d; --surface: #1a1f28; --fg: #e4e8ef; --muted: #9aa4b5; --line: #2c3441; --accent: #7aa2ff;
+  --ok: #6fd39f; --ok-bg: #173326; --warn: #f0c46a; --warn-bg: #3a2e14; --risk: #ff8f86; --risk-bg: #3d1d1a; --plan: #b5b8f2; --plan-bg: #262844; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161d; --surface: #1a1f28; --fg: #e4e8ef; --muted: #9aa4b5; --line: #2c3441; --accent: #7aa2ff;
+  --ok: #6fd39f; --ok-bg: #173326; --warn: #f0c46a; --warn-bg: #3a2e14; --risk: #ff8f86; --risk-bg: #3d1d1a; --plan: #b5b8f2; --plan-bg: #262844; color-scheme: dark }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.7 var(--body); }
+main { max-width: 860px; margin: 0 auto; padding-block: 2.5rem 4rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 2rem; }
+main > * { min-width: 0; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.3; margin: 0; }
+h1 { font-size: 1.9rem; }
+h2 { font-size: 1.3rem; padding-top: .5rem; border-top: 1px solid var(--line); }
+h3 { font-size: 1rem; }
+section { display: grid; gap: .8rem; }
+p, ul, ol { margin: 0; max-width: 68ch; }
+li + li { margin-top: .3rem; }
+.meta { color: var(--muted); font-size: .9rem; }
+code { font-family: var(--mono); font-size: .86em; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 0 .3em; overflow-wrap: anywhere; }
+.chip { display: inline-block; font-size: .75rem; font-weight: 600; letter-spacing: .03em; padding: 0 .45em; border-radius: 4px; margin-right: .3em; white-space: nowrap; }
+.ok { color: var(--ok); background: var(--ok-bg); }
+.warn { color: var(--warn); background: var(--warn-bg); }
+.risk { color: var(--risk); background: var(--risk-bg); }
+.plan { color: var(--plan); background: var(--plan-bg); }
+.verdict { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.1rem; display: grid; gap: .5rem; }
+.finding { display: grid; gap: .4rem; padding: .8rem 1rem; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 6px; }
+.finding.f-risk { border-left-color: var(--risk); }
+.finding.f-warn { border-left-color: var(--warn); }
+.finding.f-ok { border-left-color: var(--ok); }
+.finding p { color: var(--fg); }
+.finding .why { color: var(--muted); font-size: .92rem; }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: .9rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; vertical-align: top; padding: .55rem .7rem; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 500; color: var(--muted); font-size: .8rem; letter-spacing: .04em; }
+tr:last-child td { border-bottom: 0; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+<header style="display:grid;gap:.5rem">
+  <h1>Pi 冻结审查</h1>
+  <p class="meta">2026-11-27 · 分支 <code>release_fix/session-freeze-20261127</code>，基于 main <code>3946f37</code> · 改动未提交 · 范围：<code>src/chat/isolated.ts</code>、<code>src/chat/native.ts</code>、<code>tests/pi-persistent.test.ts</code>、<code>README.md</code></p>
+  <p class="meta">标注：<span class="chip ok">实测</span>本地 MySQL 和真实 Pi 跑过 <span class="chip warn">推断</span>读代码得出 <span class="chip plan">待做</span>建议的后续改动</p>
+</header>
+
+<section class="verdict">
+  <h2 style="border:0;padding:0">结论</h2>
+  <p>可以进入 MR。改动实现了「空闲 30 分钟冻结，本地文件和 MySQL head 一致就直接用本地」。审查没有发现本次改动引入的缺陷。审查找到一个 main 上就有的问题：部分失败的 Run 会把未保存的 Turn 留在本地文件里。本次只修了其中一种失败。冻结会让冷启动变多，所以这个问题在冻结后更容易碰到，建议在同一个 MR 或紧接着的 MR 里补上。</p>
+</section>
+
+<section>
+  <h2>改动做了什么</h2>
+  <ul>
+    <li>Pi worker 空闲满 <code>IDLE_WORKER_FREEZE_MS</code>（30 分钟）就停止。空闲 worker 的数量上限 <code>ROOK_CHAT_MAX_IDLE_WORKERS</code> 保留。</li>
+    <li>某个 Session 没有活着的 worker 时，新 worker 先比对本地 <code>native-session.jsonl</code> 和 MySQL head（revision、nativeSessionId、bytes、sha256）。一致就直接用本地文件。不一致时，worker 发 <code>checkpoint_required</code>，Rook 再读 MySQL 全文。</li>
+    <li>Run 以 <code>native_context_persistence_failed</code> 失败时，Rook 以执行用户身份删除本地文件，下一轮从 MySQL 恢复。</li>
+    <li>Claude Code 和 Codex 不受影响。它们不是 persistent 模式，每轮结束就退出进程。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>验证</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>检查</th><th>结果</th></tr></thead>
+    <tbody>
+      <tr><td><code>npm run check</code></td><td><span class="chip ok">实测</span>通过</td></tr>
+      <tr><td>全量 <code>npm test</code>：本地 MySQL，Claude Code 和 Codex 用锁定版本的二进制</td><td><span class="chip ok">实测</span>586 个测试：585 通过，0 失败，1 跳过。跳过的是集群基准测试，需要设置 <code>ROOK_TEST_CLUSTER_BENCHMARK=1</code> 才运行。</td></tr>
+      <tr><td>驱逐或冻结后的下一轮</td><td><span class="chip ok">实测</span>不再读 MySQL 全文，模型请求里能看到完整历史</td></tr>
+      <tr><td>冻结计时器</td><td><span class="chip ok">实测</span>计时器设为 200 ms：worker 进程退出，下一轮从本地文件续上</td></tr>
+      <tr><td>保存失败后的下一轮</td><td><span class="chip ok">实测</span>读 MySQL 全文，模型请求里没有那条未保存的 prompt</td></tr>
+      <tr><td>main 上的对照</td><td><span class="chip ok">实测</span>在 main 副本上先冷启动，再制造保存失败：未保存的 prompt 进了下一次模型请求。所以这个问题在 main 上就有。</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>发现</h2>
+
+  <div class="finding f-risk">
+    <h3><span class="chip risk">main 已有</span>其他失败也会把未保存的 Turn 留在本地</h3>
+    <p>只有 <code>native_context_persistence_failed</code> 会删除本地文件。<code>native_event_persistence_failed</code>、<code>execution_lease_lost</code>、<code>execution_cleanup_failed</code> 这几种失败不删。冷启动时，<code>readExtendedCheckpoint</code> 会接受前缀和 head 一致、但更长的本地文件，于是把这一轮当成历史接上。界面上这一轮显示失败，模型却能看到它。</p>
+    <p class="why"><span class="chip warn">推断</span>main 上这条路径就存在：worker 回收后的冷启动会走到它。冻结让冷启动从「数量超限或重启时」变成「每次空闲 30 分钟后」，碰到的概率因此变大。</p>
+    <p class="why"><span class="chip plan">待做</span>任何失败的 Run 都删除本地文件。只保留一种例外：checkpoint 超过 16 MiB 时会故意不写 MySQL（<code>native_context_too_large</code>），这时本地文件要留着。改之前先补测试：每种失败码各制造一次，确认下一轮的模型请求里没有那一轮。还要核对已绑定、但从没写过 checkpoint 的 Session，删掉本地文件后能否从合成的 header 恢复。</p>
+  </div>
+
+  <div class="finding f-warn">
+    <h3><span class="chip warn">缺测试</span>冻结期间轮换凭据</h3>
+    <p>冻结路径跳过了 <code>credentialHash</code> 比较。新凭据仍会经过 <code>cleanNativeContext</code> 打码：读到一致的本地文件后，<code>clean.recovered</code> 为真，就会改写文件。这一点只读了代码。现有测试只覆盖 worker 还活着时的凭据轮换。</p>
+    <p class="why"><span class="chip plan">待做</span>在冻结测试段加一轮换凭据的 Turn，断言新凭据不出现在模型请求和 checkpoint 里。</p>
+  </div>
+
+  <div class="finding f-warn">
+    <h3><span class="chip warn">小问题</span>删除失败只记日志</h3>
+    <p><code>discardLocalContext</code> 调用 <code>setpriv … rm</code> 失败时，只打印 <code>native_context_discard_failed</code>。删除失败时，下一轮冷启动又会接上未保存的那一轮。这种失败的概率低：文件属于执行用户，目录也是 Rook 自己建的。</p>
+  </div>
+
+  <div class="finding f-ok">
+    <h3><span class="chip ok">已排除</span>删除和 worker 退出之间的竞态</h3>
+    <p>保存失败时，Rook 先 <code>stop()</code> worker。<code>finish</code> 只在 child 的 <code>close</code> 事件之后运行，所以 Rook 删除本地文件时 worker 已经退出，不会再写回文件。</p>
+  </div>
+
+  <div class="finding f-ok">
+    <h3><span class="chip ok">已排除</span>多实例下的旧本地文件</h3>
+    <p>Session 被另一台实例接走时，那台机器上没有本地文件，会读 MySQL。之后 Session 回到原实例时，原实例上的旧文件和新 head 的 sha256 不一致，前缀也对不上，于是同样读 MySQL。<span class="chip warn">推断</span>这一点没有用两台真实实例跑过。</p>
+  </div>
+</section>
+
+<section>
+  <h2>中断 Turn 的决定</h2>
+  <p>服务重启时进行中的 Turn，按「断开提示 + t3code 续跑规则」处理：没开始工具就原样重发，最多 3 次；已经开始工具就发续跑提示，要求模型先确认副作用。Orca 的做法是有人确认前不自动重发。它这样做，是因为它的 agent 在应用重启后可能还活着。Rook 的 worker 会随 Backend 一起退出，MySQL 租约过期就能证明这一点，所以采用 t3code 的做法。这部分还没写代码。</p>
+</section>
+
+<section>
+  <h2>没覆盖的</h2>
+  <ul>
+    <li>真实的 30 分钟计时器只测了 200 ms 版本。生产环境里冻结后的恢复耗时还没测。</li>
+    <li>没有发布，没有验收。本地 MySQL 不能替代线上多实例的验证。</li>
+    <li>Claude Code 和 Codex 的冻结属于方案的第 2、3 步，本分支不包含。</li>
+  </ul>
+</section>
+</main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

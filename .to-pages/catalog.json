@@ -498,6 +498,23 @@
           "updated_at": "2026-11-27T11:11:09.882755Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/rook-session-freeze-review",
+      "project": "Rook",
+      "title": "Pi 冻结审查",
+      "versions": [
+        {
+          "digest": "b7c69b4eed4b554f9005d318551e392e6e7cd8925449201797584d1935cb4c5d",
+          "label": "v1",
+          "path": "reports/rook-session-freeze-review",
+          "published_at": "2026-11-27T11:13:03.434870Z",
+          "summary": "Pi 空闲冻结与本地 checkpoint 复用的代码审查",
+          "updated_at": "2026-11-27T11:13:03.434870Z"
+        }
+      ]
     }
   ]
 }
