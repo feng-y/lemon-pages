@@ -721,6 +721,14 @@
           "published_at": "2026-11-28T14:22:14.984189Z",
           "summary": "主分支合入与本地验证",
           "updated_at": "2026-11-28T14:22:14.984189Z"
+        },
+        {
+          "digest": "0820f27869ab3284ba80f6216b19a132fd6e0c250c4afb8cc8551e8a05050583",
+          "label": "v6",
+          "path": "reports/agent-kanban-progress-production",
+          "published_at": "2026-11-28T14:59:50.872068Z",
+          "summary": "本批生产验收与下一批 memory 范围",
+          "updated_at": "2026-11-28T14:59:50.872068Z"
         }
       ]
     },
