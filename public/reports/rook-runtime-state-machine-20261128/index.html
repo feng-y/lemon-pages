@@ -387,7 +387,7 @@ td code{overflow-wrap:anywhere}
   <a href="#premise">前提修正</a>
   <a href="#stability">稳定性</a>
   <a href="#efficiency">效率</a>
-  <a href="#decision">需要拍板</a>
+  <a href="#decision">恢复与 handoff</a>
   <a href="#plan">建议顺序</a>
   <a href="#appendix">四份原始报告</a>
 </nav>
@@ -406,7 +406,7 @@ td code{overflow-wrap:anywhere}
     <p>三个 Runtime 的常驻方式已经和 t3code、Orca 一致。Claude Code 常驻一个 SDK <code>query</code>。Codex 常驻一个 app-server。生产的 Pi 走进程内 SDK。所以「每个 Turn 都重启进程」不是瓶颈。实测 Codex 退役后重启只多 0.3–0.4 s。</p>
     <p>稳定性的主要缺口有四个。第一，删除 Session 的通知只到达 Pi 的 worker。第二，Codex 和 Claude Code 启动和握手没有期限，最坏要等 60 分钟的 Turn 总期限。第三，Claude Code 没有无响应看门狗。第四，Pi 的 bash 没有默认超时。这四个改动都不大。</p>
     <p>效率的主要成本有三处。每个 Turn 都整文件传一遍 checkpoint，Pi 的 15 MB session 每个 Turn 约多花 0.6 s。RunEvent 每批要 12 条 SQL。Turn 结束后，Queue 最多空等 1 s 才派发下一条。</p>
-    <p>有一件事需要你拍板。失败或 Stop 的 Turn 做过的事，目前三个 Runtime 都不写进原生 context。t3code 和 Orca 都保留。</p>
+    <p>失败或 Stop 的 Turn 做过的事，目前三个 Runtime 都不写进原生 context，t3code 和 Orca 都保留。用户已定方向：Session 一定要能继续。原生 resume 失败时，用 handoff 重建一个新的原生 session。恢复类错误只记进 MySQL，不显示给 web 端用户。</p>
   </div>
 
   <section>
@@ -470,7 +470,7 @@ td code{overflow-wrap:anywhere}
           <tr><td>S4</td><td>Pi 的 bash 没有默认超时。卡住的命令会占住 Turn 直到 60 分钟</td><td>读码</td><td>在 <code>guardTools</code> 里给 bash 补默认超时。Claude Code 和 Codex 的 shell 自带超时</td><td>Pi adapter</td><td><span class="tag ok">小</span></td></tr>
           <tr><td>S5</td><td>失败码太粗。Codex 的失败全是 <code>native_codex_turn_failed</code>，自动化任务不会重投过载和限流。Claude Code 的进程退出、流结束和 Provider 错误都变成 <code>native_incomplete</code>，大多没有 errorDetail</td><td>Codex 实测过载时 <code>codexErrorInfo=serverOverloaded</code>。重试集合在 <code>automation/service.ts:123</code>，Claude 抽查。Claude Code 读码：adapter 只取 <code>result</code>，忽略 stderr</td><td>Codex 把 <code>codexErrorInfo</code> 映射到已有的 <code>native_model_rate_limited</code>、<code>native_model_unavailable</code>。Claude Code 记录退出码、信号和 stderr 末尾</td><td>两个 adapter</td><td><span class="tag ok">约 15 行 + 小</span></td></tr>
           <tr><td>S6</td><td>重连时前端看不到。Pi 已经显示 <code>auto_retry_start</code>，Codex 和 Claude Code 没有</td><td>实测 Codex 通知 <code>Reconnecting... 1/5</code>，Claude Code 有 <code>api_retry</code> 帧</td><td>都映射到 <code>auto_retry_start</code>。<code>runCodexAppServer</code> 先要加 <code>onEvents</code>。<code>additionalDetails</code> 带 relay 地址，不要转发给前端</td><td>两个 adapter</td><td><span class="tag ok">小</span></td></tr>
-          <tr><td>S7</td><td>Stop 和成功同时发生、Stop 先落库时，回复落库了，checkpoint 没落库</td><td>实测状态，读码定因，Claude 抽查。<code>store.ts:714</code> 只在 <code>current.state === 'running'</code> 时保存</td><td>归入「需要拍板」，因为它和失败或 Stop 的 Turn 是否进入 context 是同一个决定</td><td>Chat 公共层</td><td><span class="tag neutral">待定</span></td></tr>
+          <tr><td>S7</td><td>Stop 和成功同时发生、Stop 先落库时，回复落库了，checkpoint 没落库</td><td>实测状态，读码定因，Claude 抽查。<code>store.ts:714</code> 只在 <code>current.state === 'running'</code> 时保存</td><td>并入「恢复与 handoff」：Stop 的 Turn 也保存 checkpoint</td><td>Chat 公共层</td><td><span class="tag accent">设计中</span></td></tr>
           <tr><td>S8</td><td>空闲 worker 只按数量回收（每个 Runtime 4 个），没有时限，也没有跨 Runtime 的总量上限。空闲的 Codex app-server 约 110 MB，Claude Code 288–381 MB</td><td>读码，RSS 实测</td><td>并入已计划的 3b（空闲 30 分钟冻结）。落地时要同时设数量或内存上限</td><td>Chat 公共层</td><td><span class="tag warn">中，已有计划</span></td></tr>
           <tr><td>S9</td><td>Claude Code 的 <code>run()</code> 取推送后的第一个 <code>result</code>。如果 Claude Code 在后台任务结束后自己开了一个 Turn，它的结果可能被当成下一条用户 Turn 的回答</td><td><span class="tag warn">推测，未复现</span> Orca 按 uuid 关联</td><td>先复现。便宜的办法是设 <code>CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1</code>，效果未测</td><td>Claude Code adapter</td><td><span class="tag neutral">先复现</span></td></tr>
           <tr><td>S10</td><td>MySQL 抖动 30 s，会让一个执行实例上的全部 Turn 变成 <code>interrupted</code>。公共层也没有 worker 存活心跳</td><td>读码</td><td>后续再做</td><td>Chat 公共层</td><td><span class="tag neutral">后续</span></td></tr>
@@ -498,20 +498,22 @@ td code{overflow-wrap:anywhere}
   </section>
 
   <section id="decision">
-    <h2>需要你拍板：失败或 Stop 的 Turn 要不要进入原生 context</h2>
+    <h2>已定方向：Session 一定要能继续，恢复不了就 handoff 重建</h2>
     <hr class="rule">
-    <p>现在三个 Runtime 的做法一致：失败或 Stop 的 Turn 不进入原生 context。Codex 退役进程后从 MySQL 恢复。Claude Code 有测试断言这一点（<code>tests/claude-code.test.ts:392</code>）。Pi 删掉本地 checkpoint。<code>finishRun</code> 只在 <code>running</code> 状态下保存。</p>
-    <p>结果是用户在界面上看得到这个 Turn 的回复和工具结果，模型在下一个 Turn 却不知道。比如 Stop 前已经改了文件，下一个 Turn 模型会以为文件没改。t3code 和 Orca 都保留这部分 context。</p>
-    <div class="callout">
-      <div class="callout-title">Claude 的建议</div>
-      <p>Stop 的 Turn 保留 context，因为 Stop 是用户主动打断，已完成的 Step 是事实。这样 S7 自然解决，Codex 也能少一次退役。Provider 报错的失败 Turn 维持现状，因为不完整的工具调用写进 context 风险更大。这个决定三个 Runtime 一起改，改动落在 Chat 公共层和三个 adapter 的退役条件上。</p>
+    <p><strong>现状。</strong>失败或 Stop 的 Turn 目前在三个 Runtime 里都不进入原生 context。Codex 退役进程后从 MySQL 恢复。Claude Code 有测试断言这一点（<code>tests/claude-code.test.ts:392</code>）。Pi 删掉本地 checkpoint。<code>finishRun</code> 只在 <code>running</code> 状态下保存。结果是用户看得到这个 Turn 的回复和工具结果，模型在下一个 Turn 却不知道。原生 context 恢复失败时，比如 <code>native_context_unavailable</code>、<code>native_context_changed</code>、<code>native_context_too_large</code>，错误码会直接返回给 web 端。</p>
+    <div class="callout ok">
+      <div class="callout-title">用户的决定（2026-11-28）</div>
+      <p>一定要恢复。不能 resume 时，就 handoff 这个 Session，重建一个新的原生 session，用新的继续。错误不暴露给 web 端用户，只记录到 MySQL。</p>
     </div>
+    <p><strong>落地要求。</strong>失败或 Stop 的 Turn 里已完成的 Step 要进入下一个 Turn 的原生 context，S7 包含在内。原生 resume 失败时，Rook Backend 用 MySQL 里的消息、回复和工具结果生成 handoff，交给新的原生 session，然后继续执行用户的 Turn。恢复类错误写进 MySQL，例如 Run 的 errorDetail，不弹给用户。认证、额度、非法输入这类用户能处理的错误仍要显示。</p>
+    <p><strong>可参考的实现。</strong>t3code 的 <code>ContextHandoffService.ts</code>、<code>ContextHandoffDelivery.ts</code>、<code>ProviderRuntimeRecoveryService.ts</code>，Orca 的 <code>session-handoff-snapshot.ts</code>、<code>session-handoff-prompt.ts</code>，dsh 的 <code>dsh-session-projection</code>。一个 fable agent 正在据此出三个 Runtime 共用的设计。设计会写清 handoff 的数据形状、预算、各 Runtime 的投递方式、状态机、错误可见性和 MR 拆分。实现前先和用户对齐。</p>
   </section>
 
   <section id="plan">
     <h2>建议顺序</h2>
     <hr class="rule">
     <ul class="points">
+      <li><strong>恢复与 handoff。</strong>这是用户定的主线，设计完成并对齐后排在最前面。S7 并入这条线。</li>
       <li><strong>MR-1，小的稳定性修复。</strong>S1 让 <code>forget</code> 到达三个执行器；S2 给 Codex 握手加期限，S3 的启动期限部分；S4 Pi bash 默认超时；E3 的 <code>wakeQueue()</code>；改正 E6 的文档和 <code>:80</code> 的注释。每项都有现成的测试入口。</li>
       <li><strong>MR-2，失败码和重连可见性。</strong>S5 和 S6，两个 adapter 一起改。</li>
       <li><strong>MR-3，Claude Code 无响应看门狗。</strong>S3 的运行期部分，先探测工具执行期间的帧再定阈值。</li>
