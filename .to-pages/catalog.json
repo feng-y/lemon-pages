@@ -708,6 +708,23 @@
           "updated_at": "2026-11-28T09:36:12.513431Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/automation-timer-review-20261128",
+      "project": "",
+      "title": "自动化 timer 审查与修复",
+      "versions": [
+        {
+          "digest": "dab4fdfb80b31545376672f3028ecb3e7b7a0d28afd2742179a9a8064a4c0a90",
+          "label": "v1",
+          "path": "reports/automation-timer-review-20261128",
+          "published_at": "2026-11-28T09:49:41.941833Z",
+          "summary": "关停取消、错过通知接管和投递延迟的复现与验证",
+          "updated_at": "2026-11-28T09:49:41.941833Z"
+        }
+      ]
     }
   ]
 }
