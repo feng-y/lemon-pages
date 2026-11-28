@@ -814,6 +814,14 @@
           "published_at": "2026-11-28T14:18:12.563968Z",
           "summary": "v2：正常像 Codex 一样一直跑，handoff 只用于无法恢复",
           "updated_at": "2026-11-28T14:18:12.563968Z"
+        },
+        {
+          "digest": "32ebd7e6abc1e4774b58cca4fdcac36409ce721752696d4e8374c47951e8673e",
+          "label": "v3",
+          "path": "reports/rook-session-handoff-20261128-v3",
+          "published_at": "2026-11-28T14:23:42.243370Z",
+          "summary": "v3：正常 Turn 零新增开销，handoff 只在恢复失败后",
+          "updated_at": "2026-11-28T14:23:42.243370Z"
         }
       ]
     }
