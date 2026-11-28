@@ -683,12 +683,12 @@
       "title": "智能体与 Kanban 推进记录",
       "versions": [
         {
-          "digest": "5d915785c707be36d2181c0ac645d72e4379e14f8d23e7313ac2818400017f8d",
+          "digest": "e211944b177e2606be8e578b3568499f0d223508c531b0a945cf4be5c14cbed2",
           "label": "v1",
           "path": "reports/agent-kanban-progress",
           "published_at": "2026-11-27T23:34:24.408651Z",
-          "summary": "智能体与 Kanban 审查完成兼容发布，记录生产只读验收和待确认的运行身份",
-          "updated_at": "2026-11-28T12:30:39.045867Z"
+          "summary": "记录生产 Rook 运行身份绑定和评论回复验收",
+          "updated_at": "2026-11-28T12:38:44.576240Z"
         }
       ]
     },
