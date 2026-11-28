@@ -713,6 +713,14 @@
           "published_at": "2026-11-28T14:14:51.508030Z",
           "summary": "修正 SuperAgent 与 Runtime 的边界，补充三种 Runtime 的本地验收结果",
           "updated_at": "2026-11-28T14:14:51.508030Z"
+        },
+        {
+          "digest": "9fc1e294d1972fca81ae13f3e6abeba8ccc628460fb4504576d9e5ab39abb2d8",
+          "label": "v5",
+          "path": "reports/agent-kanban-progress-merge",
+          "published_at": "2026-11-28T14:22:14.984189Z",
+          "summary": "主分支合入与本地验证",
+          "updated_at": "2026-11-28T14:22:14.984189Z"
         }
       ]
     },
