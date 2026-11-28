@@ -791,12 +791,12 @@
       "title": "Rook Runtime 准入评审修复",
       "versions": [
         {
-          "digest": "abf5c04f26fcb4e0e2f4824bdecdc48d80c76fdd8d4924649c80b84ee3bff580",
+          "digest": "3924fb8c3cc74457e40b0d1cafacad8c1e20abd8264ff528b53913cbe8859141",
           "label": "v1",
           "path": "reports/rook-runtime-admission-review-fix",
           "published_at": "2026-11-28T13:57:44.039902Z",
-          "summary": "补 Runtime 准入状态机：TLA+ 模型经 TLC 检查，5 个状态 18 条边；两轴评审修复与全量测试结果",
-          "updated_at": "2026-11-28T14:19:09.362512Z"
+          "summary": "补状态机审计的三处实现硬化与最新全量测试数字",
+          "updated_at": "2026-11-28T15:02:35.217179Z"
         }
       ]
     },
