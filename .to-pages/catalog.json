@@ -705,6 +705,14 @@
           "published_at": "2026-11-28T14:03:49.018941Z",
           "summary": "通用 timers 通过本地验收",
           "updated_at": "2026-11-28T14:03:49.018941Z"
+        },
+        {
+          "digest": "d3e03d57b3cadd8af5479a6ff76b6887c1d112d099e92bbe969ba0c5efa46193",
+          "label": "v4",
+          "path": "reports/agent-kanban-progress-runtime",
+          "published_at": "2026-11-28T14:14:51.508030Z",
+          "summary": "修正 SuperAgent 与 Runtime 的边界，补充三种 Runtime 的本地验收结果",
+          "updated_at": "2026-11-28T14:14:51.508030Z"
         }
       ]
     },
