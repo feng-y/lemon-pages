@@ -689,6 +689,14 @@
           "published_at": "2026-11-27T23:34:24.408651Z",
           "summary": "核对 SuperAgent 机制与 Bot 交互依赖",
           "updated_at": "2026-11-28T13:34:11.178898Z"
+        },
+        {
+          "digest": "b45118345b9e8fcf1b61e4f8f4451ded50f31abcda5ecc2cfd5c07a30d3f49a0",
+          "label": "v2",
+          "path": "reports/agent-kanban-progress-inbox",
+          "published_at": "2026-11-28T13:52:36.230567Z",
+          "summary": "event inbox 与 Session 路由通过本地验收",
+          "updated_at": "2026-11-28T13:52:36.230567Z"
         }
       ]
     },
