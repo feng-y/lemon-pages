@@ -683,12 +683,12 @@
       "title": "智能体与 Kanban 推进记录",
       "versions": [
         {
-          "digest": "c18140f2031f395e952a39a2eff0aa60db7db302136c953d4bde4efd4058668a",
+          "digest": "da70a878107ddec383a57765466d0c9816778467eb80cc230a628d763aab28e8",
           "label": "v1",
           "path": "reports/agent-kanban-progress",
           "published_at": "2026-11-27T23:34:24.408651Z",
-          "summary": "Kanban 双 Backend 隔离验收与线上只读核查",
-          "updated_at": "2026-11-28T08:32:57.967586Z"
+          "summary": "更新自动化生产发布和四副本验收进展",
+          "updated_at": "2026-11-28T09:34:26.515572Z"
         }
       ]
     }
