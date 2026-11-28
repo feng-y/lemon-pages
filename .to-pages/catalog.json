@@ -798,6 +798,14 @@
           "published_at": "2026-11-28T14:09:15.190877Z",
           "summary": "",
           "updated_at": "2026-11-28T14:09:15.190877Z"
+        },
+        {
+          "digest": "678299ea32461ed29799359390ca3cf814d2accaa0e071413b065180f6b03147",
+          "label": "v2",
+          "path": "reports/rook-session-handoff-20261128-v2",
+          "published_at": "2026-11-28T14:18:12.563968Z",
+          "summary": "v2：正常像 Codex 一样一直跑，handoff 只用于无法恢复",
+          "updated_at": "2026-11-28T14:18:12.563968Z"
         }
       ]
     }
