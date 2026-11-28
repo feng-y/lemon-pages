@@ -775,6 +775,23 @@
           "updated_at": "2026-11-28T13:57:44.039902Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "Rook Session 恢复与 handoff 设计",
+      "id": "reports/rook-session-handoff-20261128",
+      "project": "Rook",
+      "title": "Rook Session 恢复与 handoff 设计",
+      "versions": [
+        {
+          "digest": "966c753fef799771d9615a09bfd874a28f1fc2a72e2b9a745654a2f300150f67",
+          "label": "v1",
+          "path": "reports/rook-session-handoff-20261128",
+          "published_at": "2026-11-28T14:09:15.190877Z",
+          "summary": "",
+          "updated_at": "2026-11-28T14:09:15.190877Z"
+        }
+      ]
     }
   ]
 }
