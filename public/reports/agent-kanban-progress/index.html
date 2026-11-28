@@ -420,9 +420,24 @@ footer {
         <p>已整合智能体导航、后台 Session 访问权限和共用 timer。浏览器通过智能体配置与 Kanban 审查回归。MySQL 专项验证了 Run 受理、停止跟进、交付换版以及中断重排。</p></article>
       <article><h3>第三批 · Kanban 首版验收</h3>
         <p>管理员只对指定的生产 Task 开启协作。Rook 将审查结论写回当次交付。timer 在原 Task 会话启动新的 Run。停止后跨过下一次计划时点，复查与新交付均未唤醒 Rook。验收 Task 已关闭，临时配置已还原。</p></article>
-      <article data-current><h3>第四批 · 后续场景</h3>
-        <p>先在同一条 Task 验收开发 Bot 的交付、复审和一次返工。故障 Webhook、直接问答和跨来源 event inbox 分别验收。</p></article>
+      <article data-current><h3>第四批 · SuperAgent 与 Bot 交互</h3>
+        <p>先验证跨来源 event inbox 和 Session 路由。再用 Bot 直接问答与单一可信故障 Webhook 验收 timers、memory、权限与结果送达。</p></article>
+      <article><h3>第五批 · 多 Bot 协作</h3>
+        <p>Bot 交互和开发工作区授权通过后，验证同一条 Task 上的开发交付、审查与返工。</p></article>
     </div>
+  </section>
+  <section id="coverage"><h2>SuperAgent 机制覆盖</h2><hr class="rule">
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">机制</th><th scope="col">已有</th><th scope="col">待验收</th></tr></thead>
+      <tbody>
+        <tr><td>Event inbox</td><td>Kanban 审查事件持久化、去重和续用 Task 会话。</td><td>Bot 消息、可信 Webhook 与 timer 通过同一入口。验证快速签收、并发领取和中断补领。</td></tr>
+        <tr><td>Timers</td><td>共用 timer 扫描。Kanban 一次性复查已在生产验收，另有周期计划实现。</td><td>验证非 Kanban 工作的两类 timer、重启补领、取消和事件去重。</td></tr>
+        <tr><td>Memory</td><td>保存当前审查摘要与交付版本。</td><td>持久保存用户指示、进度和已发送结果。换 Session 后继续工作，验证各工作之间的隔离。</td></tr>
+        <tr><td>Permissions</td><td>审查按 owner 执行，并有验收人答复与发布批准。</td><td>按操作校验权限。验证工具延期审批、释放 Worker、答复恢复和撤权。</td></tr>
+        <tr><td>Outbox</td><td>Kanban 事务内写回。自动化错过通知已有独立状态。</td><td>验证回复、静默结束、需要人工处理，以及需要可靠送达时的重试和对端去重。</td></tr>
+      </tbody>
+    </table></div>
+    <p><a href="https://pages.lemonyhn.top/reports/building-always-on-agents/">公开设计解读</a> · <a href="https://claude.com/resources/articles/building-always-on-agents">Anthropic 原文</a></p>
   </section>
   <section id="checks"><h2>自动化任务修复与验收</h2><hr class="rule">
     <div class="table-wrap"><table>
@@ -437,6 +452,7 @@ footer {
     <p>企业微信接收消息后，如果 Backend 在保存发送结果前退出，接管实例可能重发。生产接管和企业微信实际送达待验收。</p>
   </section>
   <section id="updates"><h2>更新记录</h2><hr class="rule">
+    <p><time>2026-11-28</time>　核对 SuperAgent 五项机制。Bot 交互及其依赖排在多 Bot 协作之前。</p>
     <p><time>2026-11-28</time>　第三批通过生产交付审查、timer 复查和停止跟进验收。</p>
     <p><time>2026-11-28</time>　第三批完成发布版本的 Kanban 隔离回归和生产预检。待在单条生产 Task 验收。</p>
     <p><time>2026-11-28</time>　内置 Rook 已绑定固定运行身份。两处生产入口读回同一条验收回复，验收 Task 已关闭。</p>
