@@ -857,6 +857,23 @@
           "updated_at": "2026-11-28T15:24:03.066767Z"
         }
       ]
+    },
+    {
+      "category": "技术方案",
+      "description": "",
+      "id": "reports/rook-two-decisions",
+      "project": "Rook",
+      "title": "Rook 两项待决策",
+      "versions": [
+        {
+          "digest": "21a2394dba209396ced9db26ba5127ad5d2030fea857beef1d17c544e1c63f6f",
+          "label": "v1",
+          "path": "reports/rook-two-decisions",
+          "published_at": "2026-11-28T15:34:22.419471Z",
+          "summary": "",
+          "updated_at": "2026-11-28T15:34:22.419471Z"
+        }
+      ]
     }
   ]
 }

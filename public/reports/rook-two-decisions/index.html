@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rook 两项待决策</title>
+<style>
+:root{--bg:#fbfbfa;--fg:#1d1d1f;--muted:#5f6368;--line:#e2e2df;--card:#fff;--accent:#2457c5;--rec:#e8f0ff;--warn:#b3261e;--warnbg:#fdecea}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#151617;--fg:#e8e8e6;--muted:#a0a4a8;--line:#2e3033;--card:#1c1d1f;--accent:#8ab0ff;--rec:#1d2a44;--warn:#ff8a80;--warnbg:#3a1f1d}}
+:root[data-theme="dark"]{--bg:#151617;--fg:#e8e8e6;--muted:#a0a4a8;--line:#2e3033;--card:#1c1d1f;--accent:#8ab0ff;--rec:#1d2a44;--warn:#ff8a80;--warnbg:#3a1f1d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 -apple-system,"PingFang SC","Noto Sans SC",sans-serif}
+main{max-width:920px;margin:0 auto;padding:28px 16px 64px}
+h1{font-size:24px;margin:0 0 6px}h2{font-size:19px;margin:36px 0 10px;padding-top:12px;border-top:1px solid var(--line)}h3{font-size:16px;margin:20px 0 6px}
+p{margin:6px 0}.muted{color:var(--muted);font-size:13px}
+.table{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--bg);white-space:nowrap}tr:last-child td{border-bottom:0}
+.opt{border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:10px 0;background:var(--card)}
+.opt.rec{background:var(--rec);border-color:var(--accent)}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;background:var(--accent);color:var(--bg);margin-left:6px}
+.warn{background:var(--warnbg);border-left:3px solid var(--warn);padding:8px 12px;border-radius:4px;margin:12px 0}
+code{font:12.5px ui-monospace,Menlo,monospace;background:var(--line);padding:0 4px;border-radius:3px}
+ul{margin:6px 0;padding-left:20px}
+</style>
+</head>
+<body><main>
+<h1>Rook 两项待决策</h1>
+<p class="muted">2026-11-28。依据为同类产品的源码和官方文档。「实测」指读到源码或文档原文，本次没有实际运行这些产品。</p>
+
+<div class="warn"><b>更正</b>：我之前说「目前没有越权」，这个说法有误。内置 Rook 是 <code>group</code> 可见，<code>tools</code> 为 <code>*</code>。任何能在 Task 上评论的 RD 写 <code>@Rook</code>，Run 就带着绑定它的管理员的 ClawSec 身份执行。DESIGN.md 已写明这一点。请求审查的 Run 不带 ClawSec 身份，普通 <code>@Rook</code> 的 Run 带。</div>
+
+<h2>决策 1：Turn 被中断后，Rook 要不要自动重发</h2>
+<p>中断指 Pod 重启、发布 drain、租约丢失或模型请求卡住。Chat 现在把 Turn 记为失败，由用户手动重发。自动重发的风险是重复执行中断前已经发生的工具调用，比如写文件或调用连接器。</p>
+
+<h3>同类产品</h3>
+<div class="table"><table>
+<tr><th>产品</th><th>中断后的行为</th><th>标注</th></tr>
+<tr><td>t3code</td><td>服务重启后默认在原会话发一条「继续」，要求模型先确认有副作用的操作是否已生效。5 分钟内最多 3 次。provider 还没接收 prompt 时，用户消息留给用户处理，定时任务的 prompt 自动重发。</td><td>实测</td></tr>
+<tr><td>Orca</td><td>应用重启后发「先检查最近的操作是否完成，完成了就不要重复」。每个中断的 Turn 有「继续」按钮，界面注明原 prompt 未重发。</td><td>实测</td></tr>
+<tr><td>Multica（开源项目）</td><td>runtime 离线或断流时自动重试 2 到 3 次，不看工具是否已执行。面向无人值守的 issue 任务。</td><td>实测</td></tr>
+<tr><td>dsh</td><td>给未完成的工具补一条结果「结果未知，只在只读或幂等时重试」，Turn 以 interrupted 结束，不自动续。</td><td>实测</td></tr>
+<tr><td>Claude Code</td><td>进程意外退出后自动重启会话，发「从中断处继续，先复核」。未完成的工具补「outcome is unknown」。</td><td>推断（二进制字符串）</td></tr>
+<tr><td>Codex</td><td>下一轮注入 <code>turn_aborted</code>，提示工具可能已部分执行。</td><td>推断（二进制字符串）</td></tr>
+<tr><td>OpenHands、HumanLayer</td><td>服务重启后会话标为失败，未完成的工具不重跑。</td><td>实测</td></tr>
+<tr><td>Cursor、Copilot、Claude Code on the web</td><td>停在空闲或失败状态，等用户发下一条消息或重新指派。</td><td>实测（官方文档）</td></tr>
+</table></div>
+<p>托管产品的官方文档都没有写「自动重发整个任务」。共同做法是：工具开始前可以安全重做，工具开始后只发一条先核对再继续的消息，或者交给用户。</p>
+
+<h3>Rook 现状</h3>
+<ul>
+<li>两个 Turn 之间回收常驻进程，下一轮从 MySQL 恢复，用户无感。实测</li>
+<li>Turn 中途遇到 Pod 重启或租约丢失，Run 记为 <code>interrupted</code>。还有未结束的工具时记为 <code>execution_tool_result_unknown</code>。实测</li>
+<li>自动化任务、智能体 Task 和私聊已经在「还没开始任何工具」时重投一次，但只对 Pi 生效。Codex 和 Claude Code 只统计了定时工具，这个计数不可用。实测</li>
+<li>Codex 和 Claude Code 只在 Turn 成功时保存原生 context。中断后再发「继续」，模型看不到中断前做过的事。实测</li>
+</ul>
+
+<h3>选项</h3>
+<div class="opt rec"><b>A. 按工具是否开始分两段</b><span class="tag">推荐</span>
+<ul>
+<li>工具开始前：自动重发原 prompt 一次，按 <code>requestId</code> 去重。复用后台任务已有的逻辑，没有重复执行的风险。</li>
+<li>工具开始后：不自动处理。Pi 上给「继续」按钮，发一条先核对再继续的消息，因为 Pi 的 checkpoint 里有中断前的工具结果。Codex 和 Claude Code 只显示提示，让用户核对后自己重发。</li>
+<li>Codex 和 Claude Code 要先统计全部工具的开始（Codex 的 <code>item/started</code>，Claude Code 的 <code>tool_use</code>），之后才能启用第一段。</li>
+<li>成本：小到中。</li>
+</ul></div>
+<div class="opt"><b>B. 维持现状，只补提示文案</b>
+<ul><li>Web 端给 <code>service_interrupted</code>、<code>execution_tool_result_unknown</code> 写明确的提示。成本接近零。用户每次都要自己判断。</li></ul></div>
+<div class="opt"><b>C. 像 t3code 一样默认自动继续</b>
+<ul><li>Codex 和 Claude Code 需要 Turn 中途的 checkpoint。重复执行的风险全靠模型自查。ClawSec 连接器调用没有幂等键，模型可能无法确认操作是否已生效。成本高。</li></ul></div>
+
+<h2>决策 2：智能体用谁的凭据，白名单在哪里生效</h2>
+<p>每个智能体 Run 的进程 env 里都有 owner 的 SSO。模型可以直接读出 token 调 ClawSec 网关，所以在 Runtime 内过滤命令一定能被绕过。Claude Code 的官方文档也说按参数匹配 Bash 的规则容易绕过。</p>
+
+<h3>同类产品</h3>
+<div class="table"><table>
+<tr><th>产品</th><th>运行身份</th><th>拦截点</th><th>模型能否读到凭据</th></tr>
+<tr><td>GitHub App、Copilot、OpenHands</td><td>App 自己的身份，令牌按仓库和权限收窄，短期过期</td><td>GitHub 服务端</td><td>能，但令牌本身范围小</td></tr>
+<tr><td>Slack、Linear</td><td>bot 自己的身份，由管理员安装</td><td>平台服务端的 scope</td><td>不适用</td></tr>
+<tr><td>Claude Code GitHub Action</td><td>App 的短期令牌，只限当前仓库，触发者需要写权限</td><td>服务端</td><td>能</td></tr>
+<tr><td>Claude Code on the web</td><td>用户自己的凭据，保存在服务端</td><td>沙箱外的代理先校验再附加凭据</td><td>不能</td></tr>
+<tr><td>Cursor cloud agent</td><td>每条消息用发送者自己的连接</td><td>服务端逐人核对权限</td><td>Runtime Secret 能</td></tr>
+<tr><td>Devin</td><td>组织 secret 全员可用，个人 secret 只用于本人；建议给 Devin 单独开账号</td><td>无服务端 scope</td><td>能</td></tr>
+<tr><td>Orca</td><td>owner（「every bot runs as the owner」）</td><td>宿主机的 relay 按 bot 附加凭据</td><td>不能</td></tr>
+<tr><td>Multica（开源项目）</td><td>runtime owner</td><td>进程内，强制跳过权限</td><td>能</td></tr>
+</table></div>
+<p>对多人开放的产品只有两种做法。一种是 bot 用自己的身份，在服务端收窄范围。另一种是用触发者自己的身份。像 Rook 这样把创建者的凭据放进别人能触发的沙箱，只有 Multica 这样做。MCP 规范也明确禁止把令牌原样转发给下游。</p>
+
+<h3>选项</h3>
+<div class="opt rec"><b>A. 内置 Rook 的 Run 不带 ClawSec 身份</b><span class="tag">推荐，现在做</span>
+<ul>
+<li>内置 Rook 的指令写明「只用当前需求提供的材料」「保持外部系统不变」，它本来就不需要连接器。请求审查的 Run 已经这样处理，普通 <code>@Rook</code> 照同样处理。</li>
+<li>改动小，立刻消除现有的借权问题。</li>
+<li>代价：有人如果靠 <code>@Rook</code> 查外部系统，这个用法会失效。我没有核实是否有人这样用。</li>
+<li>普通用户开放创建 group 智能体时，再从 B 和 C 里选。在那之前 group 仍只有管理员能设。</li>
+</ul></div>
+<div class="opt"><b>B. group 智能体改用触发者自己的 SSO</b>
+<ul>
+<li>照 Cursor 的做法。个人智能体和定时器继续用 owner。借权问题直接消失，<code>tools</code> 只用来收窄范围。</li>
+<li>成本：Task 会话要按触发者拆分，因为原生 context 里有用别人权限取到的结果。一个批次只能来自同一个触发者。需要触发者有有效的 SSO 会话。</li>
+<li>依赖 <code>claw-sec</code> 的 skill 照常可用，身份换成触发者。</li>
+</ul></div>
+<div class="opt"><b>C. 智能体用数字员工身份，owner 按 <code>tools</code> 出借连接</b>
+<ul>
+<li>和 GitHub App、Slack 一样，范围由 ClawSec 服务端拦截。ClawSec 的连接上有 <code>allowedActions</code>，超范围返回 <code>scope_denied</code>；借用的 <code>--scope</code> 是否同样生效，还没有实测。</li>
+<li>成本：每个智能体一个数字员工账号，每个连接器走一轮借用审批。依赖个人 SSO 直连公司服务的 skill 可能被拒。</li>
+</ul></div>
+<p class="muted">不推荐由 Rook Backend 代发连接器调用。ClawSec 本身就是 broker，再做一层等于重写网关。依赖真实凭据的 skill 也拦不住。</p>
+
+<h2>没有核实的</h2>
+<ul>
+<li>Codex app-server 中断恢复的结论只来自二进制字符串。</li>
+<li>ClawSec 借用 <code>--scope</code> 能否按操作限制，没有调用借用或写操作。</li>
+<li>是否有人依赖 <code>@Rook</code> 访问外部系统。</li>
+</ul>
+</main><!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body></html>
