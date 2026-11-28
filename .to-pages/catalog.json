@@ -691,6 +691,23 @@
           "updated_at": "2026-11-28T09:34:26.515572Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "Rook Session 方案：目标、问题、进展与下一步",
+      "id": "reports/rook-session-plan-status",
+      "project": "Rook",
+      "title": "Rook Session 方案进展",
+      "versions": [
+        {
+          "digest": "1c44b1050c1d5ce118dccadeaccc6b0c14b186a3dfabd80ae3d38fab37c6668e",
+          "label": "v1",
+          "path": "reports/rook-session-plan-status",
+          "published_at": "2026-11-28T09:36:12.513431Z",
+          "summary": "聚合 4 个 session：目标、问题、方案、完成度、已合入与下一步",
+          "updated_at": "2026-11-28T09:36:12.513431Z"
+        }
+      ]
     }
   ]
 }
