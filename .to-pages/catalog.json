@@ -683,12 +683,12 @@
       "title": "智能体与 Kanban 推进记录",
       "versions": [
         {
-          "digest": "7b2f5b46ae2f2f513e72b53741eaf73ed072cad6f5d4f0225f436f9a75b513a7",
+          "digest": "74ad59b01b2e115f49d51dcc4f30a722bc1217b7f88310e1e2ea4c07a866fdfd",
           "label": "v1",
           "path": "reports/agent-kanban-progress",
           "published_at": "2026-11-27T23:34:24.408651Z",
-          "summary": "第三批 Kanban 隔离回归和生产预检",
-          "updated_at": "2026-11-28T12:48:02.453541Z"
+          "summary": "第三批 Kanban 首版生产验收完成",
+          "updated_at": "2026-11-28T13:25:42.071448Z"
         }
       ]
     },
