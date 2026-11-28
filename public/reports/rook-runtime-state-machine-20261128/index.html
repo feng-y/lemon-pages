@@ -1,0 +1,3934 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rook Runtime 状态机评估</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+.report-md table{display:block;overflow-x:auto;max-width:100%}
+.report-md pre{overflow-x:auto;max-width:100%}
+.report-md{overflow-wrap:anywhere;color:var(--ink)}
+td code{overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<nav class="toc">
+  <div class="toc-title">On this page</div>
+  <a href="#tldr">TL;DR</a>
+  <a href="#premise">前提修正</a>
+  <a href="#stability">稳定性</a>
+  <a href="#efficiency">效率</a>
+  <a href="#decision">需要拍板</a>
+  <a href="#plan">建议顺序</a>
+  <a href="#appendix">四份原始报告</a>
+</nav>
+
+<main>
+
+  <header>
+    <div class="head-top">
+      <h1>Rook Runtime 状态机评估</h1>
+    </div>
+    <p class="subtitle">Pi、Claude Code、Codex 三个 Runtime 和它们之上的 Chat Turn 生命周期，对照 dsh、t3code、Orca。代码基线是 main c2163db 加 MR !243（6ed9642）。4 个 fable agent 只读评估，Claude 汇总并抽查。</p>
+  </header>
+
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">TL;DR</div>
+    <p>三个 Runtime 的常驻方式已经和 t3code、Orca 一致。Claude Code 常驻一个 SDK <code>query</code>。Codex 常驻一个 app-server。生产的 Pi 走进程内 SDK。所以「每个 Turn 都重启进程」不是瓶颈。实测 Codex 退役后重启只多 0.3–0.4 s。</p>
+    <p>稳定性的主要缺口有四个。第一，删除 Session 的通知只到达 Pi 的 worker。第二，Codex 和 Claude Code 启动和握手没有期限，最坏要等 60 分钟的 Turn 总期限。第三，Claude Code 没有无响应看门狗。第四，Pi 的 bash 没有默认超时。这四个改动都不大。</p>
+    <p>效率的主要成本有三处。每个 Turn 都整文件传一遍 checkpoint，Pi 的 15 MB session 每个 Turn 约多花 0.6 s。RunEvent 每批要 12 条 SQL。Turn 结束后，Queue 最多空等 1 s 才派发下一条。</p>
+    <p>有一件事需要你拍板。失败或 Stop 的 Turn 做过的事，目前三个 Runtime 都不写进原生 context。t3code 和 Orca 都保留。</p>
+  </div>
+
+  <section>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">0.3–0.4<span class="unit">s</span></div>
+        <div class="stat-label">Codex 退役后下一个 Turn 多花的时间</div>
+        <div class="stat-note">复用 58–76 ms，退役 348–440 ms，假 Provider</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">28–85<span class="unit">ms</span></div>
+        <div class="stat-label">Claude Code 常驻 Turn 的框架开销</div>
+        <div class="stat-note">冷启动加 resume 546–1067 ms</div>
+      </div>
+      <div class="stat mark-warn">
+        <div class="stat-num">~0.6<span class="unit">s</span></div>
+        <div class="stat-label">Pi 15 MB session 每个 Turn 的固定开销</div>
+        <div class="stat-note">checkpoint IPC 240 ms，Backend 事件循环单次阻塞 ≥53 ms</div>
+      </div>
+      <div class="stat mark-danger">
+        <div class="stat-num">60<span class="unit">min</span></div>
+        <div class="stat-label">Codex 握手卡住时 Turn 等待的上限</div>
+        <div class="stat-note">t3code 30 s / 2 min，Orca 30 s</div>
+      </div>
+    </div>
+    <p class="lede">所有耗时都在负载约 38 的开发机上测，用的是本地假 Provider，不含模型时间，只说明量级。</p>
+  </section>
+
+  <section id="premise">
+    <h2>前提修正：常驻已经对齐，不必为效率改进程策略</h2>
+    <hr class="rule">
+    <p class="lede">先排除看起来像问题、其实不是问题的项。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Runtime</th><th>Rook 现状</th><th>t3code / Orca</th><th>结论</th></tr></thead>
+        <tbody>
+          <tr><td>Codex</td><td>一个 Session 一个 app-server，按 launchKey、contextSha、threadId 复用。Turn 失败就退役，下一个 Turn 从 MySQL 恢复 thread</td><td>都常驻 app-server，失败后不退役</td><td><span class="tag neutral">不改</span> 退役只多 0.3–0.4 s。36.7 MB rollout 的 <code>thread/resume</code> 也只要 183–200 ms（实测）。真正的差别是 context，见「需要拍板」</td></tr>
+          <tr><td>Claude Code</td><td>一个 Session 一个 Agent SDK <code>query()</code>，跨 Turn 常驻（<code>claude-code.ts:92-158</code>）</td><td>t3code 同样常驻；Orca 用 stream-json 常驻</td><td><span class="tag ok">已对齐</span> 中断后进程仍可用，<code>interrupt()</code> 到 <code>result</code> 6–9 ms（实测）</td></tr>
+          <tr><td>Pi</td><td>生产走进程内 SDK（<code>PiSdkRuntime</code>），不是 RPC</td><td>t3code 用 <code>pi --mode rpc</code></td><td><span class="tag ok">已对齐</span> retry 和 compaction 的可见性、Turn 结束判定、插话时机都和 dsh 一致（读码）</td></tr>
+          <tr><td>Stop</td><td>三个 Runtime 都在 Stop 后关闭或退役进程</td><td>t3code、Orca 也关闭</td><td><span class="tag ok">已对齐</span> Codex 的 1 s 宽限、并发 Turn 保护、supervisor 回收孤儿进程都不用改</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warn">
+      <div class="callout-title">一处注释和代码不符</div>
+      <p><code>codex-app-server.ts:80</code> 写「Lifecycle follows t3code: any failed Turn retires the whole process」。t3code 当前代码在失败 Turn 后不退役进程。这行注释应该改。</p>
+    </div>
+  </section>
+
+  <section id="stability">
+    <h2>稳定性：按影响排序</h2>
+    <hr class="rule">
+    <p class="lede">每条标明证据类型。带「Claude 抽查」的条目，Claude 已在代码里核对过对应行。</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>问题</th><th>证据</th><th>改法</th><th>层</th><th>成本</th></tr></thead>
+        <tbody>
+          <tr><td>S1</td><td>删除 Session 后，Claude Code 和 Codex 的 worker 不退出。归档不通知，其他 Backend 实例也收不到</td><td>读码，Claude 抽查。<code>isolated.ts:101</code> 用 <code>Object.assign(execute, executors.pi, …)</code>，只把 Pi 的 <code>forget</code> 挂到入口上</td><td><code>forget</code> 遍历三个执行器。再配合 S8 的空闲时限，归档和跨实例的情况都能回收</td><td>Chat 公共层</td><td><span class="tag ok">小</span></td></tr>
+          <tr><td>S2</td><td>Codex 不回 <code>initialize</code> 时，静默看门狗不触发，Turn 要等 60 分钟总期限才结束</td><td>实测。第一次 <code>turn.heard()</code> 在 <code>turn/start</code> 的回复里（<code>codex-app-server.ts:327</code>），握手在 <code>:219-225</code></td><td>握手和 <code>thread/start|resume</code> 加 30 s 期限，超时报 <code>native_codex_request_failed</code></td><td>Codex adapter</td><td><span class="tag ok">约 5 行</span></td></tr>
+          <tr><td>S3</td><td>Claude Code 启动没有期限，运行中也没有无响应看门狗，唯一的计时是 60 分钟 Turn 总期限</td><td>读码。t3code 10 分钟没有根帧就失败</td><td>启动加期限。运行中加无响应看门狗，但要先探测工具执行期间有没有帧，免得误杀长时间运行的 Bash</td><td>Claude Code adapter</td><td><span class="tag warn">约 30 行，要先探测</span></td></tr>
+          <tr><td>S4</td><td>Pi 的 bash 没有默认超时。卡住的命令会占住 Turn 直到 60 分钟</td><td>读码</td><td>在 <code>guardTools</code> 里给 bash 补默认超时。Claude Code 和 Codex 的 shell 自带超时</td><td>Pi adapter</td><td><span class="tag ok">小</span></td></tr>
+          <tr><td>S5</td><td>失败码太粗。Codex 的失败全是 <code>native_codex_turn_failed</code>，自动化任务不会重投过载和限流。Claude Code 的进程退出、流结束和 Provider 错误都变成 <code>native_incomplete</code>，大多没有 errorDetail</td><td>Codex 实测过载时 <code>codexErrorInfo=serverOverloaded</code>。重试集合在 <code>automation/service.ts:123</code>，Claude 抽查。Claude Code 读码：adapter 只取 <code>result</code>，忽略 stderr</td><td>Codex 把 <code>codexErrorInfo</code> 映射到已有的 <code>native_model_rate_limited</code>、<code>native_model_unavailable</code>。Claude Code 记录退出码、信号和 stderr 末尾</td><td>两个 adapter</td><td><span class="tag ok">约 15 行 + 小</span></td></tr>
+          <tr><td>S6</td><td>重连时前端看不到。Pi 已经显示 <code>auto_retry_start</code>，Codex 和 Claude Code 没有</td><td>实测 Codex 通知 <code>Reconnecting... 1/5</code>，Claude Code 有 <code>api_retry</code> 帧</td><td>都映射到 <code>auto_retry_start</code>。<code>runCodexAppServer</code> 先要加 <code>onEvents</code>。<code>additionalDetails</code> 带 relay 地址，不要转发给前端</td><td>两个 adapter</td><td><span class="tag ok">小</span></td></tr>
+          <tr><td>S7</td><td>Stop 和成功同时发生、Stop 先落库时，回复落库了，checkpoint 没落库</td><td>实测状态，读码定因，Claude 抽查。<code>store.ts:714</code> 只在 <code>current.state === 'running'</code> 时保存</td><td>归入「需要拍板」，因为它和失败或 Stop 的 Turn 是否进入 context 是同一个决定</td><td>Chat 公共层</td><td><span class="tag neutral">待定</span></td></tr>
+          <tr><td>S8</td><td>空闲 worker 只按数量回收（每个 Runtime 4 个），没有时限，也没有跨 Runtime 的总量上限。空闲的 Codex app-server 约 110 MB，Claude Code 288–381 MB</td><td>读码，RSS 实测</td><td>并入已计划的 3b（空闲 30 分钟冻结）。落地时要同时设数量或内存上限</td><td>Chat 公共层</td><td><span class="tag warn">中，已有计划</span></td></tr>
+          <tr><td>S9</td><td>Claude Code 的 <code>run()</code> 取推送后的第一个 <code>result</code>。如果 Claude Code 在后台任务结束后自己开了一个 Turn，它的结果可能被当成下一条用户 Turn 的回答</td><td><span class="tag warn">推测，未复现</span> Orca 按 uuid 关联</td><td>先复现。便宜的办法是设 <code>CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1</code>，效果未测</td><td>Claude Code adapter</td><td><span class="tag neutral">先复现</span></td></tr>
+          <tr><td>S10</td><td>MySQL 抖动 30 s，会让一个执行实例上的全部 Turn 变成 <code>interrupted</code>。公共层也没有 worker 存活心跳</td><td>读码</td><td>后续再做</td><td>Chat 公共层</td><td><span class="tag neutral">后续</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="efficiency">
+    <h2>效率：按影响排序</h2>
+    <hr class="rule">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>成本</th><th>证据</th><th>改法</th><th>成本</th></tr></thead>
+        <tbody>
+          <tr><td>E1</td><td>每个 Turn 都整文件传 checkpoint。Pi 15 MB 时每个 Turn 约多 0.6 s，超过 16 MiB 时静默跳过。Claude Code 复用常驻进程时，仍要从 MySQL 拿整份 JSONL，经 IPC 传过去，写盘、算哈希、再删掉</td><td>Pi 实测分项相加。Claude Code 读码（<code>isolated.ts:612</code>、<code>native.ts:177-203,382</code>），没测</td><td>Pi 改增量 checkpoint，并入已计划的 3a。常驻进程复用、头部 digest 一致时，三个 Runtime 都跳过整文件往返。Stop 或失败后也复用本地文件（<code>isolated.ts:574</code> 现在会删掉它）</td><td><span class="tag warn">中</span></td></tr>
+          <tr><td>E2</td><td>RunEvent 落库太重。<code>appendEvents</code> 每批 12 条 SQL，单批 3.6 ms。并发 1、8、20 个 Run 时 p50 是 2.7、8.8、19.3 ms。连接池只有 8 条，SSE 每 200 ms 轮询数据库</td><td>临时 MySQL 实测</td><td>精简 SQL，加进程内通知，用通知替代 SSE 轮询，调大连接池</td><td><span class="tag warn">中</span></td></tr>
+          <tr><td>E3</td><td>Turn 结束后，Queue 要等最长 1 s 的轮询才派发下一条。准入在一个执行实例内全局串行。Queue 的全局索引是所有用户共用的一把行锁</td><td>读码，线上收益是推测</td><td>先在 <code>manager.ts:562-566</code> 的 finally 里调一次 <code>wakeQueue()</code>，这一步很小。再把准入改成按 Session 串行，读索引不加锁</td><td><span class="tag ok">小</span> / <span class="tag warn">中</span></td></tr>
+          <tr><td>E4</td><td>Pi worker 冷启动 1.56–2.04 s，约 150 MB</td><td>实测 7 次。加 <code>NODE_COMPILE_CACHE</code> 热缓存后 1.25–1.29 s</td><td>加 <code>NODE_COMPILE_CACHE</code>。只读目录换 uid 后是否生效没测。和 S8 的回收策略一起调</td><td><span class="tag ok">小</span></td></tr>
+          <tr><td>E5</td><td>Claude Code 每个新 Session 多发一次生成标题的请求，用主模型，<code>effort: high</code></td><td>实测。<code>CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1</code> 能去掉它（实测）</td><td>设这个环境变量。它对 MCP、skill、plugin 的影响没测</td><td><span class="tag ok">一行，需验证</span></td></tr>
+          <tr><td>E6</td><td>Pi 的响应头实际上限是 120 s，不是文档写的 180 s。SDK <code>timeoutMs</code> 不截断已开始的流</td><td>实测。代码里 <code>headersTimeout</code> 是 180 s，但 <code>httpIdleTimeoutMs: 120_000</code> 先生效</td><td>改正文档。参考 dsh 设 <code>retry.provider.timeoutMs</code> 60 s、<code>maxRetries</code> 5，和 Codex relay 的 60 s 一致。能救回多少 Run，先用 RDS 只读统计失败码再定</td><td><span class="tag ok">配置</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="decision">
+    <h2>需要你拍板：失败或 Stop 的 Turn 要不要进入原生 context</h2>
+    <hr class="rule">
+    <p>现在三个 Runtime 的做法一致：失败或 Stop 的 Turn 不进入原生 context。Codex 退役进程后从 MySQL 恢复。Claude Code 有测试断言这一点（<code>tests/claude-code.test.ts:392</code>）。Pi 删掉本地 checkpoint。<code>finishRun</code> 只在 <code>running</code> 状态下保存。</p>
+    <p>结果是用户在界面上看得到这个 Turn 的回复和工具结果，模型在下一个 Turn 却不知道。比如 Stop 前已经改了文件，下一个 Turn 模型会以为文件没改。t3code 和 Orca 都保留这部分 context。</p>
+    <div class="callout">
+      <div class="callout-title">Claude 的建议</div>
+      <p>Stop 的 Turn 保留 context，因为 Stop 是用户主动打断，已完成的 Step 是事实。这样 S7 自然解决，Codex 也能少一次退役。Provider 报错的失败 Turn 维持现状，因为不完整的工具调用写进 context 风险更大。这个决定三个 Runtime 一起改，改动落在 Chat 公共层和三个 adapter 的退役条件上。</p>
+    </div>
+  </section>
+
+  <section id="plan">
+    <h2>建议顺序</h2>
+    <hr class="rule">
+    <ul class="points">
+      <li><strong>MR-1，小的稳定性修复。</strong>S1 让 <code>forget</code> 到达三个执行器；S2 给 Codex 握手加期限，S3 的启动期限部分；S4 Pi bash 默认超时；E3 的 <code>wakeQueue()</code>；改正 E6 的文档和 <code>:80</code> 的注释。每项都有现成的测试入口。</li>
+      <li><strong>MR-2，失败码和重连可见性。</strong>S5 和 S6，两个 adapter 一起改。</li>
+      <li><strong>MR-3，Claude Code 无响应看门狗。</strong>S3 的运行期部分，先探测工具执行期间的帧再定阈值。</li>
+      <li><strong>已有计划。</strong>E1 的 Pi 增量 checkpoint 并入 3a（<code>release_fix/pi-dsh-persistence-20261126</code>），S8 并入 3b。动手前先读这两个分支，避免重复。</li>
+      <li><strong>之后。</strong>E2 的 RunEvent 落库和 E3 的准入串行，改动面大，先测线上 SQL 往返再做。S9 先复现。E5 先验证副作用。</li>
+    </ul>
+    <div class="callout warn">
+      <div class="callout-title">并行改动</div>
+      <p>另一个 session 的 <code>release_fix/native-subagent-20261128</code> 也改了 <code>codex-app-server.ts</code> 和 <code>claude-code.ts</code>，正在部署到 Multica 验证。MR !243 也改了 <code>codex-app-server.ts</code>。MR-1 到 MR-3 要等这两个分支合入后再开始。</p>
+    </div>
+  </section>
+
+  <section id="appendix">
+    <h2>四份原始报告</h2>
+    <hr class="rule">
+    <p class="lede">fable agent 的完整报告。Rook 行号指向 <code>/tmp/rook-clone-3XBb</code>（6ed9642）。dsh、t3code、Orca 的行号由子 agent 读出，只抽查了一部分。</p>
+    <details class="fold"><summary>Chat Turn 生命周期（chat-lifecycle.md）</summary><div class="fold-body report-md"><h1>Chat 生命周期评估：Runtime 之上的公共层</h1>
+<p>评估对象是 <code>/tmp/rook-clone-3XBb</code>（main + MR !243，提交 <code>6ed9642</code>）。本文只读代码，不改代码。
+本文的文件行号都相对这个 clone。三个 Runtime 适配器由另外三份报告评估，本文只在公共层碰到它们时提及。</p>
+<p>每条结论带一个标签：</p>
+<ul>
+<li><strong>实测</strong>：我在本机跑了脚本或测试，数字来自输出。</li>
+<li><strong>读码</strong>：我读了代码，没有运行验证。</li>
+<li><strong>推测</strong>：我没有证据，只是推断。</li>
+</ul>
+<p>术语沿用 <code>CONTEXT.md</code>：Session、Turn、Step、<code>Run</code>、Queue、执行实例、Rook Backend。
+<code>worker</code> 指 <code>native-worker.ts</code> 进程，<code>supervisor</code> 指 <code>native-supervisor.py</code> 进程，这两个词来自代码文件名。
+「常驻进程」是我对 <code>isolated.ts:187</code> 注释里 resident process 的叫法，指 worker 里跨 Turn 保留的 Claude Code 或 Codex 进程。</p>
+<h2>0. 结论</h2>
+<p>公共层的正确性设计是扎实的。租约、提交栅栏、supervisor 按租约杀进程，这三层让「running 但没有 owner」的 <code>Run</code> 最多存活约 30 秒。我没有找到会永久卡在 <code>running</code> 的主路径。</p>
+<p>问题集中在四处：</p>
+<ol>
+<li>删除 Session 时，Claude Code 和 Codex 的 worker 不会被停止。根因是一行 <code>Object.assign</code>（G1，读码）。</li>
+<li>每批 RunEvent 的落库要 12 条 SQL，而整个 Rook Backend 只有 8 条 MySQL 连接（G2，实测 + 读码）。</li>
+<li>空闲 worker 只按数量回收（每个 Runtime 4 个），没有按时间回收，也没有按执行实例总量回收（G3，读码）。</li>
+<li>Stop 赢了终态竞争时，Claude Code 和 Codex 的回复落库，checkpoint 不落库（G4，读码 + 实测状态）。</li>
+</ol>
+<h2>1. Turn 生命周期状态机</h2>
+<h3>1.1 状态</h3>
+<p><code>Run</code> 的数据库状态定义在 <code>src/chat/store.ts:26</code>：<code>running | stopping | succeeded | failed | stopped | interrupted</code>。前两个是活动态，后四个是终态（<code>store.ts:67</code>）。</p>
+<p>Session 行上有三列共同表达「谁在跑」：<code>active_run_id</code>、<code>lease_expires_at</code>、<code>execution_instance</code>（<code>store.ts:541</code>）。</p>
+<p>内存里有四层状态，数据库看不到它们：</p>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>持有者</th>
+<th>结构</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ActiveRun</code></td>
+<td>Rook Backend</td>
+<td><code>abort</code>、<code>interrupted</code>、<code>closing</code>、<code>deadline</code>、<code>polling</code>、<code>controlTask</code></td>
+<td><code>manager.ts:64-85</code>，表在 <code>manager.ts:93</code></td>
+</tr>
+<tr>
+<td><code>Worker</code> capsule</td>
+<td>Rook Backend</td>
+<td><code>busy</code>、<code>stopping</code>、<code>checkpoint</code>；三张表 <code>workers</code>、<code>live</code>、<code>idle</code></td>
+<td><code>isolated.ts:74-83</code>、<code>isolated.ts:191-193</code></td>
+</tr>
+<tr>
+<td><code>WorkerRun</code></td>
+<td>worker</td>
+<td><code>abort</code>、<code>deadline</code>、<code>acknowledgements</code>；全局 <code>closing</code></td>
+<td><code>native-worker.ts:24-35</code></td>
+</tr>
+<tr>
+<td>租约与清理</td>
+<td>supervisor</td>
+<td><code>lease_deadline</code>、<code>clean_started</code>、<code>stopping</code>、<code>runtime_pid</code></td>
+<td><code>native-supervisor.py:39-55</code></td>
+</tr>
+</tbody></table>
+<p>Queue 是一份按 Session 加密保存的文档：<code>{ messages, waitFor, paused }</code>（<code>queue.ts:20</code>）。另有一份全局索引文档列出所有非空 Queue 的 Session（<code>queue.ts:33</code>、<code>queue.ts:60-71</code>）。</p>
+<h3>1.2 转移表</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>起点</th>
+<th>事件</th>
+<th>终点</th>
+<th>谁执行</th>
+<th>锁与栅栏</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>T1</td>
+<td>无</td>
+<td>用户发送且可直接执行</td>
+<td><code>running</code></td>
+<td>Rook Backend</td>
+<td>Session 行 <code>FOR UPDATE</code>；提交时校验租约未过期</td>
+<td><code>manager.ts:386</code>、<code>store.ts:510-548</code></td>
+</tr>
+<tr>
+<td>T2</td>
+<td>无</td>
+<td>用户发送但需要排队</td>
+<td>Queue 增加一项</td>
+<td>Rook Backend</td>
+<td>Session 行锁 + Queue 文档锁 + 全局索引文档锁</td>
+<td><code>manager.ts:262-289</code>、<code>queue.ts:80-105</code></td>
+</tr>
+<tr>
+<td>T3</td>
+<td>Queue 头</td>
+<td>轮询派发</td>
+<td><code>running</code></td>
+<td>Rook Backend（每秒一次）</td>
+<td>同 T1；<code>consume</code> 与 <code>beginRun</code> 同事务</td>
+<td><code>manager.ts:172-244</code>、<code>queue.ts:160-167</code></td>
+</tr>
+<tr>
+<td>T4</td>
+<td><code>running</code></td>
+<td>用户 Stop</td>
+<td><code>stopping</code></td>
+<td>收到请求的 Rook Backend</td>
+<td>Session 行锁 + <code>Run</code> 行锁 + 租约栅栏</td>
+<td><code>manager.ts:676-680</code>、<code>store.ts:676-685</code></td>
+</tr>
+<tr>
+<td>T5</td>
+<td><code>running</code></td>
+<td>Runtime 正常结束</td>
+<td><code>succeeded</code> 或 <code>failed</code></td>
+<td>持有 <code>ActiveRun</code> 的 Rook Backend</td>
+<td>同上</td>
+<td><code>manager.ts:549-552</code>、<code>store.ts:699-738</code></td>
+</tr>
+<tr>
+<td>T6</td>
+<td><code>stopping</code></td>
+<td>Runtime 结束，结果是成功或失败</td>
+<td><code>stopped</code></td>
+<td>同上</td>
+<td>同上</td>
+<td><code>store.ts:724-725</code></td>
+</tr>
+<tr>
+<td>T7</td>
+<td><code>stopping</code></td>
+<td>worker 回报 <code>stopped</code>，或取消超时后被杀</td>
+<td><code>stopped</code></td>
+<td>同上</td>
+<td>同上</td>
+<td><code>manager.ts:558-561</code></td>
+</tr>
+<tr>
+<td>T8</td>
+<td><code>running</code></td>
+<td>结束时还有未回报结果的工具</td>
+<td><code>interrupted</code>，错误码 <code>execution_tool_result_unknown</code></td>
+<td>同上</td>
+<td>同上</td>
+<td><code>store.ts:723-726</code></td>
+</tr>
+<tr>
+<td>T9</td>
+<td><code>running</code> 或 <code>stopping</code></td>
+<td>Rook Backend 排空超过宽限期</td>
+<td><code>interrupted</code>，错误码 <code>service_interrupted</code></td>
+<td>同上</td>
+<td>同上</td>
+<td><code>manager.ts:691-693</code>、<code>manager.ts:551</code></td>
+</tr>
+<tr>
+<td>T10</td>
+<td><code>running</code> 或 <code>stopping</code></td>
+<td>租约过期（owner 已死或已失联）</td>
+<td><code>interrupted</code>，错误码 <code>execution_interrupted</code> 或 <code>execution_tool_result_unknown</code></td>
+<td>任意 Rook Backend 的每秒轮询，或同一 Session 的下一次发送</td>
+<td>Session 行 <code>FOR UPDATE NOWAIT</code>；只在 <code>lease_expires_at &lt;= 数据库时钟</code> 时执行</td>
+<td><code>store.ts:809-850</code>、<code>manager.ts:351</code>、<code>manager.ts:732</code></td>
+</tr>
+<tr>
+<td>T11</td>
+<td>离线 <code>Run</code> 的 <code>interrupted</code> 且没有开始过工具</td>
+<td>中断重排</td>
+<td>Queue 增加一项</td>
+<td>Rook Backend</td>
+<td>开关 <code>ROOK_UPGRADED_FLEET=1</code></td>
+<td><code>store.ts:178</code>，<code>CONTEXT.md</code>「中断重排」</td>
+</tr>
+</tbody></table>
+<p>说明：</p>
+<ul>
+<li>T1 的并发准入有三道。执行实例总量 20，每人 5，自动化每人 10（<code>capacity.ts:1-7</code>、<code>manager.ts:360-367</code>）。超出时直接发送返回 <code>chat_run_overloaded</code>，可排队的发送转入 Queue。</li>
+<li>T1 的准入在一个执行实例内是<strong>全局串行</strong>的。<code>manager.ts:298</code> 把每次 <code>accept</code> 接在同一条 promise 链 <code>this.admission</code> 上。等待中的准入超过 8 个就拒绝或转 Queue（<code>manager.ts:292</code>）。</li>
+<li>Session 归属于执行实例。另一个存活的执行实例持有这个 Session 时，<code>beginRun</code> 抛 <code>execution_instance_elsewhere</code>（<code>store.ts:531</code>）。执行实例 15 秒没有心跳即视为离开（<code>store.ts:29</code>、<code>store.ts:169</code>）。</li>
+</ul>
+<h3>1.3 租约与超时</h3>
+<table>
+<thead>
+<tr>
+<th>机制</th>
+<th>值</th>
+<th>谁执行</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Session 租约</td>
+<td>30 秒，按数据库时钟</td>
+<td>Rook Backend 写入</td>
+<td><code>store.ts:27</code>、<code>store.ts:540</code></td>
+</tr>
+<tr>
+<td>租约续期</td>
+<td>每 5 秒；失败后 1 秒重试</td>
+<td>Rook Backend 轮询</td>
+<td><code>manager.ts:743-758</code>、<code>store.ts:782-796</code></td>
+</tr>
+<tr>
+<td>提交栅栏</td>
+<td>每个活动态写事务在提交语句里比较租约与数据库时钟</td>
+<td>MySQL</td>
+<td><code>store.ts:230-232</code></td>
+</tr>
+<tr>
+<td>本地期限</td>
+<td><code>ActiveRun.deadline</code> 到期即 <code>interrupt</code></td>
+<td>Rook Backend 定时器</td>
+<td><code>manager.ts:707-719</code></td>
+</tr>
+<tr>
+<td>supervisor 期限</td>
+<td>到期即 <code>SIGKILL</code> worker，退出码 3</td>
+<td>supervisor</td>
+<td><code>native-supervisor.py:97-104</code>、<code>:205</code></td>
+</tr>
+<tr>
+<td>worker 期限</td>
+<td>每次回调前检查，过期即自停</td>
+<td>worker</td>
+<td><code>native-worker.ts:77-82</code></td>
+</tr>
+<tr>
+<td>Turn 总期限</td>
+<td>60 分钟；公共层再加 5 秒，错误码 <code>execution_timeout</code></td>
+<td>Runtime 适配器与 Rook Backend</td>
+<td><code>runtime/process.ts:5</code>、<code>isolated.ts:375</code></td>
+</tr>
+<tr>
+<td>取消期限</td>
+<td>15 秒，错误码 <code>execution_cancel_timeout</code></td>
+<td>Rook Backend</td>
+<td><code>isolated.ts:381-385</code></td>
+</tr>
+<tr>
+<td>worker 停止</td>
+<td><code>SIGTERM</code>，7 秒后对进程组 <code>SIGKILL</code></td>
+<td>Rook Backend</td>
+<td><code>isolated.ts:134-143</code></td>
+</tr>
+<tr>
+<td>supervisor 收尾</td>
+<td><code>SIGTERM</code> worker，0.5 秒后逐轮 <code>SIGKILL</code> 全部子进程，最多 5 秒</td>
+<td>supervisor</td>
+<td><code>native-supervisor.py:38</code>、<code>:182-210</code></td>
+</tr>
+<tr>
+<td>Turn 间清理</td>
+<td><code>clean</code> 握手最多 5 秒；Rook Backend 等 7 秒</td>
+<td>supervisor 与 Rook Backend</td>
+<td><code>native-supervisor.py:161-179</code>、<code>isolated.ts:171</code></td>
+</tr>
+<tr>
+<td>控制（改模型、插话）</td>
+<td>排队 10 秒过期，等 worker 就绪 5 秒，worker 应答 6 秒，HTTP 等 15 秒</td>
+<td>Rook Backend</td>
+<td><code>controls.ts:44</code>、<code>manager.ts:636</code>、<code>isolated.ts:418-422</code>、<code>manager.ts:609</code></td>
+</tr>
+<tr>
+<td>执行实例心跳</td>
+<td>5 秒；15 秒失效</td>
+<td>Rook Backend</td>
+<td><code>store.ts:28-29</code></td>
+</tr>
+<tr>
+<td>事务连接</td>
+<td><code>wait_timeout</code> 压到 5 秒，Rook Backend 失联时 MySQL 自己释放行锁</td>
+<td>MySQL</td>
+<td><code>store.ts:226</code></td>
+</tr>
+</tbody></table>
+<p>三层期限用的是同一个租约值。Rook Backend 把数据库时钟的过期时刻换算成本机单调时钟，再经 fd 4 和 IPC 下发（<code>isolated.ts:366-374</code>、<code>isolated.ts:599-607</code>）。Rook Backend 被冻结或与 MySQL 分区时，supervisor 仍会在同一时刻杀掉 worker。这是整套设计里最有价值的部分。</p>
+<h3>1.4 Stop 路径</h3>
+<ol>
+<li>浏览器调用 <code>POST …/runs/&lt;runId&gt;/stop</code>（<code>chat/api.ts:237-239</code>）。</li>
+<li>收到请求的 Rook Backend 把 <code>Run</code> 从 <code>running</code> 改成 <code>stopping</code>（<code>store.ts:682</code>）。</li>
+<li>这个 Rook Backend 持有 <code>ActiveRun</code> 时，立刻触发 <code>abort</code>（<code>manager.ts:678</code>）。</li>
+<li>这个 Rook Backend 不持有时，持有者在下一次每秒轮询里读到 <code>stopping</code> 再触发 <code>abort</code>（<code>manager.ts:759</code>）。最坏延迟是 1 秒加上一轮 <code>maintain</code> 的耗时。</li>
+<li><code>abort</code> 让 Rook Backend 向 worker 发 <code>cancel</code>，并启动 15 秒的取消期限（<code>isolated.ts:376-385</code>）。</li>
+<li>worker 触发自己的 <code>AbortController</code>（<code>native-worker.ts:197-200</code>）。之后由各 Runtime 适配器中断模型和工具。</li>
+<li>worker 回报结果。Rook Backend 让 supervisor 执行 <code>clean</code>，杀掉常驻进程之外的全部后代（<code>isolated.ts:541-546</code>）。</li>
+<li>Rook Backend 调用 <code>finishRun</code>。<code>stopping</code> 加任何非终态结果都落成 <code>stopped</code>（<code>store.ts:724-725</code>）。</li>
+<li>15 秒内没有结果时，Rook Backend 杀掉 worker 和 supervisor，<code>Run</code> 落成 <code>stopped</code>，错误码 <code>execution_cancel_timeout</code>（<code>manager.ts:558-560</code>）。</li>
+</ol>
+<h3>1.5 崩溃与重启恢复</h3>
+<table>
+<thead>
+<tr>
+<th>故障</th>
+<th>结果</th>
+<th>标签</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Rook Backend 进程死亡</td>
+<td>supervisor 收到 <code>PR_SET_PDEATHSIG</code> 的 <code>SIGTERM</code>，杀掉 worker 和全部后代。<code>Run</code> 在租约过期后由其他 Rook Backend 标成 <code>interrupted</code>，最长约 30 秒加 1 秒轮询</td>
+<td>读码；<code>tests/pi-supervisor.test.ts</code> 通过（实测）</td>
+<td><code>native-supervisor.py:22</code>、<code>store.ts:809</code></td>
+</tr>
+<tr>
+<td>Rook Backend 正常部署替换</td>
+<td><code>shutdown</code> 先标记排空，宽限期后 <code>interruptActive</code>。<code>Run</code> 落成 <code>interrupted</code>，错误码 <code>service_interrupted</code>。SSE 向浏览器发 <code>reconnect</code></td>
+<td>读码</td>
+<td><code>manager.ts:691-705</code>、<code>chat/api.ts:298-300</code></td>
+</tr>
+<tr>
+<td>worker 崩溃</td>
+<td>Rook Backend 收到 <code>close</code>，<code>Run</code> 落成 <code>failed</code>，错误码 <code>execution_worker_failed</code> 或 <code>execution_cleanup_failed</code></td>
+<td>读码</td>
+<td><code>isolated.ts:550-554</code>、<code>isolated.ts:593</code></td>
+</tr>
+<tr>
+<td>supervisor 被 <code>SIGKILL</code></td>
+<td>worker 的 IPC 仍连着 Rook Backend，worker 不会自己退出。Rook Backend 写 fd 4 失败后 <code>stop()</code>，<code>SIGTERM</code> 发给已死的 supervisor，7 秒后进程组 <code>SIGKILL</code> 兜底</td>
+<td>读码</td>
+<td><code>isolated.ts:139-141</code>、<code>isolated.ts:147</code></td>
+</tr>
+<tr>
+<td>MySQL 不可用超过 30 秒</td>
+<td>续期失败，本地期限到期，<strong>这个执行实例上的全部 Turn 被中断</strong></td>
+<td>读码</td>
+<td><code>manager.ts:745-749</code>、<code>manager.ts:715-719</code></td>
+</tr>
+<tr>
+<td>结束时 <code>finishRun</code> 失败</td>
+<td><code>catch</code> 里再试一次失败态；仍失败就吞掉错误，删除 <code>ActiveRun</code>。<code>Run</code> 在租约过期后变 <code>interrupted</code>。回复文本只在 <code>finishRun</code> 写入，所以这一 Turn 的最终回复丢失，已落库的 RunEvent 保留</td>
+<td>读码</td>
+<td><code>manager.ts:553-566</code>、<code>store.ts:721-722</code></td>
+</tr>
+</tbody></table>
+<p>Session 级的原生 context 恢复不在本文范围。公共层只保证一点：Pi 的 Turn 失败后，Rook Backend 以执行用户身份删除本地 <code>native-session.jsonl</code>，下一 Turn 从 MySQL checkpoint 重新加载（<code>isolated.ts:151-160</code>、<code>isolated.ts:588</code>）。</p>
+<h3>1.6 空闲回收</h3>
+<ul>
+<li>三个 Runtime 各有一个 <code>isolatedExecutor</code>，各有自己的 <code>workers</code>、<code>live</code>、<code>idle</code> 三张表（<code>isolated.ts:89-93</code>、<code>isolated.ts:191-193</code>）。</li>
+<li>Turn 正常结束后，worker 进入 <code>idle</code>。<code>idle</code> 超过 <code>maxIdleWorkers</code> 时，Rook Backend 停掉最早进入的那个（<code>isolated.ts:580-587</code>）。默认值是 4（<code>capacity.ts:6</code>）。</li>
+<li>所以一个执行实例最多保留 12 个空闲 worker，每个 Runtime 4 个。</li>
+<li>没有按时间的回收。一个空闲 worker 只要没被挤出去，就一直活到 Rook Backend 退出。</li>
+<li>Pi 的 worker 被回收后，下一 Turn 冷启动，并用本地文件或 MySQL checkpoint 恢复（<code>isolated.ts:263-269</code>）。</li>
+<li>空闲 worker 在 Turn 之间发来任何 IPC 消息都会被停掉（<code>isolated.ts:146</code>）。</li>
+</ul>
+<h3>1.7 失败码</h3>
+<p>公共层自己产生的错误码如下。Runtime 适配器产生的 <code>native_*</code> 码不在此列。</p>
+<table>
+<thead>
+<tr>
+<th>错误码</th>
+<th>含义</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>execution_lease_expired</code></td>
+<td>Rook Backend 本地期限到期，或提交栅栏拒绝</td>
+<td><code>manager.ts:718</code>、<code>store.ts:232</code></td>
+</tr>
+<tr>
+<td><code>execution_lease_lost</code></td>
+<td>租约下发失败、supervisor 退出码 3、执行器已关闭</td>
+<td><code>isolated.ts:358</code>、<code>:554</code>、<code>:251</code></td>
+</tr>
+<tr>
+<td><code>execution_timeout</code></td>
+<td>Turn 超过 60 分钟加 5 秒</td>
+<td><code>isolated.ts:375</code></td>
+</tr>
+<tr>
+<td><code>execution_cancel_timeout</code></td>
+<td>取消后 15 秒 worker 没有结果</td>
+<td><code>isolated.ts:384</code></td>
+</tr>
+<tr>
+<td><code>execution_cleanup_failed</code></td>
+<td>supervisor 清理握手失败或非零退出</td>
+<td><code>isolated.ts:165</code>、<code>:554</code></td>
+</tr>
+<tr>
+<td><code>execution_worker_protocol</code></td>
+<td>worker 的 IPC 消息不合协议</td>
+<td><code>isolated.ts:389-391</code>、<code>:548</code></td>
+</tr>
+<tr>
+<td><code>execution_worker_busy</code></td>
+<td>同一 Session 的 worker 还在跑上一个 Turn</td>
+<td><code>isolated.ts:310</code></td>
+</tr>
+<tr>
+<td><code>execution_worker_failed</code></td>
+<td>worker 退出且没有结果</td>
+<td><code>isolated.ts:593</code></td>
+</tr>
+<tr>
+<td><code>execution_launcher_failed</code></td>
+<td>子进程 <code>error</code> 事件</td>
+<td><code>isolated.ts:387</code></td>
+</tr>
+<tr>
+<td><code>execution_interrupted</code></td>
+<td>租约过期恢复，或开始前已被中断</td>
+<td><code>store.ts:844</code>、<code>manager.ts:464</code></td>
+</tr>
+<tr>
+<td><code>execution_tool_result_unknown</code></td>
+<td>结束或恢复时仍有未结清的工具</td>
+<td><code>store.ts:715</code>、<code>:726</code>、<code>:844</code></td>
+</tr>
+<tr>
+<td><code>execution_tool_persistence_failed</code></td>
+<td>工具开始或结束的记录写库失败</td>
+<td><code>isolated.ts:363</code></td>
+</tr>
+<tr>
+<td><code>execution_stop_requested</code></td>
+<td>开始前或工具开始时发现 <code>stopping</code>；这个码不写入 <code>Run</code></td>
+<td><code>manager.ts:471</code>、<code>store.ts:777</code></td>
+</tr>
+<tr>
+<td><code>native_event_persistence_failed</code></td>
+<td>RunEvent 写库失败</td>
+<td><code>isolated.ts:495</code></td>
+</tr>
+<tr>
+<td><code>native_context_persistence_failed</code>、<code>native_context_binding_failed</code></td>
+<td>checkpoint 或原生会话 ID 写库失败</td>
+<td><code>isolated.ts:410</code>、<code>:475</code></td>
+</tr>
+<tr>
+<td><code>service_interrupted</code></td>
+<td>部署排空</td>
+<td><code>manager.ts:551</code></td>
+</tr>
+<tr>
+<td><code>runtime_execution_failed</code></td>
+<td>兜底；错误信息不符合白名单正则时一律用它</td>
+<td><code>manager.ts:557</code></td>
+</tr>
+</tbody></table>
+<p><code>manager.ts:557</code> 的白名单只放行 <code>native_</code>、<code>execution_</code>、<code>bilibili_token_</code> 前缀。<code>ChatError</code> 的 <code>message</code> 是它的 <code>code</code>，所以 <code>chat_*</code>、<code>session_*</code> 等码在这里都被压成 <code>runtime_execution_failed</code>（读码）。排查时会少一层信息。</p>
+<h3>1.8 可能卡住的状态</h3>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>会不会卡住</th>
+<th>依据</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>running</code>，owner 已死</td>
+<td>不会。最长约 31 秒后变 <code>interrupted</code></td>
+<td>T10；读码</td>
+</tr>
+<tr>
+<td><code>stopping</code>，owner 已死</td>
+<td>不会。同上，终态是 <code>interrupted</code>，不是 <code>stopped</code></td>
+<td><code>store.ts:843</code>；读码</td>
+</tr>
+<tr>
+<td><code>running</code>，owner 活着但 worker 不出声</td>
+<td>公共层不管。只有 60 分钟总期限。静默检测归各 Runtime 适配器（Codex 已有 180 秒看门狗）</td>
+<td><code>isolated.ts:375</code>；读码</td>
+</tr>
+<tr>
+<td><code>active_run_id</code> 指向不存在的 <code>Run</code> 行</td>
+<td><strong>会</strong>。<code>recoverSession</code> 抛 <code>chat_run_recovery_failed</code>，<code>recoverExpired</code> 把它当成 <code>false</code> 跳过，每秒重扫一次。这个 Session 永远 <code>session_busy</code></td>
+<td><code>store.ts:842</code>、<code>store.ts:824</code>；读码。我没有找到能造成这种数据的代码路径，出现概率是推测：很低</td>
+</tr>
+<tr>
+<td>Queue <code>paused</code></td>
+<td>需要人工。<code>chat_queue_run_ended</code>、<code>native_control_uncertain</code> 等暂停只能由用户「继续」解除。这是设计，不是缺陷</td>
+<td><code>manager.ts:204</code>、<code>queue.ts:110-113</code></td>
+</tr>
+<tr>
+<td>Queue 非空，Session 所属执行实例存活但已满载</td>
+<td>会一直等。<code>chat_run_overloaded</code> 被静默重试，没有上限和告警</td>
+<td><code>manager.ts:235</code>；读码</td>
+</tr>
+<tr>
+<td>已删除 Session 的 worker</td>
+<td><strong>会</strong>，见 G1</td>
+<td>读码</td>
+</tr>
+<tr>
+<td>空闲 worker</td>
+<td>会一直活着，见 G3</td>
+<td>读码</td>
+</tr>
+</tbody></table>
+<h3>1.9 竞争</h3>
+<table>
+<thead>
+<tr>
+<th>竞争</th>
+<th>结果</th>
+<th>评价</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Stop 与正常完成</td>
+<td><code>finishRun</code> 在同一把行锁下读到 <code>stopping</code>，落成 <code>stopped</code>，回复文本照常写入。实测：先 <code>requestStop</code> 再 <code>finishRun(succeeded)</code>，终态是 <code>stopped</code></td>
+<td>状态正确。Claude Code 和 Codex 有副作用，见 G4</td>
+</tr>
+<tr>
+<td>Stop 与租约恢复</td>
+<td>两边都先锁 Session 行。恢复方用 <code>NOWAIT</code>，抢不到就下一秒再来</td>
+<td>正确</td>
+</tr>
+<tr>
+<td>完成与租约恢复</td>
+<td>完成方的提交栅栏在租约过期后拒绝提交；恢复方只在过期后动手。两者互斥</td>
+<td>正确</td>
+</tr>
+<tr>
+<td>Queue 派发与直接发送</td>
+<td>直接发送在 <code>beginRun</code> 事务里读 Queue，发现有待处理项就转入 Queue 或报 <code>chat_queue_pending</code>。派发的 <code>consume</code> 校验队头与 <code>waitFor</code> 没变</td>
+<td>正确（<code>manager.ts:388-396</code>、<code>queue.ts:160-164</code>）</td>
+</tr>
+<tr>
+<td>Queue 派发与 Stop</td>
+<td>入队时发现活动 <code>Run</code> 已 <code>stopping</code>，<code>waitFor</code> 置空，Stop 后的下一条消息直接执行。否则 <code>waitFor</code> 指向的 <code>Run</code> 非成功结束时 Queue 暂停</td>
+<td>正确（<code>queue.ts:96-97</code>、<code>manager.ts:200-206</code>）</td>
+</tr>
+<tr>
+<td>两个执行实例同时派发同一 Session</td>
+<td><code>elsewhere</code> 预筛；<code>beginRun</code> 在行锁下再查一次</td>
+<td>正确</td>
+</tr>
+<tr>
+<td>Turn 结束与下一条 Queue 消息</td>
+<td>Turn 结束时没有人调用 <code>wakeQueue</code>。下一条消息等下一次每秒轮询</td>
+<td>不是错误，是 0 到 1 秒的固定延迟（<code>manager.ts:721-729</code>；读码）</td>
+</tr>
+<tr>
+<td>worker 结果与控制消息交叉</td>
+<td>worker 记住刚结清的 <code>executionId</code>，丢弃迟到的 <code>cancel</code>、<code>configure</code>、<code>lease</code></td>
+<td>正确（<code>native-worker.ts:152-154</code>）</td>
+</tr>
+</tbody></table>
+<h2>2. dsh、t3code、Orca 的对应做法</h2>
+<h3>2.1 dsh</h3>
+<p>dsh 的代码不在 <code>lib/</code>，在 <code>node_modules/@deepseek-ai/dsh-*</code> 下。以下路径相对 <code>/root/.nvm/versions/node/v24.22.3/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/</code>。这一节由子代理阅读，我复核了它给出的结构，没有逐行复核。</p>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>dsh 的做法</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Session 状态</td>
+<td>没有持久化的状态字段。Agent 在内存里有 <code>idle</code>、<code>maintenance</code>、<code>running</code> 三个 phase。Session 是只追加的事件日志</td>
+<td><code>dsh-agent-loop/lib/index.js:547-563</code></td>
+</tr>
+<tr>
+<td>独占</td>
+<td>对 <code>session.lock</code> 加非阻塞 <code>flock</code>，没有心跳。持有者死亡时内核释放</td>
+<td><code>dsh-session-persistence-jsonl/lib/index.js:619-648</code></td>
+</tr>
+<tr>
+<td>Turn</td>
+<td>先写 <code>turn/start</code>，再领取输入。结束原因是 <code>completed</code>、<code>aborted</code>、<code>blocked</code>、<code>error</code>、<code>max-tokens</code>、<code>interrupted</code>、<code>forked</code>。<code>turn/end</code> 在 <code>finally</code> 里写。Turn 可以在第一个 Step 之前结束</td>
+<td><code>dsh-agent-loop/lib/index.js:724-832</code>、<code>dsh-session/lib/types/types.d.ts:170-214</code></td>
+</tr>
+<tr>
+<td>Step</td>
+<td><code>step/start</code>、模型尝试、<code>assistant/message</code>、工具执行、<code>step/end</code>。失败的尝试在同一个 Step 内重试</td>
+<td><code>dsh-agent-loop/lib/index.js:833-984</code></td>
+</tr>
+<tr>
+<td>落盘</td>
+<td>事件先进缓冲，200 毫秒定时批量追加并 <code>fsync</code>。模型请求前、工具执行前、每个 Step 之前强制落盘</td>
+<td><code>dsh-session-persistence-jsonl/lib/index.js:187-194</code>、<code>:3303-3339</code>；<code>dsh-session-checkpoint-policy/lib/index.js:61-73</code></td>
+</tr>
+<tr>
+<td>输入队列</td>
+<td>持久化的 inbox，分 <code>next-turn</code> 和 <code>next-step</code> 两张表。<code>followup</code> 进前者，<code>steer</code> 进后者并唤醒。Stop 之后到达的 steer 移到 <code>next-turn</code>。没有长度上限</td>
+<td><code>dsh-agent-loop/lib/index.js:21-62</code>、<code>:565-578</code></td>
+</tr>
+<tr>
+<td>Stop</td>
+<td><code>cancel()</code> 触发 Turn 的 <code>AbortController</code>。Web 的 Stop 带 <code>keepInbox: true</code>。Turn 以 <code>aborted</code> 结束。已流出的文本保存为 <code>interrupted: true</code> 的 <code>assistant/message</code></td>
+<td><code>dsh-agent-loop/lib/index.js:579-585</code>、<code>:889-910</code></td>
+</tr>
+<tr>
+<td>杀进程</td>
+<td>子进程 <code>SIGTERM</code>，宽限后 <code>SIGKILL</code>。Linux 上子进程跑在 user-systemd scope 里，用 <code>systemctl kill</code> 杀整棵树；兜底是进程组</td>
+<td><code>dsh-subprocess-local/lib/index.js:262-292</code>、<code>:520-525</code></td>
+</tr>
+<tr>
+<td>超时与重试</td>
+<td>模型流空闲 300 秒。默认重试 5 次，初始 500 毫秒，上限 10 秒。没有 Step 数上限</td>
+<td><code>dsh-llm-deepseek/lib/index.js:36</code>、<code>dsh-llm/lib/types/retry-policy.js:12-22</code></td>
+</tr>
+<tr>
+<td>崩溃恢复</td>
+<td>resume 时扫描日志。未闭合的工具调用补一条合成结果：没记录到 <code>tool/call</code> 的是 <code>TOOL_NOT_STARTED</code>，记录到的是 <code>TOOL_OUTCOME_UNKNOWN</code>。然后补 <code>step/end</code> 和 <code>turn/end{interrupted}</code></td>
+<td><code>dsh-session/lib/types/repair.js:40-77</code>、<code>:137-187</code></td>
+</tr>
+<tr>
+<td>多 Session 宿主</td>
+<td>每个 Session 一个活的 agent，按需 resume。没有并发上限，没有空闲回收</td>
+<td><code>dsh-api-session-controller/lib/types/agent.js:173-185</code></td>
+</tr>
+<tr>
+<td>销毁</td>
+<td>cancel、等 idle、dispose scope、关持久化句柄。属于这个 agent 的后台任务一并取消</td>
+<td><code>dsh-agent-loop/lib/index.js:1475-1509</code>、<code>dsh-jobs-local/lib/index.js:804-816</code></td>
+</tr>
+</tbody></table>
+<p>与 Rook 的对照：</p>
+<ul>
+<li>Rook 的 <code>pending_tools</code> 计数加 <code>execution_tool_result_unknown</code>，对应 dsh 的 <code>TOOL_OUTCOME_UNKNOWN</code>。Rook 把它记在 <code>Run</code> 上，dsh 把它写成一条合成的工具结果喂回模型。Rook 的 Pi 路径靠 <code>cleanNativeContext</code> 做类似的事，那部分归 Pi 适配器报告。</li>
+<li>Rook 的 Queue 对应 dsh 的 <code>next-turn</code>。Rook 的插话对应 <code>next-step</code>。dsh 把「Stop 之后到达的 steer」自动降级成下一 Turn 的输入；Rook 把它标成 <code>native_control_uncertain</code> 并暂停 Queue（<code>manager.ts:190-192</code>）。Rook 更保守。</li>
+<li>dsh 是单机单进程，没有租约，也没有 worker 隔离。Rook 的租约、栅栏和 supervisor 在 dsh 里没有对应物。</li>
+<li>dsh 的事件批量是 200 毫秒一批、一次追加。Rook 的 Pi 路径是 100 毫秒一批（<code>native.ts:427</code>），但每批要 12 条 SQL（G2）。</li>
+</ul>
+<h3>2.2 t3code</h3>
+<p>路径缩写：<code>O/</code> 是 <code>/code/3p/t3code/apps/server/src/orchestration-v2/</code>，<code>C</code> 是 <code>/code/3p/t3code/packages/contracts/src/orchestrationV2.ts</code>，<code>P/</code> 是 <code>/code/3p/t3code/packages/provider-core/src/server/</code>。本节全部是读代码所得。t3code 的 Run 对应 Rook 的 Turn，t3code 的 thread 对应 Rook 的 Session。</p>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>t3code 的做法</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>状态</td>
+<td>Run 有 10 个状态：preparing、queued、starting、running、waiting、completed、interrupted、failed、cancelled、rolled_back。每个 Run 下有 Attempt，原因是 initial、steering_restart、retry 或 provider_recovery。</td>
+<td><code>C:719-730</code>、<code>C:883-909</code></td>
+</tr>
+<tr>
+<td>写入</td>
+<td>decider 先查 receipt，有就重放。事件、投影、receipt 和 outbox effect 在一个事务里提交。投影是事实来源，事件日志 1 天后裁剪。</td>
+<td><code>O/Orchestrator.ts:16612-16891</code>、<code>O/EventSink.ts</code>、<code>O/ProjectionMaintenance.ts:55,133-215</code></td>
+</tr>
+<tr>
+<td>排队</td>
+<td>没有单独的队列表。排队的消息就是 status 为 queued 的 Run，按 queuePosition 排序。decider 在 5 种发送方式里选一种：defer_start、steer_active、restart_active、queue_after_active、start_immediately。</td>
+<td><code>O/Orchestrator.ts:8092-8250</code>、<code>O/QueuedRunOrder.ts:13-40</code>、<code>C:3652-3661</code></td>
+</tr>
+<tr>
+<td>串行范围</td>
+<td>命令按 thread 加锁。outbox 每个 thread 同时只跑一个 effect。全局有 4 个 effect worker。没有找到全局的并发 Turn 上限。</td>
+<td><code>O/Orchestrator.ts:1714</code>、<code>O/EffectOutbox.ts:350-400</code>、<code>O/EffectWorker.ts:1093,1167</code></td>
+</tr>
+<tr>
+<td>派发</td>
+<td>provider session 懒启动，放在内存 map 里复用。Codex 每个 provider instance 共用一个 app-server。Claude 每个 thread 一个 session。没有按 Turn 起 worker 进程。</td>
+<td><code>O/ProviderSessionManager.ts:572-576,3241-3425</code>、<code>O/Adapters/CodexAdapterV2.ts:352</code>、<code>O/Adapters/ClaudeAdapterV2.ts:657</code></td>
+</tr>
+<tr>
+<td>监督</td>
+<td>provider 事件流结束或出错时，session 以 runtime_error 释放，Run 写成 failed，写入前核对它仍是当前 Attempt。provider 宣布重试后 15 分钟没有动静，watchdog 中断并判失败。没有心跳，也没有租约。</td>
+<td><code>O/ProviderSessionManager.ts:104,2837-3210</code>、<code>O/RunExecutionService.ts:2051-2264</code></td>
+</tr>
+<tr>
+<td>Stop</td>
+<td><code>run.interrupt</code> 先记下请求。provider 的 Turn 还没开始或 session 已不在时，Run 立刻写成 interrupted。否则排一个 <code>provider-turn.interrupt</code> effect。adapter 10 秒后走兜底，session manager 15 秒超时，然后 Run 标记 <code>unresponsiveAt</code>，用户得到 Force stop，它杀掉进程 scope 并释放 session。</td>
+<td><code>O/Orchestrator.ts:14095-14495,13784-13831</code>、<code>O/ProviderSessionManager.ts:87,2772-2791</code>、<code>O/ThreadManagementService.ts:1450-1600</code></td>
+</tr>
+<tr>
+<td>Stop 与完成的竞争</td>
+<td>用条件 SQL 写入裁决。只有 Run 仍是预期的 status 和 Attempt 时才提交。</td>
+<td><code>O/EventSink.ts:545-622</code></td>
+</tr>
+<tr>
+<td>事件落库</td>
+<td>adapter 每 50 毫秒合并一次文本增量。提交按批：最多 64 个事件、1 MiB 或 100 毫秒。同一实体的后一个快照替换前一个。命令输出不进数据库。</td>
+<td><code>O/Adapters/CodexAdapterV2.ts:317</code>、<code>O/ProviderCommitBatch.ts:13-26,113-142</code></td>
+</tr>
+<tr>
+<td>重启恢复</td>
+<td>先恢复，再启动 effect worker。没开始的 Run 回到队列并挂起。无人值守的 Run 最多重发 3 次。其余未完成的 Run 写成 cancelled，session 标记 stopped。下一次启动沿用 provider 自己的 thread 恢复。</td>
+<td><code>/code/3p/t3code/apps/server/src/serverRuntimeStartup.ts:444-449</code>、<code>O/ProviderRuntimeRecoveryService.ts:62,330-1092</code>、<code>O/ProviderTurnStartService.ts:1139-1158,1925</code></td>
+</tr>
+<tr>
+<td>回收</td>
+<td>session 空闲 2 分钟释放。provider 没有原生 resume 时是 30 分钟。有 Turn 在跑时不释放。后台工作最多把 session 钉住 4 小时。没有找到 session 数量上限。</td>
+<td><code>O/ProviderSessionManager.ts:81-105,1644-1737</code></td>
+</tr>
+<tr>
+<td>删除</td>
+<td>删除 thread 把活跃和排队的 Run 写成 cancelled，再排一个 <code>provider-session.detach</code> effect。独占的 Claude session 被关闭。共用的 Codex app-server 只卸载这个 thread（10 秒上限），进程留到整个 instance 空闲。Claude 进程在自己的进程组里，server 的管道关闭时 watcher 先发 TERM 再发 KILL。</td>
+<td><code>O/ThreadDeletion.ts:69-211</code>、<code>O/ProviderSessionManager.ts:3538-3724</code>、<code>O/Adapters/ClaudeAdapterV2.ts:420-487</code></td>
+</tr>
+<tr>
+<td>推送给客户端</td>
+<td>提交后发布到进程内 PubSub。客户端带序号重连，server 重放事件。重放超过 128 个事件或 1 MiB，或者那段已被裁剪时，server 改发快照。订阅方缓冲上限是 1000 条或 8 MiB。</td>
+<td><code>O/EventSink.ts:294,328-352</code>、<code>O/ThreadStream.ts:18-23,99-118</code>、<code>O/LiveStreamBudget.ts</code></td>
+</tr>
+</tbody></table>
+<p>与 Rook 的对照：</p>
+<ul>
+<li>t3code 的回收按时间（2 分钟空闲）。Rook 的回收只按数量（每个 Runtime 留 4 个）。这是 G3 的依据。</li>
+<li>t3code 的删除是一个持久化的 effect，对所有 provider 都生效，重启后还会重放。Rook 的 <code>forget</code> 是一次内存调用，只到 Pi。这是 G1 的依据。</li>
+<li>t3code 按 thread 串行。Rook 的准入在一个执行实例内全局串行（G5）。</li>
+<li>t3code 一个事务提交最多 64 个事件，推送走进程内 PubSub。Rook 每批 12 条 SQL，SSE 每 200 毫秒轮询数据库（G2）。t3code 是单进程，PubSub 不跨进程。Rook 有多个 Rook Backend，进程内通知只能作为轮询之上的加速。</li>
+<li>t3code 的 Stop 超时后把「没有响应」暴露给用户，再给 Force stop。Rook 的 Stop 在 15 秒后由执行器自己升级到 SIGTERM 和 SIGKILL，用户不需要第二次操作。Rook 这一处不用改。</li>
+<li>t3code 没有租约。它假定进程重启时在途工作全部死亡，重启后直接取消或重排。Rook 有多个执行实例，必须靠租约判断归属，所以这一处不能照搬。</li>
+<li>t3code 重启后把没开始的 Run 放回队列。Rook 的 <code>recoverExpired</code> 把过期的 <code>Run</code> 一律写成 <code>interrupted</code>。Rook 没有区分「还没交给 Runtime」和「已经在跑」。这一条我记为 G9 里的小事项，不单列。</li>
+</ul>
+<h3>2.3 Orca</h3>
+<p>路径相对 <code>/code/3p/orca/src/main/</code>；以 <code>shared/</code> 开头的相对 <code>/code/3p/orca/src/</code>。这一节由子代理阅读，我没有逐行复核行号。</p>
+<p>Orca 是桌面应用。它没有按 Turn 启动的 worker。每个 chat 一个长驻的 agent 进程，Codex 的多个 chat 共用一个 app-server。</p>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>Orca 的做法</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>进程归属</td>
+<td>所有 agent CLI 都经 <code>spawnProviderProcess</code> 启动，外面包一层原生包装进程 <code>orca-provider-exec</code>。注册表是 chat id 到 chat 状态的 Map</td>
+<td><code>provider-process/provider-process-spawn.ts:35-64</code>、<code>native-chat/agent-session-wire/host/structured-agent-session-conversations.ts:22-25</code></td>
+</tr>
+<tr>
+<td>Codex 共用</td>
+<td>按启动配置共用一个 app-server。没有 chat 60 秒后停掉</td>
+<td><code>codex/app-server/shared-servers/codex-shared-server-pool.ts:20-32</code>、<code>:133-150</code></td>
+</tr>
+<tr>
+<td>Turn 状态</td>
+<td><code>running</code>、<code>completed</code>、<code>interrupted</code>、<code>unverifiable</code>，记在 chat 的 SQLite journal 里</td>
+<td><code>shared/agent-session/journal/agent-session-journal-types.ts:225-230</code></td>
+</tr>
+<tr>
+<td>运行中发消息</td>
+<td>写入持久化的 <code>journal_queue_cards</code>。每张卡是 <code>queue</code>（等 Turn 结束）或 <code>steer</code>（默认，并入当前 Turn）。队列有字节上限</td>
+<td><code>native-chat/agent-session-journal/journal-sql-send-admission.ts:141-223</code></td>
+</tr>
+<tr>
+<td>主进程看门狗</td>
+<td>只看主进程事件循环。2 秒心跳，8 秒算卡顿，45 秒算挂死。只采样上报，不杀进程</td>
+<td><code>hang-watchdog/hang-watchdog-worker-protocol.ts:1-5</code>、<code>hang-watchdog/native-hang-capture.ts:154-160</code></td>
+</tr>
+<tr>
+<td>子进程静默</td>
+<td>Codex 共用 server 在一次请求后 120 秒不应答就被关闭，chat 下次发消息时重连</td>
+<td><code>codex/app-server/shared-servers/codex-shared-server-hang-watch.ts:6-50</code></td>
+</tr>
+<tr>
+<td>Stop</td>
+<td>先发协议级中断（Claude 宽限 3 秒，Codex <code>turn/interrupt</code> 宽限 5 秒），然后总是结束 agent 进程</td>
+<td><code>claude/structured/turns/claude-request-end-wait.ts:6</code>、<code>codex/structured/turns/codex-structured-turn-cancellation.ts:24-34</code>、<code>native-chat/agent-session-wire/operations/structured-agent-session-turns-cancel.ts:238-257</code></td>
+</tr>
+<tr>
+<td>信号升级</td>
+<td>关 stdin 等 1 秒；进程组 <code>SIGTERM</code> 等 3 秒；进程组 <code>SIGKILL</code> 并用 1.5 秒确认</td>
+<td><code>provider-process/provider-process-supervisor.ts:6-24</code>、<code>:113-129</code></td>
+</tr>
+<tr>
+<td>Stop 与完成的竞争</td>
+<td>Stop 走 chat 的串行操作通道。指向已结束 Turn 的 Stop 记为 late。只有命中当前子进程的 Stop 才生效</td>
+<td><code>native-chat/agent-session-wire/operations/structured-agent-session-chat-stop.ts:90-93</code>、<code>:291-307</code></td>
+</tr>
+<tr>
+<td>删除 chat</td>
+<td><strong>先停 agent，最多重试 3 次，再删记录</strong></td>
+<td><code>native-chat/chat-deletion/orca-chat-delete.ts:102-117</code>、<code>:147-165</code></td>
+</tr>
+<tr>
+<td>父进程死亡</td>
+<td>包装进程每 100 毫秒检查父 pid，变了就停掉进程组。管道 EOF 触发同样的停止</td>
+<td><code>provider-process/provider-process-supervisor.ts:171-180</code>、<code>provider-process/direct-provider-child.ts:224-240</code></td>
+</tr>
+<tr>
+<td>崩溃后清孤儿</td>
+<td>每次启动写一份 pid 记录（boot id、owner、组长身份）。下次启动扫描，owner 已死的进程组在复核身份后 <code>SIGKILL</code></td>
+<td><code>provider-process/provider-ownership-journal.ts:151-298</code>、<code>provider-process/provider-group-orphan-guard.ts:76-119</code></td>
+</tr>
+<tr>
+<td>背压</td>
+<td>事件入库队列到 16 MiB 或 512 项时暂停读 agent，降到 8 MiB 或 256 项恢复。文本增量每 60 毫秒合并一次</td>
+<td><code>native-chat/agent-session-wire/journal-ingress/structured-agent-session-event-sink.ts:219-224</code>、<code>publication/subscribers/agent-session-delta-coalescer.ts:7-13</code></td>
+</tr>
+<tr>
+<td>线程</td>
+<td>journal 的 SQL 读写、进程启动、看门狗都在 worker thread 上</td>
+<td><code>worker-threads/worker-thread-roles.ts:2-31</code></td>
+</tr>
+<tr>
+<td>租约</td>
+<td>30 秒，每 10 秒续期</td>
+<td><code>runtime/agent-session/records/agent-session-record-store.ts:68</code>、<code>host/structured-agent-session-lease-renewer.ts:9</code></td>
+</tr>
+<tr>
+<td>重启恢复</td>
+<td>不等租约过期。重启时检查记录的进程是否还活着。有证据证明 owner 已死才标 <code>interrupted</code>，否则标 <code>unverifiable</code></td>
+<td><code>recovery/structured-agent-session-restart-reconcile.ts:106-120</code>、<code>termination/structured-agent-session-stale-turn-verdict.ts:31-60</code></td>
+</tr>
+<tr>
+<td>空闲回收</td>
+<td>脱离应用的 Codex relay 按 chat 空闲规则停止，24 小时硬上限，从未被认领的 60 秒后停</td>
+<td><code>daemon/provider-relay/provider-relay-detached-cap.ts:17-19</code></td>
+</tr>
+</tbody></table>
+<p>与 Rook 的对照：</p>
+<ul>
+<li>租约参数几乎一样（Orca 30 秒 / 10 秒，Rook 30 秒 / 5 秒）。</li>
+<li>Orca 的删除顺序是「先停进程，再删记录」。Rook 是「先删记录，再 <code>forget</code>」，而且 <code>forget</code> 只到 Pi（G1）。</li>
+<li>Orca 的事件背压是高低水位，agent 在水位内不被阻塞。Rook 是每批停等（G2）。</li>
+<li>Orca 的 Stop 总是连进程一起结束。Rook 的 Stop 保留 worker 和常驻进程，只在取消超时后才杀。Rook 的做法对下一 Turn 更快，前提是适配器的中断可靠。</li>
+<li>Orca 靠 pid 记录文件在下次启动时清孤儿。Rook 靠 supervisor 的 <code>PR_SET_PDEATHSIG</code> 加 subreaper，当场清理，不需要启动扫描。Rook 的做法更强，只有 supervisor 自己被 <code>SIGKILL</code> 这一种双重故障会漏。</li>
+</ul>
+<h2>3. 差距，按影响排序</h2>
+<h3>G1. 删除 Session 时，Claude Code 和 Codex 的 worker 不退出</h3>
+<p><strong>影响</strong>：稳定性，高。这就是已知问题「已删除 Session 的 worker 和 app-server 不退出」。</p>
+<p><strong>证据（读码）</strong>：</p>
+<ul>
+<li>删除接口调用 <code>chat.forgetSession</code>（<code>chat/api.ts:199-203</code>），它调用 <code>this.execute.forget</code>（<code>manager.ts:682-685</code>）。</li>
+<li><code>isolatedChatExecutor</code> 用 <code>Object.assign(execute, executors.pi, { supportsRuntime, supportsScheduleTools, close })</code> 组装执行器（<code>isolated.ts:101-105</code>）。</li>
+<li>第三个参数只覆盖了 <code>supportsRuntime</code>、<code>supportsScheduleTools</code>、<code>close</code>。<code>forget</code> 没有被覆盖，所以它是 <code>executors.pi.forget</code>。</li>
+<li><code>executors.pi.forget</code> 只查 Pi 执行器自己的 <code>workers</code> 表（<code>isolated.ts:638-644</code>）。Claude Code 和 Codex 的 worker 在另外两张表里，查不到就直接返回。</li>
+<li><code>tests/pi-persistent.test.ts:347,388</code> 只覆盖了 Pi 的 <code>forget</code>。</li>
+</ul>
+<p>还有两个相邻的洞（读码）：</p>
+<ul>
+<li><code>forgetSession</code> 只在收到 DELETE 请求的那个 Rook Backend 上执行。Session 的 worker 在另一个执行实例上时，没有任何机制通知它。</li>
+<li>归档 Session 不调用 <code>forgetSession</code>（<code>chat/api.ts:196</code>、<code>store.ts:335</code>）。</li>
+</ul>
+<p>这些 worker 不会无限增长。它们留在 <code>idle</code> 表里，等同一个 Runtime 出现第 5 个空闲 worker 时被挤掉。所以现象是「低流量时一直不退出」，上限是每个 Runtime 4 个。</p>
+<p><strong>改动</strong>：</p>
+<ol>
+<li>在 <code>isolatedChatExecutor</code> 的第三个参数里加 <code>forget</code>，对三个执行器都调用一次。约 3 行。</li>
+<li>补一个测试：对 <code>{ runtime: &#39;claude-code&#39; }</code> 的执行器跑一个 Turn，<code>forget</code> 之后断言 worker 的 <code>exited</code> 已完成。</li>
+<li>跨执行实例的情况不需要新通道。G3 的按时间回收会在几分钟内收掉它。</li>
+</ol>
+<p><strong>成本与风险</strong>：成本很低。<code>forget</code> 对正在跑 Turn 的 worker 也会 <code>stop()</code>，但 <code>deleteSession</code> 已经要求 Session 空闲（<code>store.ts:364</code>），所以不会误杀。</p>
+<h3>G2. RunEvent 落库：每批 12 条 SQL，全进程 8 条连接，SSE 再用轮询读回来</h3>
+<p><strong>影响</strong>：效率，高；高并发下也影响稳定性。</p>
+<p><strong>证据</strong>：</p>
+<ul>
+<li><p>实测（本机 MySQL 8.0.46，Unix socket，<code>/tmp/rook-sm-scripts/db.mjs</code>，用 <code>SHOW GLOBAL STATUS LIKE &#39;Questions&#39;</code> 计数）：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>SQL 条数</th>
+<th>单次耗时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>appendEvents</code>（1 个事件）</td>
+<td>12</td>
+<td>3.6 ms</td>
+</tr>
+<tr>
+<td><code>noteTool</code> 开始加结束一对</td>
+<td>14</td>
+<td>3.4 ms</td>
+</tr>
+<tr>
+<td><code>beginRun</code></td>
+<td>13</td>
+<td>9.3 ms</td>
+</tr>
+<tr>
+<td><code>refreshLease</code></td>
+<td>6</td>
+<td>1.2 ms</td>
+</tr>
+<tr>
+<td><code>runState</code>（每秒轮询）</td>
+<td>1</td>
+<td>0.28 ms</td>
+</tr>
+<tr>
+<td><code>runEvents</code>（SSE 空轮询）</td>
+<td>2</td>
+<td>0.55 ms</td>
+</tr>
+<tr>
+<td><code>recoverExpired</code>（空扫描）</td>
+<td>2</td>
+<td>0.41 ms</td>
+</tr>
+</tbody></table>
+</li>
+<li><p>实测：<code>appendEvents</code> 的 p50 在 1、8、20 个并发 <code>Run</code> 下分别是 2.7、8.8、19.3 ms。总吞吐从 357 次每秒升到 1006 次每秒就不再线性。瓶颈是 8 条连接。</p>
+</li>
+<li><p>这些数字的下限来自本机 socket，单条 SQL 往返约 0.3 ms。线上经网络访问 RDS，往返更长。按 1 ms 估算，一次 <code>appendEvents</code> 约 12 ms 以上（推测，未在线上测）。</p>
+</li>
+<li><p>读码：12 条 SQL 的构成是：事务外 <code>ownedRun</code> 一次；<code>SET autocommit=0</code>；Session 行锁；<code>Run</code> 行锁；租约行锁；查最后一个 <code>chunk_index</code>；<code>INSERT</code>；提交栅栏；恢复 <code>wait_timeout</code>（<code>store.ts:645-675</code>、<code>store.ts:220-256</code>）。其中 <code>ownedRun</code> 每次都经 <code>run()</code> 把 prompt 正文读一遍（<code>store.ts:116</code>、<code>store.ts:139-142</code>），事务内外各一次。</p>
+</li>
+<li><p>读码：worker 发一批事件后必须等 <code>events_saved</code> 才能发下一批（<code>native-worker.ts:128</code>、<code>isolated.ts:476-496</code>）。这是停等式的背压。落库慢会直接拖慢 worker 读 Runtime 输出的速度。</p>
+</li>
+<li><p>读码：连接池上限是 8，全进程共用（<code>database.ts:5</code>）。活动 <code>Run</code> 上限是 20（<code>capacity.ts:2</code>）。</p>
+</li>
+<li><p>读码：SSE 不是推送。每个订阅者每 200 毫秒查一次库（<code>chat/api.ts:303</code>、<code>chat/api.ts:306</code>），每次 2 条 SQL。一个订阅者空转时是每秒 10 条 SQL。事件明明刚从同一个进程写进去。</p>
+</li>
+<li><p>读码：每个活动 <code>Run</code> 每秒还有一次 <code>runState</code> 和一次 <code>controls.claim</code>（至少 1 条读），每 5 秒一次 <code>refreshLease</code>（6 条）（<code>manager.ts:741-763</code>、<code>controls.ts:50-54</code>）。</p>
+</li>
+<li><p>读码：Pi 的每次工具调用有两次 <code>noteTool</code> 事务，工具要等「开始」落库后才执行（<code>manager.ts:488-495</code>、<code>isolated.ts:525-535</code>）。</p>
+</li>
+</ul>
+<p>粗算：20 个活动 Turn，每个有 1 个浏览器订阅，Pi 每 100 毫秒一批事件。写入是 20 × 10 × 12 = 2400 条每秒，SSE 轮询是 20 × 5 × 2 = 200 条每秒，全部挤在 8 条连接上（推测，由上面的实测单价乘出来）。</p>
+<p><strong>改动</strong>，按收益排序：</p>
+<ol>
+<li><code>appendEvents</code> 瘦身。<code>mutateRun</code> 改用不读正文的 <code>Run</code> 行查询；事务外的预读删掉，<code>session_id</code> 由调用方传入；序号由 Rook Backend 在内存里按 <code>Run</code> 递增，去掉查 <code>chunk_index</code> 的那一条（唯一键 <code>uk_run_content</code> 仍会兜住重复）。预计 12 条降到 6 到 7 条。</li>
+<li>SSE 改成进程内通知。<code>appendEvents</code> 和 <code>finishRun</code> 提交后，Rook Backend 按 <code>runId</code> 触发一个 <code>EventEmitter</code>；<code>streamEvents</code> 等通知或 2 秒超时，再查库。查库逻辑和游标不变，所以跨执行实例的订阅仍然靠超时轮询正确工作。</li>
+<li>连接池从 8 调到与 <code>activeRuns</code> 匹配的值，并做成环境变量。先确认 RDS 侧的连接上限。</li>
+<li>落库节奏向 dsh 的 200 毫秒靠拢，或者在上一批未确认时让 worker 继续合并 <code>text_delta</code>。Pi 路径已经在合并（<code>native.ts:425</code>）；Claude Code 和 Codex 的节奏请看另外两份报告。</li>
+</ol>
+<p><strong>成本与风险</strong>：第 1 项和第 2 项各是半天量级，都有现成测试覆盖（<code>tests/chat-store.test.ts</code>、<code>tests/chat-events.test.ts</code>）。第 1 项动的是带栅栏的事务，必须保留三把行锁的顺序和提交栅栏，否则 1.9 节的互斥不再成立。第 3 项要过 RDS 评审。</p>
+<h3>G3. 空闲回收只看数量，不看时间，也不看总量</h3>
+<p><strong>影响</strong>：效率与稳定性，中高。</p>
+<p><strong>证据</strong>：</p>
+<ul>
+<li><p>读码：回收只有「每个 Runtime 的 <code>idle</code> 超过 4 个就停最早的」这一条规则（<code>isolated.ts:580-587</code>）。</p>
+</li>
+<li><p>读码：三个 Runtime 各算各的，一个执行实例最多 12 个空闲 worker。每个 Claude Code 或 Codex 的 worker 还带一个常驻进程。</p>
+</li>
+<li><p>读码：没有空闲时长上限。用户下班后，他的 worker 和常驻进程一直占着内存。</p>
+</li>
+<li><p>读码：反过来，同一 Runtime 有 5 个以上 Session 轮流活跃时，每个 Turn 都可能冷启动。</p>
+</li>
+<li><p>实测冷启动成本（本机，3 次取值）：</p>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>耗时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>python3 -I</code> 启动 supervisor</td>
+<td>23 到 30 ms</td>
+</tr>
+<tr>
+<td><code>setpriv</code> 加 <code>node</code> 空启动</td>
+<td>44 到 55 ms</td>
+</tr>
+<tr>
+<td><code>node</code> 加载 <code>dist/server/chat/native.js</code>（Claude Code、Codex 的 worker 也要加载它）</td>
+<td>592 到 617 ms</td>
+</tr>
+<tr>
+<td><code>node</code> 加载 <code>pi-sdk-runtime.js</code> 并构造 <code>PiSdkRuntime</code>（Pi 的 worker）</td>
+<td>1170 到 1201 ms</td>
+</tr>
+</tbody></table>
+<p>这些数字只含进程启动和模块加载，不含 checkpoint 恢复、skill 快照和 Runtime CLI 自己的启动。所以 Pi 的 worker 冷启动下限约 1.2 秒，另两个约 0.7 秒再加 CLI 启动。</p>
+</li>
+</ul>
+<p><strong>改动</strong>：</p>
+<ol>
+<li>加一个空闲时长上限。worker 进入 <code>idle</code> 时记时间戳；<code>ChatManager.poll</code> 已经每秒跑一次，在执行器上加一个 <code>reap(now)</code>，停掉超时的。建议默认 15 分钟，做成环境变量。</li>
+<li>把 <code>idle</code> 表提到 <code>isolatedChatExecutor</code> 一层，三个 Runtime 共用一个上限。默认值可以调高到 8 到 12。</li>
+<li>数量上限和时长上限都保留。数量管内存峰值，时长管闲置。</li>
+</ol>
+<p><strong>成本与风险</strong>：约 30 行加测试。Pi 的 worker 被回收后要从本地文件或 MySQL 恢复 context，这条路径已经存在并有测试（<code>tests/pi-persistent.test.ts</code>）。Claude Code 和 Codex 被回收后的冷启动由各自的适配器负责，沿用现有的回收和恢复即可。</p>
+<h3>G4. Stop 赢了终态竞争时，回复落库但 checkpoint 不落库（Claude Code、Codex）</h3>
+<p><strong>影响</strong>：稳定性，中。表现是「界面上有这条回复，下一 Turn 的模型不记得它」。</p>
+<p><strong>证据</strong>：</p>
+<ul>
+<li>读码：<code>finishRun</code> 只在 <code>current.state === &#39;running&#39;</code> 时保存 checkpoint（<code>store.ts:714-720</code>）。<code>stopping</code> 时跳过，但回复文本照常写入（<code>store.ts:721-722</code>），终态是 <code>stopped</code>。</li>
+<li>实测：<code>requestStop</code> 之后 <code>finishRun({ state: &#39;succeeded&#39;, response: &#39;full answer&#39; })</code> 返回 <code>stopped</code>（探针脚本最后一行）。</li>
+<li>读码：<code>manager.ts:547</code> 对 Claude Code 和 Codex 要求成功结果必须带 checkpoint，所以走到这里时 checkpoint 是齐的，只是被丢了。</li>
+<li>推测：常驻进程此时的 context 比 MySQL 新一个 Turn。下一 Turn 的 <code>contextSha</code> 对不上，适配器会关掉常驻进程并从旧 checkpoint 冷启动。这一步的实际行为请以另外两份报告为准。</li>
+</ul>
+<p>这个窗口很窄：Stop 必须落在 Runtime 已经完成、<code>finishRun</code> 还没提交之间。</p>
+<p><strong>改动</strong>：<code>stopping</code> 且 Runtime 结果是 <code>succeeded</code>、工具计数能对上时，照常保存 checkpoint，终态仍写 <code>stopped</code>。改动在 <code>store.ts:714</code> 的条件上。</p>
+<p><strong>成本与风险</strong>：一行条件加一个测试。风险是 Stop 的语义：用户按了 Stop，但这一 Turn 的内容进了 context。回复文本本来就已经展示给用户，两者一致比不一致好。</p>
+<h3>G5. 准入在一个执行实例内全局串行</h3>
+<p><strong>影响</strong>：效率，中；有连带的稳定性风险。</p>
+<p><strong>证据（读码）</strong>：</p>
+<ul>
+<li><code>manager.ts:298</code> 把所有用户的 <code>accept</code> 串在一条链上。</li>
+<li><code>accept</code> 里有多次 MySQL 往返，还有 <code>configuration.resolve</code>、<code>gitRuntimeAccess</code>、<code>sessionSkills.execution</code>（<code>manager.ts:339-386</code>）。</li>
+<li><code>sessionSkills.execution</code> 会做 skill 绑定或 Pi skill 发现（<code>session-skills.ts:28-40</code>）。它慢的时候，其他用户的发送全部排在后面。它实际多慢，我没有量。</li>
+<li>等待超过 8 个时，直接发送转 Queue，其余路径报 <code>chat_run_overloaded</code>（<code>manager.ts:292-297</code>）。</li>
+<li>Queue 派发每批 4 个 Session 并发调用 <code>send</code>，同样挤进这条串行链（<code>manager.ts:177-178</code>）。</li>
+</ul>
+<p>我没有实测准入耗时。<code>beginRun</code> 单独是 9.3 ms、13 条 SQL（实测）；整个 <code>accept</code> 的耗时是推测：几十到几百毫秒。</p>
+<p><strong>改动</strong>：把串行的粒度从「执行实例」改成「Session」。容量检查（<code>manager.ts:360-367</code>）需要在同步段里完成「检查并占位」，占位失败或后续失败时释放。跨 Session 的正确性已经由 <code>beginRun</code> 的行锁保证。</p>
+<p><strong>成本与风险</strong>：中。容量计数从「读 <code>this.active</code>」变成「预占」，要处理每一条失败路径的释放。建议先加一行日志量出准入排队时长，再决定做不做。现在只有 Queue 的 <code>chat_queue_admitted wait_ms</code>（<code>manager.ts:233</code>）。</p>
+<h3>G6. Queue 的全局索引文档是所有用户共用的一把锁</h3>
+<p><strong>影响</strong>：效率，中低。</p>
+<p><strong>证据（读码）</strong>：</p>
+<ul>
+<li>每个执行实例每秒读一次索引文档，带 <code>FOR UPDATE</code>（<code>queue.ts:33</code>，第 6 个参数是锁标志，见 <code>configuration-store.ts:25-28</code>）。</li>
+<li>任何 Session 的 Queue 在空与非空之间切换时，都要锁并重写这份文档（<code>queue.ts:60-69</code>）。</li>
+<li>派发时对每个有 Queue 的 Session 每秒做一次 <code>snapshot</code>，它锁 Session 行（<code>queue.ts:40-42</code>、<code>queue.ts:73-78</code>）。这把锁和 <code>appendEvents</code> 的 Session 行锁是同一把。</li>
+<li>索引上限 512 个 Session，超出报 <code>chat_queue_overloaded</code>（<code>queue.ts:65</code>）。</li>
+</ul>
+<p>Queue 里有消息的 Session 通常正在跑 Turn。所以派发轮询每秒都会和这个 Turn 的事件落库抢一次 Session 行锁。</p>
+<p><strong>改动</strong>：</p>
+<ol>
+<li><code>targets()</code> 改成不加锁的读。它只是候选列表，后面每一步都有自己的校验。</li>
+<li><code>dispatchQueue</code> 先用内存里的 <code>this.active</code> 过滤掉本执行实例正在跑的 Session，再做 <code>snapshot</code>。插话的收尾逻辑（<code>manager.ts:186-195</code>）需要 <code>snapshot</code>，只对带 <code>steering</code> 标记的 Session 保留。</li>
+<li>Turn 结束时调用 <code>wakeQueue()</code>，去掉 0 到 1 秒的固定延迟。</li>
+</ol>
+<p><strong>成本与风险</strong>：低。第 2 项要小心不要漏掉「<code>Run</code> 已结束但插话回执未结清」的 Session。</p>
+<h3>G7. MySQL 抖动 30 秒会中断一个执行实例上的全部 Turn</h3>
+<p><strong>影响</strong>：稳定性，中；发生频率是推测：低。</p>
+<p><strong>证据（读码）</strong>：租约 30 秒，续期每 5 秒（<code>store.ts:27</code>、<code>manager.ts:757</code>）。续期和 <code>inspectLease</code> 都失败时，本地期限不变，到期即 <code>interrupt</code>（<code>manager.ts:745-749</code>、<code>manager.ts:715-719</code>）。同一时刻 supervisor 也会杀掉 worker。</p>
+<p>这是租约设计的必然代价，方向是对的：宁可中断，也不要两个 owner。可调的只有时长。</p>
+<p><strong>改动</strong>：把 <code>CHAT_LEASE_MS</code> 调到 60 到 90 秒，续期间隔不变。代价是 owner 真死时，<code>Run</code> 多等 30 到 60 秒才变 <code>interrupted</code>。执行实例心跳的 15 秒失效不受影响。</p>
+<p><strong>成本与风险</strong>：一个常量。上线前要确认 RDS 主备切换的典型时长，选一个盖得住的值。</p>
+<h3>G8. 公共层没有「活着但不出声」的检测</h3>
+<p><strong>影响</strong>：稳定性，中低。</p>
+<p><strong>证据（读码）</strong>：公共层对 worker 只有 60 分钟总期限（<code>isolated.ts:375</code>）。worker 进程活着、IPC 连着、但一直不发事件时，<code>Run</code> 保持 <code>running</code>，租约照常续期。各 Runtime 自己的超时（Pi 的 HTTP 空闲、Codex 的 180 秒看门狗）在 worker 内部。</p>
+<p>worker 的事件循环卡死时，worker 内部的超时也不会触发。此时只有 60 分钟总期限和用户 Stop（15 秒后强杀）能收场。</p>
+<p><strong>改动</strong>：worker 每 10 到 15 秒经 IPC 发一个心跳帧。Rook Backend 在 <code>isolated.ts</code> 里记最后一次收到任何帧的时间，超过 60 秒没有帧就按 <code>execution_worker_unresponsive</code> 停掉 worker。<code>execution_worker_unresponsive</code> 是我新起的错误码。它只判断 worker 进程是否响应，不判断模型是否在输出，所以不会和各 Runtime 的空闲超时打架。</p>
+<p><strong>成本与风险</strong>：约 20 行。worker 在做同步的大文件读写时可能误报，阈值要留足。</p>
+<h3>G9. 较小的事项</h3>
+<p>每项只记一行，不展开。</p>
+<ul>
+<li><code>manager.ts:557</code> 把非白名单前缀的错误码压成 <code>runtime_execution_failed</code>。把 <code>ChatError</code> 的 <code>code</code> 写进 <code>errorDetail</code> 即可保留信息。读码。</li>
+<li>Turn 成功但 <code>finishRun</code> 失败时，最终回复丢失（1.5 节）。可以在 <code>catch</code> 里对 <code>succeeded</code> 的结果重试一次原结果，而不是直接写失败态。读码。</li>
+<li><code>active_run_id</code> 指向不存在的 <code>Run</code> 行时 Session 永久 <code>session_busy</code>（1.8 节）。<code>recoverSession</code> 可以在这种情况下直接清空 <code>active_run_id</code>。读码；出现概率是推测：很低。</li>
+<li>Queue 因满载而等待时没有上限和告警（1.8 节）。读码。</li>
+<li><code>recoverExpired</code> 把过期的 <code>Run</code> 一律写成 <code>interrupted</code>，不区分 <code>Run</code> 是否已经交给 Runtime。t3code 把没开始的 Run 放回队列（2.2 节）。Rook 要做到这一点需要先在 <code>Run</code> 上记录「已交给 Runtime」，收益是推测：只影响执行实例重启瞬间刚准入的 Turn。</li>
+<li>16 MB 以内的 Pi context 每次 checkpoint 都整份经 IPC 传给 Rook Backend（<code>isolated.ts:400-410</code>）。我没有读 <code>context.ts</code> 的写入方式，是否整份重写 MySQL 请看 Pi 适配器报告。</li>
+</ul>
+<h2>4. 测量记录</h2>
+<p>所有探针都在 <code>/tmp</code>，没有访问线上。</p>
+<table>
+<thead>
+<tr>
+<th>测量</th>
+<th>命令或脚本</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>现有测试</td>
+<td><code>node --import tsx --test --test-concurrency=1 tests/pi-supervisor.test.ts tests/chat-manager.test.ts tests/pi-lease-worker.test.ts</code>，root，临时 MySQL</td>
+<td>17 个测试全部通过，47.3 秒</td>
+</tr>
+<tr>
+<td>SQL 条数与耗时</td>
+<td><code>/tmp/rook-sm-scripts/db.mjs</code>，直接调用 <code>dist/server/chat/store.js</code> 的 <code>ChatStore</code></td>
+<td>见 G2 的表</td>
+</tr>
+<tr>
+<td>并发落库</td>
+<td>同一脚本，1、8、20 个 <code>Run</code> 各追加 50 批</td>
+<td>p50 为 2.7、8.8、19.3 ms</td>
+</tr>
+<tr>
+<td>Stop 与完成的竞争</td>
+<td>同一脚本最后一段</td>
+<td>终态 <code>stopped</code></td>
+</tr>
+<tr>
+<td>worker 冷启动各环节</td>
+<td>shell 计时，各 3 次</td>
+<td>见 G3 的表</td>
+</tr>
+</tbody></table>
+<p>测量的局限：</p>
+<ul>
+<li>MySQL 在本机，经 Unix socket，没有网络往返。线上的绝对耗时会更高，SQL 条数不变。</li>
+<li>机器是 48 核。并发测试的瓶颈是连接池，不是 CPU。</li>
+<li><code>dist/</code> 是 clone 里已有的构建产物（2026-11-28 04:42），我没有重新构建。</li>
+<li>冷启动只量了进程启动和模块加载。我没有启动真实的 worker 跑一个 Turn，因为那需要模型 Provider。</li>
+<li>我已经用 <code>mysqladmin shutdown</code> 停掉临时 MySQL。它的数据目录 <code>/tmp/rook-sm-probe.hAIkTc</code>（201 MB）还在，我没有删除它。</li>
+</ul>
+<h2>5. 没有做的事</h2>
+<ul>
+<li>没有读 <code>src/chat/context.ts</code>、<code>pi-sdk*.ts</code>、<code>runtime/claude-code.ts</code>、<code>runtime/codex-app-server.ts</code> 的主体。它们归另外三份报告。</li>
+<li>没有验证 G1 的运行时现象。结论来自 <code>Object.assign</code> 的语义，把握很高，但没有跑一个真实的 Claude Code 或 Codex worker 来看它在删除后是否存活。</li>
+<li>没有量准入（<code>accept</code>）的端到端耗时，也没有量线上的 SQL 往返时间。G5 和 G2 的线上估算因此是推测。</li>
+<li>dsh、t3code、Orca 三节由子代理阅读源码后汇报。我抽查了 6 处（dsh 的 200 毫秒批量和 <code>TOOL_OUTCOME_UNKNOWN</code>、Orca 的删除前停进程、t3code 的空闲超时常量、提交批量常量、删除时取消 Run），都对得上。其余行号没有逐行复核。</li>
+<li>t3code 的归档是否释放 session，子代理没有核对。t3code 的 4 个 effect worker 是否被一个在跑的 Turn 长期占住，子代理也没有核对。</li>
+</ul>
+</div></details>
+<details class="fold"><summary>Codex（codex.md）</summary><div class="fold-body report-md"><h1>Rook Codex Runtime 状态机评估（对照 t3code 和 Orca）</h1>
+<p>日期：2026-11-28。只读评估，没有改 Rook 代码。</p>
+<ul>
+<li>Rook 代码版本：<code>/tmp/rook-clone-3XBb</code>，提交 <code>6ed9642</code>（MR !243）。下文 Rook 路径都相对这个目录。</li>
+<li>Codex 版本：<code>codex-cli 0.169.0</code>，二进制是 <code>node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex</code>。</li>
+<li>探测脚本：<code>/tmp/rook-codex-sm-probe/probe.mjs</code>、<code>rook-adapter.mts</code>、<code>mute.mts</code>。脚本用本地假的 Responses Provider，没有调用 llmapi。</li>
+<li>术语：Session、Turn、Step 按 CONTEXT.md。讨论后端实现时保留 <code>Run</code> 和 <code>runId</code>。resident 指 <code>CodexResident</code>，即一个 Session 常驻的 <code>codex app-server</code> 进程。</li>
+<li>证据标签：<strong>实测</strong> 表示我跑了代码并读到了数字。<strong>读码</strong> 表示我只读了源码。<strong>猜测</strong> 表示没有证据支撑。</li>
+</ul>
+<h2>0. 结论</h2>
+<ol>
+<li>「失败 Turn 后退役 resident 的冷启动成本高」这个前提不成立。<strong>实测</strong>：Rook 适配器复用 resident 的 Turn 用 58 到 76 ms，退役后下一个 Turn 用 348 到 440 ms，差约 0.3 到 0.4 秒。<code>thread/resume</code> 在 36 MB rollout 上用 183 到 200 ms。一次真实模型 Turn 是几秒到几分钟。退役策略不值得为了效率去改。</li>
+<li>最大的稳定性缺口是握手阶段没有期限。<strong>实测</strong>：app-server 不回 <code>initialize</code> 时，Rook 的静默看门狗不生效，Turn 一直等到总期限。生产的总期限是 60 分钟。</li>
+<li>第二个缺口是 Rook 丢掉了 <code>codexErrorInfo</code>。所有失败 Turn 都报 <code>native_codex_turn_failed</code>，自动化任务的重试集合不含这个码，所以 Codex 的过载和限流不会被重试。</li>
+<li>t3code 在失败 Turn 后并不退役 app-server。<code>codex-app-server.ts:80</code> 的注释「Lifecycle follows t3code: any failed Turn retires the whole process」与 t3code 当前代码不一致（<strong>读码</strong>）。</li>
+</ol>
+<h2>1. Rook 的 Codex 状态机</h2>
+<h3>1.1 一个 Turn 怎样到达 resident</h3>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>谁做什么</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ChatManager</td>
+<td>ChatManager 每个 Turn 都从 MySQL 读出完整的原生 context。只有 Pi 走 <code>checkpointReuse</code>。</td>
+<td><code>src/chat/manager.ts:445-450</code></td>
+</tr>
+<tr>
+<td>worker 池</td>
+<td><code>isolatedExecutor</code> 按 <code>[ownerId, sessionId]</code> 保留一个 worker。worker 忙时报 <code>execution_worker_busy</code>。</td>
+<td><code>src/chat/isolated.ts:191-193</code>、<code>:310</code></td>
+</tr>
+<tr>
+<td>worker</td>
+<td>worker 进程持有一个 <code>CodexResidentSlot</code>。worker 同一时刻只跑一个 Run。</td>
+<td><code>src/chat/native-worker.ts:20</code>、<code>:33</code>、<code>:149-161</code></td>
+</tr>
+<tr>
+<td>executeNative</td>
+<td><code>executeNative</code> 每个 Turn 新建一个 <code>CODEX_HOME</code>，把 MySQL 的 rollout 写进去。复用 resident 时 <code>executeNative</code> 再删掉这个目录。</td>
+<td><code>src/chat/native.ts:177-193</code>、<code>:357</code></td>
+</tr>
+<tr>
+<td>适配器</td>
+<td><code>runCodexAppServer</code> 判断复用，启动或复用 resident，调用 <code>resident.run</code>。</td>
+<td><code>src/runtime/codex-app-server.ts:435-466</code></td>
+</tr>
+<tr>
+<td>supervisor</td>
+<td><code>native-supervisor.py</code> 是 subreaper，带 PDEATHSIG。<code>clean &lt;pid&gt;</code> 只豁免 resident 进程。</td>
+<td><code>src/chat/native-supervisor.py:22</code>、<code>:52-54</code>、<code>:161-180</code></td>
+</tr>
+</tbody></table>
+<h3>1.2 resident 进程状态</h3>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>事件</th>
+<th>转移</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>无</td>
+<td>第一个 Turn，或复用条件不成立</td>
+<td><code>CodexResident.start</code> 启动 loopback relay、可选的定时 MCP、<code>codex app-server --stdio</code>。进入「已启动」。</td>
+<td><code>codex-app-server.ts:136-159</code></td>
+</tr>
+<tr>
+<td>已启动</td>
+<td><code>run</code> 发现 <code>threadId</code> 为空</td>
+<td><code>open()</code> 依次发 <code>initialize</code>、<code>initialized</code>、<code>model/list</code>（只在配置了 effort 时）、<code>thread/start</code> 或 <code>thread/resume</code>（<code>excludeTurns: true</code>）。进入「空闲」。</td>
+<td><code>:217-234</code></td>
+</tr>
+<tr>
+<td>空闲</td>
+<td>下一个 Turn 且复用条件成立</td>
+<td><code>follow()</code> 把 skill 链接指向当前 Run 的快照。进入「Turn 中」。</td>
+<td><code>:437-438</code>、<code>:445</code>、<code>:164</code></td>
+</tr>
+<tr>
+<td>空闲</td>
+<td>下一个 Turn 且复用条件不成立</td>
+<td>适配器关闭旧 resident，启动新 resident。</td>
+<td><code>:439-443</code></td>
+</tr>
+<tr>
+<td>Turn 中</td>
+<td>Turn 成功且 <code>onNativeSession</code> 成功</td>
+<td>回到「空闲」。<code>contextSha</code> 更新为刚保存的 rollout 的 sha256。</td>
+<td><code>:458-460</code>、<code>native.ts:352-353</code></td>
+</tr>
+<tr>
+<td>Turn 中</td>
+<td>Turn 的结果不是 <code>succeeded</code>（失败、Stop、超时），或者没有 slot</td>
+<td>适配器关闭 resident。下一个 Turn 用 MySQL 的 context 走 <code>thread/resume</code>。</td>
+<td><code>:461-465</code></td>
+</tr>
+<tr>
+<td>任意</td>
+<td>worker 收到 <code>disconnect</code> 或 SIGTERM</td>
+<td>worker 关闭 resident，500 ms 后退出。</td>
+<td><code>native-worker.ts:36-45</code></td>
+</tr>
+<tr>
+<td>任意</td>
+<td>app-server 自己退出</td>
+<td><code>exited</code> 回调把 <code>closed</code> 置真，结束 pending 请求和当前 Turn。</td>
+<td><code>codex-app-server.ts:124-133</code></td>
+</tr>
+</tbody></table>
+<p>复用条件有四个，全部成立才复用（<code>:437-438</code>）：进程活着；<code>launchKey</code> 相同；<code>contextSha</code> 等于本次 MySQL context 的 sha256；<code>threadId</code> 等于 Run 的原生会话 ID。<code>launchKey</code> 是启动参数的 sha256，包含模型、Provider、Token、cwd、环境变量（去掉 <code>CODEX_HOME</code>）、<code>developerInstructions</code>、<code>skillDigest</code>、定时工具名、沙箱模式和三个超时（<code>:72-76</code>）。</p>
+<p><code>close()</code> 的顺序是：结束 stdin，立刻 SIGTERM，500 ms 后 SIGKILL（<code>codex-app-server.ts:359-368</code>，<code>src/runtime/process.ts:56-61</code>）。受管模式下信号只发给 resident 的 pid，不发给进程组（<code>native.ts:341</code>，<code>process.ts:50-55</code>）。</p>
+<h3>1.3 Turn 状态</h3>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>事件</th>
+<th>转移和结果</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>进入</td>
+<td>resident 已关闭，或已有 Turn 在跑</td>
+<td><code>failed</code>，<code>native_incomplete</code></td>
+<td><code>:295</code></td>
+</tr>
+<tr>
+<td>打开中</td>
+<td><code>open()</code> 的某个请求得到错误回复</td>
+<td><code>thread/resume</code> 失败报 <code>native_context_unavailable</code>。其他请求报 <code>native_codex_request_failed</code>。</td>
+<td><code>:180-183</code></td>
+</tr>
+<tr>
+<td>打开中</td>
+<td>thread 校验不通过</td>
+<td><code>native_context_invalid</code>、<code>native_context_changed</code>、<code>native_provider_model_mismatch</code>、<code>native_model_effort_unavailable</code></td>
+<td><code>:214</code>、<code>:228-232</code></td>
+</tr>
+<tr>
+<td>已发 <code>turn/start</code></td>
+<td>收到回复里的 <code>turn.id</code></td>
+<td>记录 <code>turn.id</code>，启动静默计时，触发 <code>onStarted</code>（前端收到 <code>assistant_started</code>）。</td>
+<td><code>:323-329</code>，<code>native.ts:311-314</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td><code>item/started</code> 和 <code>item/completed</code></td>
+<td>维护 <code>turn.items</code>。有运行中的 item 时不计静默。</td>
+<td><code>:273-278</code>、<code>:304-307</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td><code>item/completed</code> 且类型是 <code>agentMessage</code>，<code>phase</code> 不是 <code>commentary</code></td>
+<td>文本追加到 <code>turn.response</code>。超过 256 KiB 报 <code>native_output_limit</code>。</td>
+<td><code>:284-290</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td><code>error</code> 通知且 <code>willRetry: false</code></td>
+<td>只记下 <code>error.message</code> 作为 <code>errorDetail</code>。<code>codexErrorInfo</code> 被丢弃。</td>
+<td><code>:280-283</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td><code>error</code> 通知且 <code>willRetry: true</code></td>
+<td>只重置静默计时。前端看不到重试。</td>
+<td><code>:278</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td><code>model/rerouted</code></td>
+<td><code>native_provider_model_mismatch</code>，关闭进程</td>
+<td><code>:279</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td>服务端请求 <code>currentTime/read</code>，且 thread 匹配</td>
+<td>回复当前时间</td>
+<td><code>:252-256</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td>其他任何服务端请求</td>
+<td><code>native_codex_request_unsupported</code>，关闭进程</td>
+<td><code>:257</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td>一行不是 JSON 对象</td>
+<td><code>native_codex_protocol_error</code>，关闭进程</td>
+<td><code>:238-239</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td><code>turn/completed</code>，<code>status</code> 是 <code>completed</code></td>
+<td>响应非空则 <code>succeeded</code>。响应为空报 <code>native_model_empty_response</code>。</td>
+<td><code>:262-271</code>、<code>:355-356</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td><code>turn/completed</code>，<code>status</code> 是 <code>failed</code></td>
+<td><code>native_codex_turn_failed</code>，<code>errorDetail</code> 取 <code>turn.error.message</code></td>
+<td><code>:267-268</code>、<code>:351-354</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td><code>turn/completed</code>，<code>status</code> 是 <code>interrupted</code> 且没有超时</td>
+<td><code>stopped</code></td>
+<td><code>:341</code></td>
+</tr>
+<tr>
+<td>运行中</td>
+<td>进程退出但没有终态</td>
+<td>按退出原因报 <code>native_output_limit</code>、<code>native_codex_process_failed</code> 或 <code>native_incomplete</code></td>
+<td><code>:345-350</code></td>
+</tr>
+<tr>
+<td>Turn 之间</td>
+<td>任何通知或服务端请求</td>
+<td>丢弃，不回复</td>
+<td><code>:248-250</code></td>
+</tr>
+</tbody></table>
+<h3>1.4 期限、重试和 Stop</h3>
+<table>
+<thead>
+<tr>
+<th>机制</th>
+<th>值</th>
+<th>谁执行</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Turn 总期限</td>
+<td>60 分钟</td>
+<td>Rook 发 <code>turn/interrupt</code>，报 <code>native_timeout</code></td>
+<td><code>process.ts:5</code>，<code>codex-app-server.ts:317</code></td>
+</tr>
+<tr>
+<td>静默看门狗</td>
+<td>180 秒没有通知且没有运行中的 item</td>
+<td>Rook 发 <code>turn/interrupt</code>，报 <code>native_model_timeout</code>。计时从收到 <code>turn.id</code> 才开始。</td>
+<td><code>:23</code>、<code>:304-307</code>、<code>:327</code></td>
+</tr>
+<tr>
+<td>响应头期限</td>
+<td>60 秒</td>
+<td>relay 回 504，Codex 自己重连</td>
+<td><code>:25</code>，<code>model-relay.ts:19</code>、<code>:31-35</code></td>
+</tr>
+<tr>
+<td>流空闲期限</td>
+<td>120 秒</td>
+<td>Codex 自己重连（<code>stream_idle_timeout_ms</code>）</td>
+<td><code>:21</code>、<code>:106</code></td>
+</tr>
+<tr>
+<td>请求重试</td>
+<td><code>request_max_retries=0</code></td>
+<td>所有重试都变成 Codex 的流重试，默认 5 次</td>
+<td><code>:104-106</code></td>
+</tr>
+<tr>
+<td>握手请求期限</td>
+<td>没有</td>
+<td>只有 Turn 总期限兜底</td>
+<td><code>:173-193</code></td>
+</tr>
+<tr>
+<td>Stop</td>
+<td>发 <code>turn/interrupt</code>（<code>id: 0</code>，不等回复），1 秒后关闭进程</td>
+<td>Rook</td>
+<td><code>:17</code>、<code>:310-316</code></td>
+</tr>
+<tr>
+<td>Stop 时还没有 <code>turn.id</code></td>
+<td>直接关闭进程</td>
+<td>Rook</td>
+<td><code>:313</code></td>
+</tr>
+<tr>
+<td>Backend 侧取消</td>
+<td>Backend 发 <code>cancel</code> 帧，15 秒后还没结束就停掉 worker，报 <code>execution_cancel_timeout</code></td>
+<td><code>isolated.ts</code></td>
+<td><code>src/chat/isolated.ts:381-385</code></td>
+</tr>
+<tr>
+<td>Backend 侧总期限</td>
+<td>60 分钟加 5 秒</td>
+<td><code>isolated.ts</code></td>
+<td><code>:375</code></td>
+</tr>
+</tbody></table>
+<h3>1.5 恢复和事件</h3>
+<ul>
+<li>只有成功的 Turn 会保存原生 context。<code>onNativeSession</code> 读出 rollout，交给 Backend 写入 MySQL（<code>native.ts:344-354</code>）。失败或 Stop 的 Turn 保留旧 checkpoint（<code>isolated.ts:574</code>）。所以失败或 Stop 的 Turn 做过的事，下一个 Turn 的模型看不到。</li>
+<li>空闲 worker 没有空闲时限。池子只有数量上限，默认 4 个，超过时停掉最早空闲的 worker（<code>src/chat/capacity.ts:6</code>，<code>isolated.ts:580-586</code>）。</li>
+<li>删除 Session 时 <code>api.ts:201-202</code> 调 <code>forgetSession</code>，<code>forget</code> 只查当前 Backend 实例内存里的 <code>workers</code>（<code>isolated.ts:638-644</code>）。</li>
+<li>Codex 的 Turn 只向前端发 <code>assistant_started</code> 和 <code>assistant_completed</code>（<code>native.ts:310-322</code>）。适配器只消费 <code>agentMessage</code> 的 <code>item/completed</code>。文本增量、工具、thinking、用量都没有转成事件。</li>
+<li>Codex 没有 steer。<code>control_ready</code> 只对非 one-shot 的 Runtime 生效（<code>isolated.ts:411</code>）。</li>
+</ul>
+<h3>1.6 实测到的 Codex 0.169 行为</h3>
+<p>机器有 48 核，测量时 load average 约 38。数字只说明量级。假 Provider 立刻返回，所以 Turn 的耗时就是 Codex 和 Rook 自己的开销。测试用的 <code>CODEX_HOME</code> 是空的，没有 skill，没有 MCP。生产环境有 skill 链接和定时 MCP，冷启动会更慢，慢多少我没有测。</p>
+<table>
+<thead>
+<tr>
+<th>测量</th>
+<th>结果</th>
+<th>脚本</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>进程启动到 <code>initialize</code> 回复</td>
+<td>281 到 300 ms（5 次）</td>
+<td><code>probe.mjs cold</code></td>
+</tr>
+<tr>
+<td><code>model/list</code></td>
+<td>3 到 4 ms</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>thread/start</code></td>
+<td>19 到 27 ms</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>冷启动到第一个 Turn 完成</td>
+<td>396 到 423 ms</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>同进程第二、第三个 Turn</td>
+<td>51 到 64 ms</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>新进程 <code>initialize</code> + <code>thread/resume</code> + Turn</td>
+<td>322 到 363 ms，其中 <code>thread/resume</code> 41 到 53 ms</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>stdin 结束到进程退出</td>
+<td>24 到 31 ms</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>thread/resume</code> 随 rollout 大小</td>
+<td>0.34 MB 用 45 到 48 ms；2.9 MB 用 52 到 61 ms；12 MB 用 90 到 93 ms；36.7 MB 用 183 到 200 ms</td>
+<td><code>probe.mjs size</code></td>
+</tr>
+<tr>
+<td>同进程 Turn 随 rollout 大小</td>
+<td>0.34 MB 用 58 ms；12 MB 用 79 ms；36.7 MB 用 120 ms</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>Rook 适配器，原生二进制</td>
+<td>冷启动 434 ms；复用 58 到 71 ms；失败 Turn 后的下一个 Turn 348 到 377 ms</td>
+<td><code>rook-adapter.mts</code></td>
+</tr>
+<tr>
+<td>Rook 适配器，npm 包装脚本 <code>node_modules/.bin/codex</code></td>
+<td>冷启动 547 ms；复用 56 到 76 ms；失败后 416 到 440 ms</td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>--version</code>：包装脚本对原生二进制</td>
+<td>0.07 秒对 0.01 秒</td>
+<td>命令行</td>
+</tr>
+<tr>
+<td>失败 Turn（Provider 回 400）之后，同一进程再发 Turn</td>
+<td>成功，57 ms</td>
+<td><code>probe.mjs fail</code></td>
+</tr>
+<tr>
+<td><code>turn/interrupt</code> 到 <code>turn/completed</code>（<code>interrupted</code>）</td>
+<td>12 ms（模型流挂起时）</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>中断之后，同一进程再发 Turn</td>
+<td>成功，55 ms</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>Turn 进行中再发一次 <code>turn/start</code></td>
+<td>Codex 不报错，回复里是同一个 <code>turn.id</code></td>
+<td>同上</td>
+</tr>
+<tr>
+<td>Turn 进行中发 <code>turn/steer</code></td>
+<td>成功，返回 <code>turnId</code></td>
+<td>同上</td>
+</tr>
+<tr>
+<td>Provider 回一次 503</td>
+<td>Codex 发 <code>error</code>，<code>willRetry: true</code>，<code>message</code> 是 <code>Reconnecting... 1/5</code>，<code>codexErrorInfo</code> 是 <code>{responseStreamDisconnected:{httpStatusCode:503}}</code>，<code>additionalDetails</code> 含请求 URL。Turn 357 ms 后成功。</td>
+<td><code>probe.mjs retry</code></td>
+</tr>
+<tr>
+<td>Provider 回 <code>server_is_overloaded</code></td>
+<td>Turn <code>failed</code>，<code>codexErrorInfo</code> 是字符串 <code>serverOverloaded</code>，<code>willRetry: false</code>。之后同一进程再发 Turn 成功。</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>两个进程用同一个 <code>CODEX_HOME</code> 恢复同一个 thread</td>
+<td>第二个进程的 <code>thread/resume</code> 报 <code>-32600</code>，「already has an active writer」</td>
+<td><code>probe.mjs cold</code> 的第一版</td>
+</tr>
+<tr>
+<td>app-server 不回 <code>initialize</code>（<code>responseTimeoutMs=500</code>，<code>timeoutMs=4000</code>）</td>
+<td>Rook 在 4021 ms 报 <code>native_timeout</code>。500 ms 的静默看门狗没有触发。</td>
+<td><code>mute.mts</code></td>
+</tr>
+<tr>
+<td>空闲 app-server 的内存（已 <code>thread/start</code>，没跑 Turn）</td>
+<td>RSS 约 110 MB，69 个线程</td>
+<td><code>/proc/&lt;pid&gt;/status</code></td>
+</tr>
+<tr>
+<td>一个 Turn 里出现的通知</td>
+<td><code>turn/started</code>、<code>item/started</code>、<code>item/completed</code>、<code>thread/tokenUsage/updated</code>、<code>thread/status/changed</code>、<code>account/rateLimits/updated</code>、<code>turn/completed</code>。没有服务端请求。</td>
+<td><code>probe.mjs cold</code></td>
+</tr>
+</tbody></table>
+<h2>2. t3code 和 Orca 的做法</h2>
+<h3>2.1 t3code</h3>
+<p>路径前缀：<code>/code/3p/t3code/apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts</code>。全部是<strong>读码</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>做法</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>退役条件</td>
+<td>t3code 只在三种情况退役 app-server：进程终止；<code>initialize</code> 30 秒没有回复；任一请求 2 分钟没有回复。失败的 Turn 不退役进程。</td>
+<td><code>:339</code>、<code>:628</code>、<code>:2299-2330</code></td>
+</tr>
+<tr>
+<td>退役后</td>
+<td>退役后的 app-server 拒绝新工作（<code>CodexAppServerRetiredError</code>）。</td>
+<td><code>:639-644</code>、<code>:2312-2314</code></td>
+</tr>
+<tr>
+<td>强杀</td>
+<td>关闭后 2 秒强杀</td>
+<td><code>:1793</code></td>
+</tr>
+<tr>
+<td><code>willRetry: true</code></td>
+<td>t3code 用正则 <code>(\d+)\s*/\s*(\d+)</code> 从消息里取 <code>attempt</code> 和 <code>maxAttempts</code>，发一条「重试中」的 turn item。</td>
+<td><code>:1317-1330</code>、<code>:5665-5730</code></td>
+</tr>
+<tr>
+<td>重试预算</td>
+<td>从第一条重试通知起 10 分钟。到期后 t3code 把 Turn 记为失败，再发 <code>turn/interrupt</code>（等 10 秒）。重复的通知不延长期限。</td>
+<td><code>packages/provider-core/src/server/failure.ts:411</code>，<code>:5714-5725</code>、<code>:7660-7697</code></td>
+</tr>
+<tr>
+<td>重试结束</td>
+<td>任何模型输出帧都会结束「重试中」的 item。</td>
+<td><code>:2761-2783</code></td>
+</tr>
+<tr>
+<td><code>willRetry: false</code></td>
+<td>t3code 记下 <code>message</code>、<code>additionalDetails</code>、<code>codexErrorInfo</code>，按类别归类失败。</td>
+<td><code>:5642-5661</code></td>
+</tr>
+<tr>
+<td><code>serverOverloaded</code></td>
+<td>Turn 失败且错误码是 <code>serverOverloaded</code> 时，t3code 在同一 thread 上用空输入续跑，不重发用户消息。最多 5 次，退避 <code>min(2000 * 2^(n-1), 30000)</code> ms。</td>
+<td><code>:176</code>、<code>:7699-7790</code></td>
+</tr>
+<tr>
+<td>Stop</td>
+<td>t3code 发 <code>turn/interrupt</code>，等 <code>turn/completed</code> 最多 10 秒。超时报 <code>ProviderAdapterInterruptTimeoutError</code>，不杀进程。排队中的 Turn 先等 <code>turn/started</code>，最多 10 秒。</td>
+<td><code>:178</code>、<code>:9258-9310</code></td>
+</tr>
+<tr>
+<td>服务端请求</td>
+<td>t3code 处理命令审批、文件改动审批、权限审批、MCP elicitation、<code>requestUserInput</code> 和两种旧版审批。未知方法回 <code>-32601</code>。</td>
+<td><code>:6345-6813</code>，<code>packages/effect-codex-app-server/src/client.ts:223</code>、<code>src/errors.ts:301-304</code></td>
+</tr>
+<tr>
+<td>恢复</td>
+<td><code>thread/resume</code> 带 <code>excludeTurns: true</code>。</td>
+<td><code>:3942-3945</code></td>
+</tr>
+</tbody></table>
+<p>t3code 是否让多个 thread 共用一个 app-server，我没有核对。</p>
+<h3>2.2 Orca</h3>
+<p>路径前缀：<code>/code/3p/orca/src/main</code>。Orca 部分由子 agent 读码，我抽查了五处常量和分支，全部吻合。全部是<strong>读码</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>做法</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>进程归属</td>
+<td>默认每个 chat 一个 app-server。共享池是实验开关，默认关闭。</td>
+<td><code>runtime/agent-session/launch/structured-agent-setting-gates.ts:24-26</code></td>
+</tr>
+<tr>
+<td>共享池</td>
+<td>key 是命令、<code>codex --version</code>、参数、环境变量和 cwd 的 sha256。租约归零 60 秒后停进程。RSS 超过 1.5 GiB 时排空。</td>
+<td><code>codex/app-server/shared-servers/codex-shared-server-key.ts:33-85</code>，<code>codex-shared-server-pool.ts:20</code></td>
+</tr>
+<tr>
+<td>请求期限</td>
+<td>默认 30 秒。超时只拒绝这个请求，不杀进程。</td>
+<td><code>codex/app-server/codex-app-server-connection.ts:35</code>、<code>:189-206</code></td>
+</tr>
+<tr>
+<td><code>initialize</code> 期限</td>
+<td>共享池 15 秒。每 chat 一个进程的路径不设期限，由 10 分钟的启动上限兜底。</td>
+<td><code>codex/app-server/shared-servers/codex-shared-server.ts:24</code></td>
+</tr>
+<tr>
+<td>失败 Turn</td>
+<td>Orca 只写一条失败记录。进程和 thread 都保留。</td>
+<td><code>codex/structured/journal/codex-turn-failures.ts:117-136</code></td>
+</tr>
+<tr>
+<td>失败归类</td>
+<td><code>usageLimitExceeded</code> 归为用量上限。<code>unauthorized</code> 或 401 归为未登录。<code>serverOverloaded</code>、<code>rateLimitExceeded</code>、<code>flexUnavailable</code>、<code>policyCapacityUnavailable</code> 归为 Provider 不可用。<code>responseTooManyFailedAttempts</code> 带 429 时归为 Provider 不可用。</td>
+<td><code>codex-turn-failures.ts:159-203</code></td>
+</tr>
+<tr>
+<td><code>willRetry: true</code></td>
+<td>Orca 写一条「providerRetrying」提示，Turn 继续。Orca 没有客户端重发，也没有重试预算。</td>
+<td><code>codex/structured/journal/codex-provider-retry-row.ts:23-30</code></td>
+</tr>
+<tr>
+<td>Stop</td>
+<td>Orca 发 <code>turn/interrupt</code>，5 秒内要结束。中断失败且 Turn 还在跑时关闭进程。Stop 会结束这个 chat 的进程，下一次发送用 <code>thread/resume</code> 接上。</td>
+<td><code>codex/structured/turns/codex-request-end-wait.ts:4</code>，<code>native-chat/agent-session-wire/operations/structured-agent-session-turns-cancel.ts:236-289</code></td>
+</tr>
+<tr>
+<td>空闲回收</td>
+<td>空闲 chat 默认 30 分钟后关闭。</td>
+<td><code>shared/native-chat/settings/native-chat-idle-stop.ts:7</code></td>
+</tr>
+<tr>
+<td>服务端请求</td>
+<td>审批、<code>requestUserInput</code>、elicitation 变成用户提示。未知方法回 <code>-32000</code>，不杀进程。</td>
+<td><code>codex/structured/prompts/codex-server-request-disposition.ts:52-88</code></td>
+</tr>
+<tr>
+<td>恢复</td>
+<td><code>thread/resume</code> 带 <code>excludeTurns: true</code>。「already has an active writer」时拒绝打开。</td>
+<td><code>codex/structured/threads/codex-structured-thread-open.ts:123-184</code></td>
+</tr>
+<tr>
+<td>关闭顺序</td>
+<td>结束 stdin，等 1 秒，对进程组 SIGTERM，等 3 秒，SIGKILL。</td>
+<td><code>provider-process/provider-process-supervisor.ts:6-24</code>、<code>:112-133</code></td>
+</tr>
+<tr>
+<td>孤儿进程</td>
+<td>supervisor 每 100 ms 检查父进程。启动时扫描归属日志，杀掉属主已死的进程组。</td>
+<td><code>provider-process-supervisor.ts:181-189</code>，<code>provider-process/provider-ownership-journal.ts:150-219</code></td>
+</tr>
+<tr>
+<td>Turn 静默看门狗</td>
+<td>没有。</td>
+<td>没找到</td>
+</tr>
+<tr>
+<td><code>hang-watchdog</code></td>
+<td>只看 Electron 主线程和渲染进程，和 Codex 无关。</td>
+<td><code>hang-watchdog/hang-watchdog-worker-protocol.ts:1-5</code></td>
+</tr>
+</tbody></table>
+<h3>2.3 三者对照</h3>
+<table>
+<thead>
+<tr>
+<th>主题</th>
+<th>Rook</th>
+<th>t3code</th>
+<th>Orca</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>失败 Turn 后的进程</td>
+<td>退役</td>
+<td>保留</td>
+<td>保留</td>
+</tr>
+<tr>
+<td>Stop 后的进程</td>
+<td>退役</td>
+<td>保留</td>
+<td>关闭，下次 <code>thread/resume</code></td>
+</tr>
+<tr>
+<td>失败或 Stop 的 Turn 的 context</td>
+<td>丢弃，回到上次成功的 checkpoint</td>
+<td>留在 thread 里</td>
+<td>留在磁盘 rollout 里</td>
+</tr>
+<tr>
+<td>握手和请求期限</td>
+<td>没有</td>
+<td>30 秒和 2 分钟，超时退役</td>
+<td>30 秒，超时拒绝请求</td>
+</tr>
+<tr>
+<td>Turn 静默看门狗</td>
+<td>180 秒</td>
+<td>没有（只有重试预算）</td>
+<td>没有</td>
+</tr>
+<tr>
+<td><code>willRetry: true</code> 呈现</td>
+<td>不呈现</td>
+<td>呈现 n/5</td>
+<td>呈现</td>
+</tr>
+<tr>
+<td><code>codexErrorInfo</code> 归类</td>
+<td>不用</td>
+<td>用</td>
+<td>用</td>
+</tr>
+<tr>
+<td>过载重发</td>
+<td>没有</td>
+<td>空输入续跑，最多 5 次</td>
+<td>没有</td>
+</tr>
+<tr>
+<td>Stop 确认时间</td>
+<td>1 秒后杀进程</td>
+<td>10 秒，不杀</td>
+<td>5 秒，失败才杀</td>
+</tr>
+<tr>
+<td>未知服务端请求</td>
+<td>杀进程，Turn 失败</td>
+<td>回 <code>-32601</code></td>
+<td>回 <code>-32000</code></td>
+</tr>
+<tr>
+<td>空闲回收</td>
+<td>只有数量上限 4</td>
+<td>没核对</td>
+<td>30 分钟</td>
+</tr>
+</tbody></table>
+<p>Rook 在响应头期限和静默看门狗上比两个参考实现更严。这两项不用改。</p>
+<h2>3. 差距，按对稳定性和效率的影响排序</h2>
+<h3>G1. 握手和 RPC 请求没有期限（稳定性，高）</h3>
+<ul>
+<li>证据：<strong>实测</strong>。<code>mute.mts</code> 让 app-server 不回 <code>initialize</code>。500 ms 的静默看门狗没有触发，Turn 在 4021 ms 的总期限才结束。原因是 <code>turn.heard()</code> 第一次调用在 <code>turn/start</code> 的回复里（<code>codex-app-server.ts:327</code>），而 <code>request()</code> 自己没有期限（<code>:173-193</code>）。生产的总期限是 60 分钟（<code>process.ts:5</code>）。app-server 在 <code>initialize</code>、<code>model/list</code>、<code>thread/resume</code> 或 <code>turn/start</code> 任何一步卡住，用户都要等 60 分钟或手动 Stop。</li>
+<li>参考：t3code 是 30 秒和 2 分钟，超时退役进程。Orca 是 30 秒。</li>
+<li>改法：在 <code>run()</code> 里创建 <code>turn</code> 之后立刻调一次 <code>turn.heard()</code>，让 180 秒的静默计时覆盖握手阶段。握手阶段 <code>turn.id</code> 为空，<code>interrupt()</code> 会直接关闭进程（<code>:313</code>）。更好的做法是给握手单独一个 30 秒期限，并报 <code>native_runtime_unavailable</code>，不报 <code>native_model_timeout</code>。</li>
+<li>归属：Codex 适配器。「每个 RPC 请求都有期限」这条规则也适用于 <code>claude-code.ts</code> 的 resident，我没有核对那边。</li>
+<li>成本和风险：约 5 行加一个假 app-server 的测试。风险低。<strong>实测</strong> <code>thread/resume</code> 在 36.7 MB 上只用 0.2 秒，30 秒不会误杀。</li>
+</ul>
+<h3>G2. 失败码不区分 <code>codexErrorInfo</code>（稳定性，高，主要影响自动化任务）</h3>
+<ul>
+<li>证据：<strong>读码</strong> <code>codex-app-server.ts:267-268</code>、<code>:280-283</code> 只取 <code>message</code>。所有失败都是 <code>native_codex_turn_failed</code>（<code>:353</code>）。自动化任务的可重试集合是 <code>native_model_rate_limited</code>、<code>native_model_unavailable</code>、<code>native_model_timeout</code>（<code>src/automation/service.ts:123</code>）。所以 Codex 的过载、限流、5xx 耗尽重试之后，自动化任务不会重投。<strong>实测</strong> 过载时 <code>codexErrorInfo</code> 是字符串 <code>serverOverloaded</code>，重连时是 <code>{responseStreamDisconnected:{httpStatusCode:503}}</code>。</li>
+<li>参考：t3code 和 Orca 都按 <code>codexErrorInfo</code> 归类。</li>
+<li>改法：适配器在 <code>turn/completed</code> 的 <code>error</code> 和 <code>willRetry: false</code> 的 <code>error</code> 里读 <code>codexErrorInfo</code>，用一张表映射到 Rook 已有的失败码。<code>serverOverloaded</code>、<code>flexUnavailable</code>、<code>policyCapacityUnavailable</code> 映射到 <code>native_model_unavailable</code>。<code>usageLimitExceeded</code>、<code>rateLimitExceeded</code>、或 <code>httpStatusCode</code> 为 429 映射到 <code>native_model_rate_limited</code>。<code>responseTooManyFailedAttempts</code>、<code>responseStreamDisconnected</code>、<code>httpConnectionFailed</code> 带 5xx 时映射到 <code>native_model_unavailable</code>。其他保持 <code>native_codex_turn_failed</code>。</li>
+<li>归属：失败码词表属于 Rook Backend，三种 Runtime 共用。映射表属于 Codex 适配器。</li>
+<li>成本和风险：约 15 行加测试。风险低。要确认前端 <code>web/main.tsx</code> 对这两个码的文案适用于 Codex。</li>
+<li>不建议现在抄 t3code 的过载重发。重发要求失败后保留进程和 thread，这依赖 G6。映射完成后，自动化任务已经能在 Run 层重投。</li>
+</ul>
+<h3>G3. <code>willRetry: true</code> 映射到 <code>auto_retry_start</code>（已知后续项，这里细化）</h3>
+<ul>
+<li>证据：<strong>实测</strong> 通知的形状见 1.6。<strong>读码</strong> 前端已经有 <code>auto_retry_start {attempt, maxAttempts, delayMs}</code> 和 <code>auto_retry_end {attempt, success}</code>（<code>src/chat/events.ts:15-16</code>、<code>:58-59</code>，<code>web/run-events.ts:139-143</code>）。校验要求 <code>attempt &gt;= 1</code>、<code>maxAttempts &gt;= attempt</code>、<code>delayMs</code> 是非负整数。</li>
+<li>改法：<ol>
+<li><code>runCodexAppServer</code> 现在只有 <code>onTurnStarted</code>，没有事件回调。先加一个 <code>onEvents</code>，由 <code>native.ts</code> 接到已有的 <code>options.onEvents</code>。</li>
+<li>适配器用 t3code 的正则 <code>(\d+)\s*/\s*(\d+)</code> 从 <code>error.message</code> 取 <code>attempt</code> 和 <code>maxAttempts</code>。取不到时 <code>attempt</code> 用上一次加一，<code>maxAttempts</code> 用 5。Codex 不给退避时长，<code>delayMs</code> 填 0。</li>
+<li>之后第一条 <code>item/started</code> 或 item 增量通知发 <code>auto_retry_end {success: true}</code>。<code>turn/completed</code> 为 <code>failed</code> 时发 <code>success: false</code>。</li>
+<li>不要把 <code>additionalDetails</code> 发给前端。<strong>实测</strong> 它含 relay 的 loopback URL。</li>
+</ol>
+</li>
+<li>归属：事件类型在 <code>src/chat/events.ts</code>，三种 Runtime 共用。转换在 Codex 适配器。</li>
+<li>成本和风险：约 30 行加一个测试场景。风险低。</li>
+<li>可选：t3code 的 10 分钟重试预算。Rook 现在最坏情况是 6 次请求乘 60 秒响应头期限，或 6 次乘 120 秒流空闲，即 6 到 12 分钟，量级已经相当。不建议再加一层预算。</li>
+</ul>
+<h3>G4. 不知道 resident 的复用命中率，空闲 worker 没有时限（效率和资源，中）</h3>
+<ul>
+<li>证据：<strong>读码</strong> <code>native.ts:358</code> 丢掉了 <code>reused</code>，Run 记录里没有它。空闲 worker 上限默认 4（<code>capacity.ts:6</code>），按每个 Backend 实例、每种 Runtime 计。超过上限时停掉最早空闲的 worker（<code>isolated.ts:580-586</code>）。没有空闲时限。<strong>实测</strong> 一个空闲 app-server 的 RSS 约 110 MB。</li>
+<li>影响：同时有 5 个以上 Session 交替使用 Codex 时，resident 会被挤掉，每个 Turn 都要重新启动 worker 和 app-server。生产的命中率是多少，是<strong>猜测</strong>，我没有数据。反过来，少于 4 个 Session 时，空闲的 app-server 会一直占着 110 MB，直到 Backend 实例退出。</li>
+<li>改法：先记录再调参。<ol>
+<li>把 <code>reused</code> 和未命中的原因（进程已死、<code>launchKey</code> 变了、<code>contextSha</code> 不等、thread 不等、worker 被回收）写进 Run 的诊断字段。</li>
+<li>有数据后再决定是否调大 <code>ROOK_CHAT_MAX_IDLE_WORKERS</code>，并给空闲 worker 加时限。Orca 的值是 30 分钟。</li>
+</ol>
+</li>
+<li>归属：<code>isolated.ts</code> 的 worker 池，三种 Runtime 共用。</li>
+<li>成本和风险：记录约 10 行。空闲时限约 15 行。风险低。</li>
+<li>顺带解决已知后续项「已删除 Session 的 worker 和 app-server 不退出」。<strong>读码</strong> <code>forget</code> 只作用于收到 DELETE 请求的那个 Backend 实例（<code>isolated.ts:638-644</code>）。如果 worker 在另一个实例上，没有人通知它。这个原因是<strong>猜测</strong>，我没有核对生产是否多实例。空闲时限不需要跨实例通知就能回收这些 worker。</li>
+</ul>
+<h3>G5. 复用 resident 时仍然每个 Turn 往返一次完整 rollout（效率，中，未测）</h3>
+<ul>
+<li>证据：<strong>读码</strong>。ChatManager 每个 Turn 从 MySQL 读出完整 context（<code>manager.ts:445-450</code>）。<code>executeNative</code> 新建 <code>CODEX_HOME</code> 并写入 rollout（<code>native.ts:177-193</code>），复用时再删掉（<code>:357</code>）。<code>contextSha</code> 对全文算两次 sha256（<code>native.ts:343</code>、<code>:353</code>）。Turn 成功后 <code>executeNative</code> 再读出全文，经 IPC 交给 Backend 加密写回。rollout 上限是 16 MiB（<code>src/chat/native-context-format.ts:5</code>）。</li>
+<li>影响：每个 Turn 有两次与 rollout 等大的读写。本地文件部分很小，<strong>实测</strong> 复制 12 MB 的 <code>CODEX_HOME</code> 用 63 ms。MySQL 读取和解密的耗时我没有测，需要生产数据。</li>
+<li>改法：用 MySQL 的 <code>NativeContextHead.sha256</code> 和 <code>resident.contextSha</code> 比较，命中时不读正文，不建 <code>CODEX_HOME</code>。Pi 已经有 <code>checkpoint.head</code> 加 <code>load()</code> 的形状（<code>isolated.ts:265-268</code>）。现在 worker 协议拒绝 one-shot Runtime 带 <code>checkpoint</code>（<code>native-worker.ts:88</code>），要放开。</li>
+<li>归属：ChatManager 和 worker 协议，Claude Code 的 resident 同样受益。</li>
+<li>成本和风险：中等，改动跨过 worker 信任边界。先在 G4 的诊断里加上「context 加载耗时」，有数据再决定。</li>
+</ul>
+<h3>G6. 失败或 Stop 的 Turn 丢掉 context 并退役进程（语义差异，效率影响小）</h3>
+<ul>
+<li>证据：<strong>实测</strong> 退役的代价只有 0.3 到 0.4 秒。<strong>实测</strong> 失败或中断后，同一个 app-server 可以正常跑下一个 Turn。<strong>读码</strong> t3code 和 Orca 都保留失败或中断 Turn 的历史。Rook 回到上次成功的 checkpoint（<code>codex-app-server.ts:461-465</code>，<code>isolated.ts:574</code>）。</li>
+<li>真正的差别不在速度，在 context。用户 Stop 一个已经执行过命令的 Turn 之后再继续，Rook 的模型不知道这些命令执行过。前端文案「请确认已发起的操作，再继续会话」（<code>web/main.tsx:148</code>）把这个核对交给了用户。</li>
+<li>判断：不建议为了效率改退役策略。退役让「进程里的 thread」和「MySQL 的 checkpoint」始终一致，这个不变量很便宜也很稳。</li>
+<li>如果要对齐 t3code 的语义，改法是：收到干净的 <code>turn/completed</code>（<code>interrupted</code> 或 <code>failed</code>）时也保存 rollout，并保留 resident。这是 Rook Backend 的规则「哪些 Turn 终态保存原生 context」，三种 Runtime 要一起定。它还会碰到「存在未知工具结果时保留原有 checkpoint」这条规则。成本大，风险中到高。这是产品决定，需要用户拍板。</li>
+<li>无论是否改，<code>codex-app-server.ts:80</code> 的注释应该改掉。t3code 不在失败 Turn 后退役进程。</li>
+</ul>
+<h3>G7. 未知的服务端请求直接让 Turn 失败（稳定性，低到中）</h3>
+<ul>
+<li>证据：<strong>读码</strong> <code>codex-app-server.ts:257</code>。Rook 用 <code>approvalPolicy: &#39;never&#39;</code>（<code>:222</code>），定时 MCP 用 <code>default_tools_approval_mode=&quot;approve&quot;</code>（<code>:150</code>），所以审批请求不会出现。<strong>实测</strong> 普通 Turn 里没有服务端请求。可能出现的是用户安装的 skill 带来的 MCP elicitation，或模型调用 <code>requestUserInput</code>。生产上是否出现过，是<strong>猜测</strong>。可以查 <code>native_codex_request_unsupported</code> 的 Run 数量来确认。</li>
+<li>参考：t3code 回 <code>-32601</code>，Orca 回 <code>-32000</code>，Turn 继续。</li>
+<li>改法：对未知方法回 <code>{id, error: {code: -32601, message: &#39;Method not found&#39;}}</code>，不关闭进程。Codex 收到错误后是否继续 Turn，我没有实测。</li>
+<li>归属：Codex 适配器。</li>
+<li>成本和风险：2 行。先查生产数据，没有出现过就只记 TODO。</li>
+</ul>
+<h3>G8. 不需要改的项</h3>
+<ul>
+<li>Stop 的 1 秒宽限。t3code 等 10 秒，Orca 等 5 秒。<strong>实测</strong> 模型流挂起时中断确认只要 12 ms。Rook 在 Stop 后本来就退役进程，延长宽限没有收益。只有采纳 G6 时才需要延长。</li>
+<li>并发 Turn。<strong>实测</strong> Codex 对重复的 <code>turn/start</code> 不报错，返回同一个 <code>turn.id</code>。Rook 有三层保护：<code>codex-app-server.ts:295</code>、<code>native-worker.ts:155-161</code>、<code>isolated.ts:310</code>。保护是必要的，也已经存在。</li>
+<li>孤儿进程。<strong>读码</strong> supervisor 是 subreaper，带 PDEATHSIG，每个 Run 结束时 <code>clean</code> 会杀掉 worker 的其他子进程和被收养的进程（<code>native-supervisor.py:22</code>、<code>:161-180</code>）。Orca 的归属日志解决的是「桌面应用崩溃后重启」的问题，Rook 的 supervisor 已经覆盖。</li>
+<li>thread 写锁。<strong>实测</strong> 两个进程共用 <code>CODEX_HOME</code> 时第二个进程无法恢复同一个 thread。Rook 每个进程一个 <code>CODEX_HOME</code>（<code>native.ts:179-182</code>），不会撞上。</li>
+<li>进程共享。Orca 的共享池默认关闭。Rook 按用户 UID 隔离，Token 在 <code>launchKey</code> 里，不适合共享。</li>
+</ul>
+<h3>G9. 范围之外但值得知道</h3>
+<ul>
+<li>Codex 的 Turn 进行中，前端没有任何进度（见 1.5）。一个几分钟的 Turn 在用户看来和卡死一样，这会放大所有超时问题的体感。把 <code>item/started</code>、<code>item/completed</code> 和文本增量转成 <code>RuntimeEvent</code> 是功能开发，成本中到大，不属于这次的状态机对齐。</li>
+<li>Codex 支持 <code>turn/steer</code>（<strong>实测</strong>）。Rook 没有接。这是功能，不是稳定性问题。</li>
+<li>TODO：npm 包装脚本每次启动多花约 0.1 秒（<strong>实测</strong> 547 ms 对 434 ms）。生产用的是哪个，我没有核对。</li>
+</ul>
+<h2>4. 建议顺序</h2>
+<table>
+<thead>
+<tr>
+<th>顺序</th>
+<th>项</th>
+<th>改动量</th>
+<th>依据</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>G1 握手期限</td>
+<td>约 5 行加测试</td>
+<td>实测</td>
+</tr>
+<tr>
+<td>2</td>
+<td>G2 <code>codexErrorInfo</code> 映射到已有失败码</td>
+<td>约 15 行加测试</td>
+<td>实测形状，读码确认重试集合</td>
+</tr>
+<tr>
+<td>3</td>
+<td>G3 <code>auto_retry_start</code> 和 <code>auto_retry_end</code></td>
+<td>约 30 行加测试</td>
+<td>实测形状</td>
+</tr>
+<tr>
+<td>4</td>
+<td>G4 记录 <code>reused</code> 和未命中原因，加空闲时限</td>
+<td>约 25 行</td>
+<td>读码，RSS 实测</td>
+</tr>
+<tr>
+<td>5</td>
+<td>改 <code>codex-app-server.ts:80</code> 的注释。G6 的语义是否对齐交给用户决定。</td>
+<td>1 行</td>
+<td>读码加实测</td>
+</tr>
+</tbody></table>
+<p>G5 和 G7 等 G4 的数据和生产查询结果再定。</p>
+<h2>5. 没有做的事</h2>
+<ul>
+<li>没有用真实 llmapi 测。所有 Turn 耗时都不含模型时间。</li>
+<li>没有测生产形态的冷启动（有 skill 链接、定时 MCP、受限 CPU、UID 隔离的 worker）。</li>
+<li>没有测 worker 进程自己的启动耗时，也没有测 MySQL context 的加载耗时。</li>
+<li>没有实测 Codex 收到 <code>-32601</code> 之后的行为。</li>
+<li>没有核对 <code>claude-code.ts</code> 的 resident 是否有同样的握手期限问题。</li>
+<li>没有核对生产是否多 Backend 实例。</li>
+<li>Orca 的 <code>provider-relay/</code> 和 Windows 路径没有读。</li>
+<li>dsh 的打包代码没有读。本报告只沿用 CONTEXT.md 里已有的 Session、Turn、Step 叫法。</li>
+</ul>
+</div></details>
+<details class="fold"><summary>Claude Code（claude-code.md）</summary><div class="fold-body report-md"><h1>Claude Code Runtime 状态机评估（2026-11-28）</h1>
+<p>只读评估。我没有改动 Rook 源码。Rook 代码读自 <code>/tmp/rook-clone-3XBb</code>（<code>6ed9642</code>，main 加 MR !243）。</p>
+<p>词表沿用 CONTEXT.md：Session、Turn、Step。后端执行记录保留 <code>Run</code>。本文新起两个名字：</p>
+<ul>
+<li><strong>常驻进程</strong>：<code>ClaudeResident</code> 持有的那个 Claude Code 进程。代码里叫 resident。</li>
+<li><strong>冷启动</strong>：为一个 Turn 新开 Claude Code 进程并用 <code>resume</code> 接上 JSONL。</li>
+</ul>
+<p>每条结论带标签：<strong>实测</strong>（我跑了探测）、<strong>读码</strong>（我读了代码，带 file:line）、<strong>猜测</strong>（没有验证）。</p>
+<p>路径缩写：</p>
+<ul>
+<li><code>CC</code> = <code>/tmp/rook-clone-3XBb/src/runtime/claude-code.ts</code></li>
+<li><code>ISO</code> = <code>/tmp/rook-clone-3XBb/src/chat/isolated.ts</code></li>
+<li><code>NAT</code> = <code>/tmp/rook-clone-3XBb/src/chat/native.ts</code></li>
+<li><code>WRK</code> = <code>/tmp/rook-clone-3XBb/src/chat/native-worker.ts</code></li>
+<li><code>SUP</code> = <code>/tmp/rook-clone-3XBb/src/chat/native-supervisor.py</code></li>
+<li><code>T3</code> = <code>/code/3p/t3code/apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts</code></li>
+<li><code>ORCA</code> = <code>/code/3p/orca/src/main</code></li>
+</ul>
+<h2>0. 先说结论</h2>
+<p>任务描述里的前提有一处已经过时。Rook 不是每个 Turn 新开进程。Rook 已经和 t3code、Orca 一样，每个 Session 保留一个 Agent SDK <code>query()</code>（<code>CC:92-158</code>）。所以「每个 Turn spawn 一次」不是差距。</p>
+<p>真正的差距按影响排序如下，详见第 4 节。</p>
+<ol>
+<li>Rook 没有 Turn 级的无响应 watchdog。卡住的 Turn 要等 1 小时总期限。</li>
+<li>Rook 丢弃了 <code>result</code> 以外的所有帧。用户看不到重试，后端也分不清失败原因。</li>
+<li>常驻进程复用时，Rook 仍然每个 Turn 把整份 checkpoint 从 MySQL 读出、经 IPC 送进 worker、落盘、再删除。</li>
+<li>Rook 只认「推入消息后的第一个 <code>result</code>」。Claude Code 自己发起的 Turn（后台任务结束后）会让下一个 Turn 拿错结果。</li>
+<li>每个新 Session 多发一次起标题的模型请求，用的是主模型。</li>
+</ol>
+<p>Stop 的处理三家一致：Stop 之后都关进程。这一项不用对齐。</p>
+<h2>1. 实测数据</h2>
+<p>探测脚本在 <code>/tmp/rook-cc-probe/probe.mjs</code> 和 <code>/tmp/rook-cc-probe/probe2.mjs</code>。脚本用 clone 里的 SDK <code>0.3.332</code> 和 <code>claude</code> <code>2.1.332</code>，对接本机假的 Anthropic Messages Provider。没有发生付费模型调用。</p>
+<p>测量条件决定了数字的含义：</p>
+<ul>
+<li>假 Provider 在本机立刻回复，所以数字只含 Claude Code 自身的开销，不含模型耗时。</li>
+<li>机器负载高（48 核，load average 38）。数字偏大，波动也大。</li>
+<li>探测用 <code>tools: []</code> 和 <code>permissionMode: &#39;default&#39;</code>，没有 MCP、skill 和 plugin。Rook 的 Chat Run 带完整工具和 MCP relay，冷启动只会更慢。</li>
+<li>探测不含 Rook 自己的开销：worker 启动、MySQL checkpoint 往返、skill 链接。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>结果</th>
+<th>次数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>常驻进程里一个 Turn，从推入消息到 <code>result</code></td>
+<td>28–85 ms</td>
+<td>4 轮共 20 个 Turn</td>
+</tr>
+<tr>
+<td>冷启动一个 Turn，从 <code>query()</code> 到 <code>result</code>，JSONL 约 0.1 MB</td>
+<td>546–683 ms</td>
+<td>8</td>
+</tr>
+<tr>
+<td>冷启动一个 Turn，JSONL 3.85 MB</td>
+<td>733–1067 ms</td>
+<td>10</td>
+</tr>
+<tr>
+<td>冷启动里从 <code>query()</code> 到 <code>system init</code></td>
+<td>487–834 ms</td>
+<td>18</td>
+</tr>
+<tr>
+<td>关闭一个进程（<code>inbox.end</code> + <code>query.close</code> + 等退出）</td>
+<td>540–606 ms</td>
+<td>20</td>
+</tr>
+<tr>
+<td>冷启动每 Turn 的总墙钟（开、跑、关）</td>
+<td>1144–1669 ms</td>
+<td>16</td>
+</tr>
+<tr>
+<td><code>interrupt()</code> 到收到 <code>result</code>（流式文本期间）</td>
+<td>6–9 ms</td>
+<td>3</td>
+</tr>
+<tr>
+<td>interrupt 之后同一进程的下一个 Turn</td>
+<td>27–40 ms，成功</td>
+<td>3</td>
+</tr>
+<tr>
+<td>常驻进程 RSS（JSONL 数 MB）</td>
+<td>288–381 MB</td>
+<td>4 次采样</td>
+</tr>
+</tbody></table>
+<p>读数：</p>
+<ul>
+<li><strong>实测</strong>：常驻比冷启动每 Turn 省约 0.5–1.0 秒的启动，加约 0.6 秒的关闭。这部分 Rook 已经拿到。</li>
+<li><strong>实测</strong>：JSONL 从 0.1 MB 涨到 3.85 MB，冷启动多约 200 ms。<code>resume</code> 的代价随 JSONL 增长，但不是主要矛盾。</li>
+<li><strong>实测</strong>：interrupt 之后进程可以继续用。被打断的 Turn 留在原生 context 里，下一个请求带着 <code>[Request interrupted by user]</code>。打断前的半截文本没有进入下一个请求。</li>
+<li><strong>实测</strong>：新 Session 的第一个 Turn 会多发一个起标题的请求。请求用主模型，<code>output_config.effort</code> 是 <code>high</code>，system prompt 是 <code>You are naming a coding session…</code>。标题请求成功后不再发。假 Provider 回的不是合法 JSON 时，每个 Turn 都重发一次。设置 <code>CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1</code> 后这个请求消失（4 个 Turn 的请求数从 5 降到 4）。</li>
+<li><strong>未测</strong>：工具执行期间的 interrupt 耗时。真实 Provider 下的任何耗时。Rook 的 MySQL checkpoint 往返耗时。</li>
+</ul>
+<p>清理提示：<code>/tmp/rook-cc-probe/run-*</code> 和 <code>/tmp/rook-cc-probe/int-*</code> 是探测留下的目录，约 29 MB。删除命令被本机的 blast-radius hook 拦下，需要用户手工删除。</p>
+<h2>2. Rook 的 Claude Code 状态机</h2>
+<h3>2.1 进程层（<code>ClaudeResident</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>事件</th>
+<th>转移和动作</th>
+<th>依据</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>无进程</td>
+<td>Run 到达，slot 为空</td>
+<td>适配器校验 Provider 配置，失败直接返回 <code>native_*</code>。通过后 <code>ClaudeResident.start</code>。</td>
+<td><code>CC:293-298</code>，<code>CC:326</code></td>
+</tr>
+<tr>
+<td>无进程</td>
+<td>定时工具 MCP 启动失败</td>
+<td>返回 <code>native_schedule_tools_unavailable</code></td>
+<td><code>CC:165-170</code></td>
+</tr>
+<tr>
+<td>无进程</td>
+<td><code>PATH</code> 里找不到 <code>claude</code></td>
+<td>返回 <code>native_runtime_unavailable</code></td>
+<td><code>CC:72-79</code>，<code>CC:329</code></td>
+</tr>
+<tr>
+<td>空闲</td>
+<td>Run 到达，三条件都满足</td>
+<td>复用。条件是进程存活、<code>launchKey</code> 相同、<code>contextSha</code> 相同。适配器只重指 skill 链接。</td>
+<td><code>CC:316</code>，<code>CC:323</code>，<code>CC:196</code></td>
+</tr>
+<tr>
+<td>空闲</td>
+<td>Run 到达，任一条件不满足</td>
+<td>适配器关旧进程，再冷启动，<code>resume</code> 指向从 MySQL 恢复的 JSONL。</td>
+<td><code>CC:317-321</code>，<code>CC:301</code>，<code>NAT:195-203</code></td>
+</tr>
+<tr>
+<td>空闲</td>
+<td>空闲 worker 数超过 <code>ROOK_CHAT_MAX_IDLE_WORKERS</code>（默认 4）</td>
+<td>Rook Backend 停最早空闲的 worker。supervisor 回收它的子进程。</td>
+<td><code>ISO:581-586</code>，<code>src/chat/capacity.ts:6</code></td>
+</tr>
+<tr>
+<td>空闲</td>
+<td>进程自己退出或流结束</td>
+<td><code>closed = true</code>。下一个 Run 发现 <code>alive</code> 为假，走冷启动。</td>
+<td><code>CC:151-157</code>，<code>CC:177</code></td>
+</tr>
+<tr>
+<td>空闲</td>
+<td><code>result</code> 以外的帧到达</td>
+<td>丢弃。<code>this.turn</code> 为空。</td>
+<td><code>CC:189-194</code></td>
+</tr>
+<tr>
+<td>Turn 进行中</td>
+<td>Run 到达</td>
+<td>返回 <code>native_incomplete</code>。正常情况下 worker 一次只跑一个 Run。</td>
+<td><code>CC:201</code></td>
+</tr>
+<tr>
+<td>任意</td>
+<td><code>close()</code></td>
+<td><code>inbox.end</code>，<code>query.close</code>，abort 触发 SIGTERM，等流结束和子进程 <code>close</code> 事件。非 managed 时再 SIGKILL 进程组。</td>
+<td><code>CC:253-261</code>，<code>CC:145</code></td>
+</tr>
+<tr>
+<td>任意</td>
+<td>worker 收到 SIGTERM 或 IPC 断开</td>
+<td>worker abort 当前 Run，调 <code>close()</code>，500 ms 后 <code>process.exit(1)</code>。</td>
+<td><code>WRK:36-45</code></td>
+</tr>
+<tr>
+<td>任意</td>
+<td>租约到期</td>
+<td>supervisor 用 SIGKILL 杀 worker，再杀全部子进程。</td>
+<td><code>SUP:97-104</code>，<code>SUP:188-210</code></td>
+</tr>
+</tbody></table>
+<h3>2.2 Turn 层（<code>ClaudeResident.run</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>事件</th>
+<th>转移和动作</th>
+<th>依据</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>空闲</td>
+<td><code>run()</code></td>
+<td>适配器向 inbox 推一条 user 消息。显式选择 skill 时前面加 <code>/&lt;skill&gt; </code>。</td>
+<td><code>CC:223-224</code></td>
+</tr>
+<tr>
+<td>等首帧</td>
+<td>任意一帧到达</td>
+<td>触发 <code>onStarted</code>，Rook 写 <code>assistant_started</code>。新进程的首帧是 <code>system init</code>，不是模型输出。</td>
+<td><code>CC:217-218</code>，<code>NAT:311-314</code></td>
+</tr>
+<tr>
+<td>进行中</td>
+<td><code>result</code> 且 <code>subtype: success</code>、<code>is_error</code> 为假</td>
+<td>适配器校验 init 的模型、MCP 连接、原生会话 ID。全过则 <code>succeeded</code>，进程留下。</td>
+<td><code>CC:229-240</code></td>
+</tr>
+<tr>
+<td>进行中</td>
+<td><code>result</code> 带错误</td>
+<td><code>failed</code>，<code>native_incomplete</code>，<code>errorDetail</code> 取 <code>result</code> 或 <code>errors</code>。进程被关。</td>
+<td><code>CC:229-232</code>，<code>CC:339-342</code></td>
+</tr>
+<tr>
+<td>进行中</td>
+<td>流结束或 SDK 迭代器抛错</td>
+<td>异常被吞。<code>failed</code>，<code>native_incomplete</code>，没有 <code>errorDetail</code>。</td>
+<td><code>CC:152-156</code>，<code>CC:228</code></td>
+</tr>
+<tr>
+<td>进行中</td>
+<td>Stop（signal abort）</td>
+<td>适配器调 <code>query.interrupt()</code>，同时起 10 秒定时器，到点 <code>close()</code>。收到 <code>result</code> 后返回 <code>stopped</code>。进程被关。</td>
+<td><code>CC:207-212</code>，<code>CC:221-226</code>，<code>CC:339-342</code></td>
+</tr>
+<tr>
+<td>进行中</td>
+<td>1 小时总期限</td>
+<td>同 Stop 的动作，返回 <code>native_timeout</code>。</td>
+<td><code>CC:213</code>，<code>CC:227</code>，<code>src/runtime/process.ts:5</code></td>
+</tr>
+<tr>
+<td>结束</td>
+<td>成功</td>
+<td>Rook 读整份 JSONL，交给 Rook Backend 存 checkpoint，再记下 <code>contextSha</code>。</td>
+<td><code>NAT:386-394</code></td>
+</tr>
+</tbody></table>
+<h3>2.3 超时、重试和外层保护</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>值</th>
+<th>谁负责</th>
+<th>依据</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>模型请求等响应头</td>
+<td>180 秒，Claude Code 自己重试</td>
+<td>Claude Code</td>
+<td><code>CC:116-117</code></td>
+</tr>
+<tr>
+<td>模型流空闲</td>
+<td>120 秒，Claude Code 自己重试</td>
+<td>Claude Code</td>
+<td><code>CC:117</code></td>
+</tr>
+<tr>
+<td>Turn 总期限</td>
+<td>60 分钟</td>
+<td>适配器</td>
+<td><code>CC:213</code></td>
+</tr>
+<tr>
+<td>Run 总期限（外层）</td>
+<td>60 分钟加 5 秒，<code>execution_timeout</code></td>
+<td>Rook Backend</td>
+<td><code>ISO:375</code></td>
+</tr>
+<tr>
+<td>interrupt 宽限</td>
+<td>10 秒</td>
+<td>适配器</td>
+<td><code>CC:18</code>，<code>CC:211</code></td>
+</tr>
+<tr>
+<td>cancel 宽限（外层）</td>
+<td>15 秒，<code>execution_cancel_timeout</code>，随后停 worker</td>
+<td>Rook Backend</td>
+<td><code>ISO:384</code></td>
+</tr>
+<tr>
+<td>supervisor 请求</td>
+<td>7 秒，<code>execution_cleanup_failed</code></td>
+<td>Rook Backend</td>
+<td><code>ISO:171</code></td>
+</tr>
+<tr>
+<td>worker 停止后强杀</td>
+<td>7 秒后 SIGKILL 进程组</td>
+<td>Rook Backend</td>
+<td><code>ISO:138-142</code></td>
+</tr>
+<tr>
+<td>supervisor <code>clean</code></td>
+<td>5 秒</td>
+<td>supervisor</td>
+<td><code>SUP:166</code></td>
+</tr>
+<tr>
+<td>启动（到 <code>system init</code>）期限</td>
+<td>没有</td>
+<td>无</td>
+<td>读码，<code>CC:149-158</code></td>
+</tr>
+<tr>
+<td>无帧 watchdog</td>
+<td>没有</td>
+<td>无</td>
+<td>读码，<code>CC:189-194</code></td>
+</tr>
+<tr>
+<td>Turn 级重试</td>
+<td>没有。失败的 Run 不重排。</td>
+<td>无</td>
+<td><code>DESIGN.md:67</code></td>
+</tr>
+</tbody></table>
+<p>权限和控制请求：Chat Run 用 <code>bypassPermissions</code>，不会出现权限请求（<code>CC:129</code>）。带 run context 的 Run 用 <code>permissionMode: &#39;default&#39;</code> 加 <code>allowedTools</code>，没有 <code>canUseTool</code> 回调（<code>CC:127-128</code>）。<strong>猜测</strong>：这种 Run 里未授权的工具由 Claude Code 自动拒绝，不会挂起。</p>
+<p>失败代码（Claude Code 路径）：<code>native_incomplete</code>、<code>native_timeout</code>、<code>native_runtime_unavailable</code>、<code>native_schedule_tools_unavailable</code>、<code>native_provider_configuration_invalid</code>、<code>native_provider_protocol_mismatch</code>、<code>native_custom_provider_execution_not_configured</code>、<code>native_model_effort_unavailable</code>、<code>native_context_changed</code>、<code>native_context_invalid</code>、<code>native_context_missing</code>（<code>NAT:206</code>）。外层另有 <code>execution_timeout</code>、<code>execution_cancel_timeout</code>、<code>execution_lease_lost</code>、<code>execution_cleanup_failed</code>、<code>execution_worker_protocol</code>。</p>
+<p><code>native_incomplete</code> 一个代码盖了四种情况：Provider 报错、进程退出、流提前结束、进程已关。前一种有 <code>errorDetail</code>，后三种没有。</p>
+<p>孤儿进程：Rook 的保护比两个参考项目强。supervisor 是 subreaper（<code>SUP:22</code>），worker 退出或租约到期后 supervisor 用 SIGKILL 清掉全部子进程（<code>SUP:188-210</code>）。这一项没有差距。</p>
+<p>一个细节（<strong>实测加读码</strong>）：worker 的 <code>stop()</code> 在 500 ms 后退出（<code>WRK:42</code>），而关闭一个 Claude Code 进程实测要 540–606 ms。所以 worker 停止时 Claude Code 通常由 supervisor 的 SIGKILL 结束。这条路径本来就丢弃 context，没有危害。</p>
+<h2>3. t3code 和 Orca 的做法</h2>
+<p>以下由两个子 agent 读码得出，我没有逐行复核。行号属于 t3code <code>56dbca3bc5</code> 和 Orca 当前 checkout。</p>
+<h3>3.1 t3code</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>做法</th>
+<th>依据</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>进程</td>
+<td>每个线程一个 <code>query()</code>，prompt 是队列。</td>
+<td><code>T3:1751-1757</code>，<code>T3:1887</code></td>
+</tr>
+<tr>
+<td>重开进程的条件</td>
+<td><code>queryPolicyKey</code> 变化（权限模式、工具、MCP、workspace）、JSONL 过期、CLI 二进制被替换。</td>
+<td><code>T3:4109-4138</code>，<code>T3:14093-14134</code></td>
+</tr>
+<tr>
+<td>换模型</td>
+<td>在活着的 query 上调 <code>setModel</code> 和 <code>applyFlagSettings</code>，不重开。</td>
+<td><code>T3:14020-14024</code></td>
+</tr>
+<tr>
+<td>Turn 结束</td>
+<td>认 <code>result</code>。有插话未读时扣住 <code>result</code>，Turn 不结束。</td>
+<td><code>T3:13122</code>，<code>T3:13101-13107</code></td>
+</tr>
+<tr>
+<td>Stop</td>
+<td><code>interrupt</code>（10 秒），再 <code>close</code>，再等进程退出（10 秒）。进程不复用。等不到退出时 Turn 保持打开，由用户决定强停。</td>
+<td><code>T3:15025-15055</code></td>
+</tr>
+<tr>
+<td>无响应 watchdog</td>
+<td>10 分钟（<code>PROVIDER_RETRY_BUDGET_MS</code>）。请求发出时上弦，任何根帧重置，后台 <code>task_*</code> 帧不重置。到点后 interrupt，仍无响应则 close，Turn 记为 <code>failed</code>。</td>
+<td><code>T3:11723-11764</code>，<code>T3:7186-7237</code>，<code>/code/3p/t3code/packages/provider-core/src/server/failure.ts:411</code></td>
+</tr>
+<tr>
+<td>重试窗口</td>
+<td><code>api_retry</code> 持续满 10 分钟也判失败。按窗口算，不按次数算。</td>
+<td><code>T3:12258-12262</code></td>
+</tr>
+<tr>
+<td>没有 Turn 总期限</td>
+<td>只有上面两个 watchdog。</td>
+<td>子 agent 读码</td>
+</tr>
+<tr>
+<td>启动期限</td>
+<td>5 分钟，只在配置了 MCP 时等 <code>initializationResult</code>。</td>
+<td><code>T3:392</code>，<code>T3:1915</code></td>
+</tr>
+<tr>
+<td>失败的 Turn</td>
+<td>进程留下。只有流退出和 Stop 超时会丢进程。</td>
+<td><code>T3:10527-10532</code></td>
+</tr>
+<tr>
+<td>进程退出</td>
+<td>分类为 root 拒绝、会话不存在、启动退出、其他。Turn 记 <code>failed</code>（<code>transport_error</code>）。</td>
+<td><code>T3:1986-2018</code>，<code>T3:14480-14507</code></td>
+</tr>
+<tr>
+<td>给用户看的事件</td>
+<td><code>api_retry</code> 显示为重试项。<code>rate_limit_event</code> 显示用量提示。<code>compact_boundary</code> 显示压缩项。</td>
+<td><code>T3:12217-12257</code>，<code>T3:11569-11650</code>，<code>T3:12077-12110</code></td>
+</tr>
+<tr>
+<td>Turn 之外到达的帧</td>
+<td>进缓冲。后台任务结束触发的帧会打开一个续接 Turn。</td>
+<td><code>T3:10836-11039</code>，<code>T3:11569-11709</code></td>
+</tr>
+<tr>
+<td>resume</td>
+<td>自己选 session id。会话文件缺失时记入 <code>missingNativeThreads</code>，由上层用历史重建。</td>
+<td><code>T3:2646-2648</code>，<code>T3:15504-15523</code></td>
+</tr>
+<tr>
+<td>孤儿进程</td>
+<td>独立进程组加 shell 看门进程。服务端的管道一断，看门进程杀整个组。</td>
+<td><code>T3:420-466</code></td>
+</tr>
+</tbody></table>
+<h3>3.2 Orca</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>做法</th>
+<th>依据</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>进程</td>
+<td>Agent SDK <code>query()</code>，每个 Session 一个进程。Orca 自己接管 spawn。</td>
+<td><code>ORCA/claude/claude-stream-json-connection.ts:113-124</code></td>
+</tr>
+<tr>
+<td>Turn 归属</td>
+<td>每条 user 消息带 <code>uuid</code>。Orca 按 <code>command_uuid</code> 和 <code>user_message_uuid</code> 归属 <code>result</code>，不按到达顺序。<code>session_id</code> 不符的帧丢弃。</td>
+<td><code>ORCA/claude/structured/dispatch/claude-structured-dispatch.ts:173-187</code>，<code>ORCA/claude/structured/turns/claude-replay-turn-resolution.ts:50-80</code></td>
+</tr>
+<tr>
+<td>Turn 结束</td>
+<td>认 <code>result</code>，也认 <code>session_state_changed: idle</code>。Orca 设 <code>CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1</code>，为的是没有 <code>result</code> 时也能结束 Turn。</td>
+<td><code>ORCA/claude/structured/launch/claude-structured-launch-resolution.ts:51</code>，<code>ORCA/claude/structured/turns/claude-session-state-turn-over.ts:1-11</code></td>
+</tr>
+<tr>
+<td>新 Turn 打开时旧 Turn 还开着</td>
+<td>旧 Turn 记为 <code>superseded</code>。</td>
+<td><code>ORCA/claude/structured/turns/claude-open-turn.ts:157-170</code></td>
+</tr>
+<tr>
+<td>Stop</td>
+<td>interrupt，等请求收尾，两步共用 3 秒（<code>CLAUDE_STOP_GRACE_MS</code>），然后关进程。进程不复用，下一条消息走 resume。</td>
+<td><code>ORCA/claude/structured/turns/claude-request-end-wait.ts:5-6</code>，<code>ORCA/native-chat/agent-session-wire/operations/structured-agent-session-turns-cancel.ts:168-169</code></td>
+</tr>
+<tr>
+<td>退出证明阶梯</td>
+<td>先拍进程树快照。<code>stdin.end()</code>。等 1.5 秒。刷新快照，核对身份后 SIGKILL 后代，再 SIGKILL 根。再等 1 秒。证明不了退出时保留 Session，以后重试关闭。</td>
+<td><code>ORCA/provider-process/provider-process-close.ts:87-140</code>，<code>ORCA/claude/child-process/claude-child-exit-proof-ladder.ts:9-12</code>，<code>ORCA/claude/claude-stream-json-connection.ts:283-292</code></td>
+</tr>
+<tr>
+<td>启动期限</td>
+<td>10 分钟。进程早退时再等 2 秒拿 initialize 的回答，然后分类。</td>
+<td><code>ORCA/native-chat/agent-session-wire/startup/structured-agent-session-startup-attempt-contract.ts:14</code>，<code>ORCA/claude/structured/startup/claude-structured-session-startup-exit.ts:22-28</code></td>
+</tr>
+<tr>
+<td>启动失败分类</td>
+<td>未登录、<code>No conversation found</code> 转 <code>savedConversationMissing</code>、root 加跳过权限转 <code>fullAccessAsRoot</code>、非零退出、被信号杀死。</td>
+<td><code>ORCA/claude/sdk-transport/claude-stream-json-exit-error.ts:13-23</code>，<code>ORCA/claude/sdk-transport/claude-startup-failure.ts:29-35</code></td>
+</tr>
+<tr>
+<td>失败的 Turn</td>
+<td>进程留下（子 agent 推断，没有找到关闭调用）。</td>
+<td>推断</td>
+</tr>
+<tr>
+<td>给用户看的事件</td>
+<td><code>api_retry</code> 显示为警告行。第 3 次起的 401 和任何 403，Orca 自己打断 Turn。</td>
+<td><code>ORCA/claude/structured/journal/claude-api-retry-row.ts:12-26</code>，<code>ORCA/claude/structured/journal/claude-assistant-failures.ts:17-28</code></td>
+</tr>
+<tr>
+<td>无响应 watchdog</td>
+<td>结构化 Claude 路径没有。控制请求有 30 秒超时。</td>
+<td><code>ORCA/claude/sdk-transport/claude-agent-sdk-control-requests.ts:23</code></td>
+</tr>
+<tr>
+<td><code>hang-watchdog</code></td>
+<td>与 Claude Turn 无关。它监视 Electron 主线程的心跳，只记录，不杀进程。</td>
+<td><code>ORCA/hang-watchdog/hang-watchdog-worker-protocol.ts:1-5</code></td>
+</tr>
+<tr>
+<td>空闲回收</td>
+<td>30 分钟空闲且没有欠着的后台工作时关进程。</td>
+<td><code>ORCA/native-chat/agent-session-wire/termination/structured-agent-session-idle-sweep.ts:180-187</code></td>
+</tr>
+</tbody></table>
+<h3>3.3 三家对照</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>Rook</th>
+<th>t3code</th>
+<th>Orca</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>每个 Session 一个 <code>query()</code></td>
+<td>是</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td>Stop 后关进程</td>
+<td>是</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td>Stop 后的 context</td>
+<td>丢掉被停的 Turn，回到上一个 MySQL checkpoint</td>
+<td>原生 JSONL，含被停的 Turn</td>
+<td>原生 JSONL，含被停的 Turn</td>
+</tr>
+<tr>
+<td>失败的 Turn 后关进程</td>
+<td>是</td>
+<td>否</td>
+<td>否（推断）</td>
+</tr>
+<tr>
+<td>Turn 总期限</td>
+<td>60 分钟</td>
+<td>无</td>
+<td>无</td>
+</tr>
+<tr>
+<td>无响应 watchdog</td>
+<td>无</td>
+<td>10 分钟</td>
+<td>无</td>
+</tr>
+<tr>
+<td>启动期限</td>
+<td>无</td>
+<td>5 分钟</td>
+<td>10 分钟</td>
+</tr>
+<tr>
+<td><code>result</code> 归属</td>
+<td>推入后的第一个 <code>result</code></td>
+<td><code>activeTurn</code> 加续接 Turn 缓冲</td>
+<td>按 uuid</td>
+</tr>
+<tr>
+<td>重试事件给用户</td>
+<td>无</td>
+<td>有</td>
+<td>有</td>
+</tr>
+<tr>
+<td>进程退出原因分类</td>
+<td>无，统一 <code>native_incomplete</code></td>
+<td>有</td>
+<td>有</td>
+</tr>
+<tr>
+<td>孤儿进程回收</td>
+<td>supervisor subreaper 加 SIGKILL</td>
+<td>shell 看门进程</td>
+<td>supervisor 加退出证明阶梯</td>
+</tr>
+</tbody></table>
+<h2>4. 差距和建议</h2>
+<p>按对稳定性和效率的影响排序。「层」一栏写改动落在哪里：<strong>适配器</strong>指 <code>src/runtime/claude-code.ts</code>，<strong>Chat 层</strong>指与 Runtime 无关的 <code>src/chat/</code>。</p>
+<h3>G1. 没有无响应 watchdog 和启动期限（稳定性，高）</h3>
+<ul>
+<li>证据（读码）：<code>receive</code> 只转发帧，不记时间（<code>CC:189-194</code>）。唯一的定时器是 60 分钟（<code>CC:213</code>）。<code>system init</code> 没有期限。</li>
+<li>证据（读码）：<code>API_TIMEOUT_MS</code> 和流空闲超时只管模型请求。MCP relay 挂住、进程死锁、Claude Code 连续重试，都落到 60 分钟。</li>
+<li>猜测：Claude Code 每次重试最多等 180 秒。重试次数的默认值我没有查到。<code>api_retry</code> 帧带 <code>max_retries</code> 字段（<code>sdk.d.ts:3986</code>），可以实测。</li>
+<li>参考：t3code 用 10 分钟，按「有请求在等」上弦，根帧重置，后台任务帧不重置。</li>
+<li>改动：在 <code>ClaudeResident.run</code> 里加一个定时器。推入消息时上弦。<code>receive</code> 收到根帧时重置。工具执行期间不计时，否则长时间的 Bash 会被误杀。到点后走现有的 <code>interrupt()</code> 路径，返回新代码 <code>native_stalled</code>。</li>
+<li>层：适配器。Codex 适配器可以用同一个常量。</li>
+<li>成本：小，约 30 行加一个测试。测试可以复用 <code>tests/claude-code.test.ts:138</code> 的假 Provider，让它不回响应头。</li>
+<li>风险：工具执行期间是否有帧到达，我没有实测。上线前要用 <code>sleep 700</code> 的 Bash 验证不会误杀。</li>
+</ul>
+<h3>G2. <code>result</code> 之外的帧全部丢弃（稳定性和可观测性，高）</h3>
+<ul>
+<li>证据（读码）：适配器只在 <code>result</code> 时 resolve（<code>CC:219</code>）。Rook 对 Claude Code 只写 <code>assistant_started</code> 和 <code>assistant_completed</code> 两个事件（<code>NAT:311-322</code>）。</li>
+<li>后果（读码）：用户在整个 Turn 里看不到文本、工具 Step 和重试。一个正在重试的 Turn 和一个卡死的 Turn 在 Web 上没有区别。</li>
+<li>后果（读码）：<code>includePartialMessages: true</code>（<code>CC:130</code>）让 Claude Code 输出全部增量帧，适配器随后把它们丢掉。</li>
+<li>参考：t3code 和 Orca 都把 <code>api_retry</code> 显示给用户。</li>
+<li>改动分两步。第一步只接 <code>api_retry</code>：适配器把最近一次重试的 <code>error_status</code> 和次数经 <code>onEvents</code> 发出，失败时并入 <code>errorDetail</code>。第二步接文本增量和工具 Step，映射到 Pi 已经使用的 <code>RuntimeEvent</code>。</li>
+<li>层：帧的解析在适配器。事件类型和持久化在 Chat 层，沿用 Pi 的事件，Codex 也能接。</li>
+<li>成本：第一步小。第二步中等，要对齐 Web 的 Step 展示和事件落库节流（<code>NAT:427</code> 的 100 ms 批量）。</li>
+<li>风险：第二步让事件量上升。在第二步做完之前，可以把 <code>includePartialMessages</code> 关掉，省掉无用的帧解析。省多少我没有测。</li>
+</ul>
+<h3>G3. 复用常驻进程时仍然全量往返 checkpoint（效率，高）</h3>
+<ul>
+<li>证据（读码）：Claude Code 的 worker 禁止传 <code>checkpoint</code> 头（<code>WRK:88</code>）。Rook Backend 每个 Turn 把整份 JSONL 作为 <code>nativeContext</code> 经 IPC 送进 worker（<code>ISO:612</code>）。</li>
+<li>证据（读码）：worker 对内容做凭据扫描、写到新建的 <code>CLAUDE_CONFIG_DIR</code>、算 sha256（<code>NAT:177-203</code>，<code>NAT:379</code>）。复用成立后 worker 再把这个目录删掉（<code>NAT:382</code>）。</li>
+<li>证据（读码）：Turn 成功后 worker 读整份 JSONL 送回，Rook Backend 加密写 MySQL（<code>NAT:390-393</code>）。JSONL 上限 16 MiB（<code>src/chat/native-context-format.ts:5</code>）。</li>
+<li>结论：常驻进程把 Claude Code 自身的开销降到几十毫秒（实测），但 Rook 每 Turn 的开销仍然和 JSONL 大小成正比。这部分耗时我没有实测，因为探测环境没有 MySQL。</li>
+<li>参考：Pi 的 persistent worker 已经只比较 checkpoint 头（<code>ISO:263-267</code>），内容按需加载（<code>WRK:97-106</code>）。</li>
+<li>改动：让 Claude Code 和 Codex 的 worker 走 Pi 的同一条路。Rook Backend 只发 checkpoint 头。常驻进程用头里的 <code>sha256</code> 和自己记下的 <code>contextSha</code> 比较。不相等时 worker 才发 <code>checkpoint_required</code>。</li>
+<li>层：Chat 层（<code>isolated.ts</code>、<code>native-worker.ts</code>、<code>native.ts</code>）。适配器不动。</li>
+<li>成本：中等。先做一次测量：在 <code>executeNative</code> 的 Claude Code 分支前后打点，看一个 5 MB 的 Session 每 Turn 花多少毫秒。数字小就不做。</li>
+<li>风险：复用判断从「内容相同」变成「头相同」。头里的 sha256 必须和保存时的内容一致，这一点 Pi 路径已经在依赖。</li>
+</ul>
+<h3>G4. <code>result</code> 按到达顺序归属（稳定性，中，未复现）</h3>
+<ul>
+<li>证据（读码）：<code>run()</code> 把推入消息后的第一个 <code>result</code> 当作本 Turn 的结果（<code>CC:217-220</code>）。Turn 之外到达的帧被丢弃（<code>CC:193</code>）。</li>
+<li>风险（猜测）：Chat Run 用 <code>bypassPermissions</code>，模型可以启动后台 Bash 或后台子 agent。后台任务结束后 Claude Code 会自己发起一个 Turn。这个 Turn 的 <code>result</code> 如果在下一个用户 Turn 推入之后到达，Rook 会把它当成用户 Turn 的答案。我没有复现。</li>
+<li>参考：t3code 为这类 Turn 做了续接缓冲。Orca 给每条消息带 <code>uuid</code>，按 uuid 归属。</li>
+<li>改动（最小）：在适配器的 <code>env</code> 里设 <code>CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1</code>。这个变量名在 <code>2.1.332</code> 的二进制里存在（实测，<code>strings</code>）。它的实际效果我没有验证。</li>
+<li>改动（完整）：推入消息时带 <code>uuid</code>，只接受对应的 <code>result</code>。SDK 是否在 <code>result</code> 上回传这个 uuid，要先探测。</li>
+<li>层：适配器。</li>
+<li>成本：最小改动一行加一次探测。完整改动中等。</li>
+<li>风险：关掉后台任务会改变模型可用的能力。这是产品取舍，需要用户确认。</li>
+</ul>
+<h3>G5. 进程退出和启动失败没有原因（稳定性，中）</h3>
+<ul>
+<li>证据（读码）：stderr 被丢弃（<code>CC:138</code>）。SDK 迭代器的异常被空 <code>catch</code> 吞掉（<code>CC:153</code>）。退出码和信号没有记录（<code>CC:141-144</code>）。</li>
+<li>后果：进程崩溃、被 OOM 杀死、<code>resume</code> 的会话文件不被接受、Provider 认证失败后退出，在 Run 上都是没有 <code>errorDetail</code> 的 <code>native_incomplete</code>。</li>
+<li>参考：Orca 把 <code>No conversation found</code> 分类为会话缺失，把非零退出和信号分开。t3code 做同样的分类。</li>
+<li>改动：保留 stderr 的最后 1 KB。记录退出码和信号。把迭代器异常的消息留下。三者经现有的 <code>errorDetailText</code> 去掉凭据后写入 <code>errorDetail</code>。新增代码 <code>native_process_exited</code>。<code>No conversation found</code> 映射到已有的 <code>native_context_missing</code>。</li>
+<li>层：适配器。<code>errorDetail</code> 的通道已经存在。</li>
+<li>成本：小。</li>
+<li>风险：stderr 可能带凭据或路径。必须走 <code>errorDetailText</code> 和 Rook Backend 的二次脱敏（<code>ISO:536</code>）。</li>
+</ul>
+<h3>G6. 每个新 Session 多一次主模型请求（效率，中，改动一行）</h3>
+<ul>
+<li>证据（实测）：见第 1 节。请求用主模型和 <code>effort: high</code>。</li>
+<li>后果：真实 Provider 下，这是每个新 Session 一次额外的付费请求，并且和首个 Turn 的请求同时发出。Rook 不使用 Claude Code 生成的标题。</li>
+<li>改动：在 <code>CC:117-119</code> 的 <code>env</code> 里加 <code>CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: &#39;1&#39;</code>。</li>
+<li>层：适配器。</li>
+<li>成本：一行。现有测试里假 Provider 对旁路请求回 <code>side</code>（<code>tests/claude-code.test.ts:343</code>），改完后可以断言旁路请求数为 0。</li>
+<li>风险：这个变量还会关掉其他非必要流量。我只验证了标题请求消失和普通 Turn 仍然成功。MCP、skill、plugin 是否受影响没有测。</li>
+</ul>
+<h3>G7. 失败的 Turn 之后关进程（效率，低）</h3>
+<ul>
+<li>证据（读码）：任何非 <code>succeeded</code> 的结果都会关掉常驻进程（<code>CC:339-342</code>）。t3code 和 Orca 在失败的 <code>result</code> 之后保留进程。</li>
+<li>证据（实测）：关进程约 0.6 秒，下一个 Turn 冷启动约 0.55–1.07 秒，再加 Rook 的 checkpoint 恢复。</li>
+<li>Rook 关进程是有意的。失败和被停的 Turn 不进 checkpoint，测试断言了这一点（<code>tests/claude-code.test.ts:392</code>）。保留进程会让进程里的 context 比 MySQL 多一个 Turn。</li>
+<li>判断：不建议现在改。每次失败只省 1–2 秒，而要改的是「失败的 Turn 是否进入 context」这个 Chat 层的语义，三个 Runtime 都受影响。</li>
+<li>层：Chat 层的语义决定，适配器只是执行。</li>
+</ul>
+<h3>G8. Stop（已对齐，不用改）</h3>
+<ul>
+<li>三家在 Stop 之后都关进程。Rook 的 10 秒 interrupt 宽限和 t3code 相同，Orca 是 3 秒。</li>
+<li>实测：流式文本期间 interrupt 到 <code>result</code> 只要 6–9 ms。10 秒宽限只在工具执行期间才可能用到。</li>
+<li>语义差异：Rook 丢掉被停的 Turn。t3code 和 Orca 的下一个 Turn 能看到被停的 Turn。这是产品选择，不是缺陷。要对齐就得在 Stop 时也存 checkpoint，归 Chat 层。</li>
+</ul>
+<h3>G9. 两个需要先量再定的数</h3>
+<ul>
+<li>空闲常驻进程预算。默认只保留 4 个空闲 worker（<code>src/chat/capacity.ts:6</code>）。第 5 个 Session 的常驻进程会被停掉，回来时冷启动。实测一个常驻进程的 RSS 是 288–381 MB。按实例内存算一下能否把预算提高。Orca 用 30 分钟空闲时间回收，不用个数。这是部署配置，不是代码改动。</li>
+<li>JSONL 的 16 MiB 上限。超过后 <code>readPortableContext</code> 抛 <code>native_context_invalid</code>（<code>NAT:575</code>）。实测 6 个最小的 Turn 写出 112 KB，155 个各 20 KB 回复的 Turn 写出 3.85 MB。猜测：工具用得多的长 Session 会碰到上限，之后这个 Session 的每个 Turn 都失败。建议先在 MySQL 里查现有 Claude Code Session 的 checkpoint 字节数分布。</li>
+</ul>
+<h2>5. 建议的顺序</h2>
+<table>
+<thead>
+<tr>
+<th>顺序</th>
+<th>项</th>
+<th>层</th>
+<th>成本</th>
+<th>先决条件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>G6 关掉标题请求</td>
+<td>适配器</td>
+<td>一行</td>
+<td>用带 MCP 和 skill 的现有测试确认无副作用</td>
+</tr>
+<tr>
+<td>2</td>
+<td>G5 记录退出原因</td>
+<td>适配器</td>
+<td>小</td>
+<td>无</td>
+</tr>
+<tr>
+<td>3</td>
+<td>G1 无响应 watchdog</td>
+<td>适配器</td>
+<td>小</td>
+<td>实测工具执行期间的帧</td>
+</tr>
+<tr>
+<td>4</td>
+<td>G2 第一步，<code>api_retry</code> 事件</td>
+<td>适配器加 Chat 层事件</td>
+<td>小</td>
+<td>无</td>
+</tr>
+<tr>
+<td>5</td>
+<td>G3 checkpoint 只比较头</td>
+<td>Chat 层</td>
+<td>中</td>
+<td>先打点量每 Turn 的 checkpoint 耗时</td>
+</tr>
+<tr>
+<td>6</td>
+<td>G4 <code>result</code> 归属</td>
+<td>适配器</td>
+<td>一行到中</td>
+<td>先复现后台任务触发的 Turn</td>
+</tr>
+<tr>
+<td>不做</td>
+<td>G7、G8</td>
+<td>Chat 层语义</td>
+<td>高</td>
+<td>用户决定</td>
+</tr>
+</tbody></table>
+<p>G1、G2、G5 都落在适配器里，Codex 适配器有同样的结构（<code>RUNTIME_CONTRACTS.md:158</code>）。做的时候把常量和事件类型放在两个适配器都能用的位置，Pi 不受影响。</p>
+<h2>6. 没有做的事</h2>
+<ul>
+<li>没有用真实 Provider 测。所有耗时只代表 Claude Code 自身的开销。</li>
+<li>没有跑 Rook 的全链路（worker、supervisor、MySQL）。G3 的耗时是读码推断。</li>
+<li>没有复现 G4。</li>
+<li>没有逐行复核子 agent 给出的 t3code 和 Orca 行号。</li>
+<li>没有读 dsh 的打包代码。术语直接取自 CONTEXT.md。</li>
+</ul>
+</div></details>
+<details class="fold"><summary>Pi（pi.md）</summary><div class="fold-body report-md"><h1>Rook Pi Runtime 状态机评估</h1>
+<p>日期：2026-11-28。评估只读，没有改动任何源码。</p>
+<h2>0. 范围和标注</h2>
+<ul>
+<li>Rook 代码读自 <code>/tmp/rook-clone-3XBb</code>（HEAD 6ed9642）。下文 Rook 路径都相对这个目录。</li>
+<li>Pi 版本 1.5.2，路径 <code>/tmp/rook-clone-3XBb/node_modules/@earendil-works/{pi-coding-agent,pi-agent-core,pi-ai}</code>。下文简写为 <code>pi-coding-agent/</code>、<code>pi-agent-core/</code>、<code>pi-ai/</code>。</li>
+<li>dsh 路径前缀 <code>$N = /root/.nvm/versions/node/v24.22.3/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai</code>。</li>
+<li>t3code 路径：<code>A = /code/3p/t3code/packages/provider-pi/src/server/adapter.ts</code>，<code>R = /code/3p/t3code/packages/provider-pi/src/server/rpc.ts</code>，<code>PSM = /code/3p/t3code/apps/server/src/orchestration-v2/ProviderSessionManager.ts</code>。</li>
+<li>Orca 路径前缀 <code>M = /code/3p/orca/src/main</code>。</li>
+<li>每条结论带一个标注。<strong>实测</strong>：我在本机跑了探针。<strong>读代码</strong>：我读了源码，没有运行。<strong>推断</strong>：没有直接证据。</li>
+<li>dsh、t3code、Orca 的行号由三个子 agent 读出。我抽查了其中标了“已核对”的行。其余行号没有逐条复核。</li>
+<li>探针都在 <code>/tmp/rook-pi-probe</code>。探针没有调用模型，没有连 MySQL，没有访问线上。</li>
+</ul>
+<p>生产路径（读代码）：<code>isolatedChatExecutor</code> 调 <code>isolatedExecutor(pool, installer, &#39;persistent&#39;, ...)</code>（<code>src/chat/isolated.ts:90</code>，<code>src/server.ts:644</code>）。执行实例是 <code>python3 -I native-supervisor.py setpriv ... native-worker.js --pi-sdk --persistent</code>（<code>src/chat/isolated.ts:114-115</code>）。生产走进程内 SDK（<code>PiSdkRuntime</code>）。<code>src/chat/pi-rpc.ts</code> 的 <code>runPiRpc</code> 不是生产路径（<code>TODO.md:17</code>）。</p>
+<p>已完成、本报告不再提的事项：<code>pi-model-http.ts</code> 的 undici <code>headersTimeout</code> 180 s 和 <code>bodyTimeout</code> 120 s；<code>errorDetail</code> 记录。</p>
+<p>已在 TODO.md 计划中的事项：步骤 3a（Pi checkpoint 屏障、中断 Turn 的恢复收尾、去掉 16 MiB 上限，分支 <code>release_fix/pi-dsh-persistence-20261126</code>）；步骤 3b（空闲 30 分钟冻结替代 <code>maxIdleWorkers</code>、lease fencing）；步骤 4（发布等待）。本报告只给这些事项补数据，不把它们当新建议。</p>
+<h2>1. Rook 的 Pi 状态机</h2>
+<h3>1.1 状态</h3>
+<p>Rook 没有一个显式的状态机类型。状态分散在三层（读代码）。</p>
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>状态</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Rook Backend 的 <code>Run</code></td>
+<td><code>queued</code> → <code>running</code> → <code>stopping</code> → <code>succeeded</code> / <code>failed</code> / <code>cancelled</code> / <code>interrupted</code></td>
+<td><code>src/chat/manager.ts:475-566</code>，<code>src/chat/store.ts:809-844</code></td>
+</tr>
+<tr>
+<td>执行实例（worker）</td>
+<td>不存在 → 启动中 → busy（一个 Turn）→ idle → evicted / 退出</td>
+<td><code>src/chat/isolated.ts:252-269, 310, 580-589</code></td>
+</tr>
+<tr>
+<td>Pi <code>AgentSession</code></td>
+<td>idle → streaming（Step 循环）→ retry 等待 → compaction → settled</td>
+<td><code>src/chat/pi-sdk.ts:14, 73-99, 152-157</code></td>
+</tr>
+</tbody></table>
+<h3>1.2 事件和转移</h3>
+<table>
+<thead>
+<tr>
+<th>触发</th>
+<th>动作主体</th>
+<th>转移和动作</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>用户发消息</td>
+<td>Rook Backend</td>
+<td>写入 Queue，<code>wakeQueue()</code> 取 lease，<code>Run</code> 进入 <code>running</code></td>
+<td><code>src/chat/api.ts:99</code>，<code>src/chat/manager.ts:286, 728-739</code></td>
+</tr>
+<tr>
+<td>Turn 开始</td>
+<td><code>isolatedExecutor</code></td>
+<td>按 <code>[ownerId, sessionId]</code> 找 worker。可复用就复用，否则 <code>launchWorker</code></td>
+<td><code>src/chat/isolated.ts:252-269</code></td>
+</tr>
+<tr>
+<td>worker 已 busy</td>
+<td><code>isolatedExecutor</code></td>
+<td>拒绝，失败码 <code>execution_worker_busy</code></td>
+<td><code>src/chat/isolated.ts:310</code></td>
+</tr>
+<tr>
+<td>checkpoint 恢复</td>
+<td><code>native.ts</code></td>
+<td>本地文件 digest 一致就沿用。本地文件更长就优先本地。否则从 MySQL 整文件恢复</td>
+<td><code>src/chat/native.ts:136-175, 585-623</code></td>
+</tr>
+<tr>
+<td>复用已有 session</td>
+<td><code>PiSdkRuntime</code></td>
+<td>每个 Turn 调一次 <code>session.reload()</code></td>
+<td><code>src/chat/pi-sdk-runtime.ts:164-170</code></td>
+</tr>
+<tr>
+<td>新建 session</td>
+<td><code>PiSdkRuntime</code></td>
+<td><code>SettingsManager.inMemory({compaction, cacheWarming:&#39;off&#39;, httpIdleTimeoutMs})</code>，retry 设置不动</td>
+<td><code>src/chat/pi-sdk-runtime.ts:179-181</code></td>
+</tr>
+<tr>
+<td>发 prompt</td>
+<td><code>runPiSdk</code></td>
+<td><code>session.prompt(..., {source:&#39;rpc&#39;, preflightResult})</code></td>
+<td><code>src/chat/pi-sdk.ts:139-147</code></td>
+</tr>
+<tr>
+<td>工具开始</td>
+<td><code>guardTools</code></td>
+<td>先等 Rook Backend 的 <code>tool_started</code> ack（MySQL <code>noteTool</code>），再执行工具</td>
+<td><code>src/chat/pi-sdk-runtime.ts:83-105</code>，<code>src/chat/isolated.ts:525-535</code>，<code>src/chat/store.ts:770-780</code></td>
+</tr>
+<tr>
+<td>下一次模型请求</td>
+<td><code>PiSdkRuntime</code></td>
+<td>streamSimple 包装等 <code>toolPersistence</code> 完成再发请求</td>
+<td><code>src/chat/pi-sdk-runtime.ts:132-144, 259-270</code></td>
+</tr>
+<tr>
+<td>Pi 事件</td>
+<td><code>pi-events.ts</code></td>
+<td>映射成 RunEvent。100 ms 或 100 条一批发给 Rook Backend，Rook Backend ack</td>
+<td><code>src/chat/pi-events.ts:78-90</code>，<code>src/chat/native.ts:415-428</code>，<code>src/chat/isolated.ts:476-496</code></td>
+</tr>
+<tr>
+<td>Turn 结束</td>
+<td><code>runPiSdk</code></td>
+<td><code>waitForIdle</code>，最后一次 <code>checkpoint()</code>，返回 cancelled / timeout / settled</td>
+<td><code>src/chat/pi-sdk.ts:152-163</code></td>
+</tr>
+<tr>
+<td>Run 结束</td>
+<td><code>isolatedExecutor</code></td>
+<td>supervisor <code>clean</code>（冻结并核对子进程，上限 5 s）。worker 进入 idle</td>
+<td><code>src/chat/isolated.ts:536-546</code>，<code>src/chat/native-supervisor.py:161-179</code></td>
+</tr>
+<tr>
+<td>idle 超出预算</td>
+<td><code>isolatedExecutor</code></td>
+<td>超过 <code>maxIdleWorkers</code>（默认 4）就淘汰最久未用的 worker</td>
+<td><code>src/chat/isolated.ts:580-587</code>，<code>src/chat/capacity.ts:2-6</code></td>
+</tr>
+</tbody></table>
+<h3>1.3 超时</h3>
+<table>
+<thead>
+<tr>
+<th>超时</th>
+<th>值</th>
+<th>触发后的结果</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Turn 总时长</td>
+<td>60 min（<code>RUNTIME_RUN_TIMEOUT_MS</code>）</td>
+<td><code>native_timeout</code></td>
+<td><code>src/runtime/process.ts:5</code>，<code>src/chat/pi-sdk.ts:133</code></td>
+</tr>
+<tr>
+<td>executor 兜底</td>
+<td>60 min + 5 s</td>
+<td><code>execution_timeout</code></td>
+<td><code>src/chat/isolated.ts:375</code></td>
+</tr>
+<tr>
+<td>模型响应头等待</td>
+<td><strong>实际 120 s</strong>，不是文档写的 180 s（实测，见 4.3）</td>
+<td>Pi 报 &quot;Request timed out.&quot;，进入 Pi auto_retry</td>
+<td><code>src/chat/pi-model-http.ts:7-11</code>，<code>pi-coding-agent/dist/core/sdk.js:194-204</code></td>
+</tr>
+<tr>
+<td>模型流空闲</td>
+<td>120 s（undici <code>bodyTimeout</code>）</td>
+<td>同上</td>
+<td><code>src/chat/pi-model-http.ts:7</code></td>
+</tr>
+<tr>
+<td>控制命令（model / effort / steer）</td>
+<td>6 s</td>
+<td><code>native_control_*</code></td>
+<td><code>src/chat/isolated.ts:418-422</code></td>
+</tr>
+<tr>
+<td>Stop 后等 worker 收尾</td>
+<td>15 s</td>
+<td><code>execution_cancel_timeout</code>，杀 worker</td>
+<td><code>src/chat/isolated.ts:381-385</code></td>
+</tr>
+<tr>
+<td>supervisor 请求</td>
+<td>7 s</td>
+<td><code>execution_cleanup_failed</code> 类</td>
+<td><code>src/chat/isolated.ts:162-180</code></td>
+</tr>
+<tr>
+<td>supervisor <code>clean</code></td>
+<td>5 s</td>
+<td>supervisor 失败退出，码 2</td>
+<td><code>src/chat/native-supervisor.py:166-167</code></td>
+</tr>
+<tr>
+<td>worker 关停</td>
+<td>SIGTERM，7 s 后 SIGKILL</td>
+<td>无</td>
+<td><code>src/chat/isolated.ts:134-143</code></td>
+</tr>
+<tr>
+<td>lease</td>
+<td>30 s，每 5 s 续约</td>
+<td>supervisor 到期 SIGKILL，退出码 3，<code>execution_lease_lost</code></td>
+<td><code>src/chat/store.ts:27</code>，<code>src/chat/manager.ts:741-763</code>，<code>src/chat/native-supervisor.py:97-104, 205</code>，<code>src/chat/isolated.ts:554</code></td>
+</tr>
+<tr>
+<td>工具执行</td>
+<td><strong>没有默认值</strong>。Pi bash 工具没有默认超时</td>
+<td>卡住的工具占住 Turn，直到 60 min</td>
+<td><code>pi-coding-agent/dist/core/tools/bash.js:30</code></td>
+</tr>
+<tr>
+<td>Queue 轮询</td>
+<td>1 s</td>
+<td>无</td>
+<td><code>src/chat/manager.ts:127, 728-739</code></td>
+</tr>
+</tbody></table>
+<h3>1.4 重试</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>Rook 现状</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>谁重试</td>
+<td>只有 Pi 的 auto_retry。Rook 自己不重试模型请求</td>
+<td><code>src/chat/pi-sdk-runtime.ts:179-181</code></td>
+</tr>
+<tr>
+<td>次数和退避</td>
+<td>Pi 默认：<code>maxRetries</code> 3，<code>baseDelayMs</code> 2000，延迟 2 s、4 s、8 s，无 jitter</td>
+<td><code>pi-coding-agent/dist/core/settings-defaults.js:17-25</code>，<code>pi-ai/dist/utils/retry.js:114-118</code></td>
+</tr>
+<tr>
+<td>可重试判断</td>
+<td>错误文本正则，含 &quot;timed? out&quot;、&quot;timeout&quot;、&quot;please retry your request&quot;</td>
+<td><code>pi-ai/dist/utils/retry.js:29-112</code>，<code>pi-coding-agent/dist/core/agent-session.js:3142-3147</code></td>
+</tr>
+<tr>
+<td>空响应</td>
+<td><code>streamPiModel</code> 把空 stop 改写成 <code>PI_EMPTY_RESPONSE</code>，文本带 &quot;please retry your request&quot;，所以 Pi 会重试</td>
+<td><code>src/chat/pi-model-http.ts:34-37</code></td>
+</tr>
+<tr>
+<td>provider SDK 层重试</td>
+<td>关闭（<code>maxRetries: 0</code>）。探针里每次尝试只有 1 个 HTTP 请求（实测）</td>
+<td><code>pi-ai/dist/api/anthropic-messages.js:608-617</code></td>
+</tr>
+<tr>
+<td>可见性</td>
+<td><code>auto_retry_start/end</code> 映射成 RunEvent。重试时发 <code>output_discarded</code></td>
+<td><code>src/chat/pi-events.ts:78-90</code>，<code>src/runtime/contracts.ts:72-104</code></td>
+</tr>
+<tr>
+<td>最坏情况</td>
+<td>每个 Step 约 4 次 × 120 s + 14 s 退避 ≈ 8.2 分钟才失败（由实测的 120 s 推算）</td>
+<td>见 4.3</td>
+</tr>
+</tbody></table>
+<h3>1.5 Stop 和 abort</h3>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>动作主体</th>
+<th>行为</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Rook Backend</td>
+<td><code>stop()</code> 把 <code>runState</code> 置 <code>stopping</code>。lease 续约循环每 5 s 内读到它</td>
+<td><code>src/chat/manager.ts:676-680, 741-763</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>isolatedExecutor</code></td>
+<td>给 worker 发 cancel</td>
+<td><code>src/chat/native-worker.ts:197-199</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>runPiSdk</code></td>
+<td>只有 <code>started</code> 之后才调 <code>session.abort()</code></td>
+<td><code>src/chat/pi-sdk.ts:49-53</code>，<code>pi-coding-agent/dist/core/agent-session.js:2073-2084</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>runPiSdk</code></td>
+<td><code>clearSteeringQueue</code>，返回 cancelled</td>
+<td><code>src/chat/pi-sdk.ts:158-169</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>isolatedExecutor</code></td>
+<td>15 s 内没结果就报 <code>execution_cancel_timeout</code> 并杀 worker</td>
+<td><code>src/chat/isolated.ts:381-385</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>isolatedExecutor</code></td>
+<td><code>Run</code> 不是 succeeded 就 <code>delete active.checkpoint</code>。失败或 unboundStop 时丢弃本地 context</td>
+<td><code>src/chat/isolated.ts:574-575, 588-589, 151-160</code></td>
+</tr>
+</tbody></table>
+<h3>1.6 插话和 Queue</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>Rook 现状</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>插话</td>
+<td><code>session.agent.steer(message)</code>。要求 <code>isStreaming</code>。Pi 在 Step 边界消费</td>
+<td><code>src/chat/pi-sdk.ts:105-110</code>，<code>pi-agent-core/dist/agent-loop.js:89-201</code></td>
+</tr>
+<tr>
+<td>Queue</td>
+<td>Rook Backend 持久化。每条排队消息开一个新 <code>Run</code>。没有用 Pi 的 follow-up</td>
+<td><code>src/chat/manager.ts:286, 728-739</code></td>
+</tr>
+<tr>
+<td>Queue 衔接</td>
+<td><code>Run</code> 结束的 finally 里没有调 <code>wakeQueue()</code>。下一条等 1 s 轮询</td>
+<td><code>src/chat/manager.ts:562-566, 728-739</code></td>
+</tr>
+<tr>
+<td>中途改 model / effort</td>
+<td>控制命令，6 s 超时</td>
+<td><code>src/chat/pi-sdk.ts:112-121</code></td>
+</tr>
+</tbody></table>
+<h3>1.7 checkpoint 和 compaction</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>Rook 现状</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>checkpoint 时机</td>
+<td>session 创建时一次。<code>turn_end</code> 时距上次 ≥ 30 s 才发。Turn 结束时一次。有工具在跑时跳过</td>
+<td><code>src/chat/pi-sdk.ts:32-33, 55-68, 97, 152-157</code>，<code>src/chat/pi-rpc.ts:9</code></td>
+</tr>
+<tr>
+<td>checkpoint 内容</td>
+<td>worker 读整个 session 文件，经 IPC 整份发给 Rook Backend</td>
+<td><code>src/chat/native.ts:434-449, 468-497</code>，<code>src/chat/native-worker.ts:127</code></td>
+</tr>
+<tr>
+<td>Rook Backend 处理</td>
+<td>≤ 16 MiB，密钥扫描，<code>contexts.save</code>。分片 64 KiB，已知分片去重</td>
+<td><code>src/chat/isolated.ts:400-410</code>，<code>src/chat/manager.ts:501-514</code>，<code>src/chat/context.ts:13, 393-423</code>，<code>src/chat/native-context-format.ts:5</code></td>
+</tr>
+<tr>
+<td>超 16 MiB</td>
+<td>checkpoint 被静默跳过</td>
+<td><code>src/chat/native.ts:491-493</code></td>
+</tr>
+<tr>
+<td>compaction 阈值</td>
+<td>照 dsh：<code>floor(min(0.8W, W−O−65536))</code>，保留 16%</td>
+<td><code>src/chat/pi-compaction.ts:10-16</code></td>
+</tr>
+<tr>
+<td>compaction 过程</td>
+<td>先 prune 工具结果（8192 / 4096 / 1024）。仍超阈值再做一次 summary 调用</td>
+<td><code>src/chat/pi-compaction.ts:26-51, 108-147</code></td>
+</tr>
+<tr>
+<td>summary 失败</td>
+<td><code>console.warn(&#39;pi_compaction_summary_failed&#39;)</code>，返回 <code>{cancel:true}</code>。没有重试，没有熔断</td>
+<td><code>src/chat/pi-compaction.ts:148-152</code></td>
+</tr>
+<tr>
+<td>失败后的再触发</td>
+<td>Pi 在每次 assistant 响应前都检查阈值，所以每个 Step 都会再触发一次整段前缀的 summary 调用</td>
+<td><code>pi-coding-agent/dist/core/agent-session.js:478-487, 2617-2740</code></td>
+</tr>
+</tbody></table>
+<h3>1.8 执行实例复用和崩溃恢复</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>Rook 现状</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>复用粒度</td>
+<td>每个 <code>[ownerId, sessionId]</code> 一个 worker，一个 <code>AgentSession</code></td>
+<td><code>src/chat/isolated.ts:252-257</code>，<code>src/chat/pi-sdk-runtime.ts:164-170</code></td>
+</tr>
+<tr>
+<td>idle 预算</td>
+<td>每个 Rook Backend 4 个 idle worker，20 个 active Run</td>
+<td><code>src/chat/capacity.ts:2-6</code>，<code>README.md:150</code></td>
+</tr>
+<tr>
+<td>worker 崩溃</td>
+<td><code>Run</code> 失败。退出码 3 是 <code>execution_lease_lost</code>，其它是 <code>execution_cleanup_failed</code></td>
+<td><code>src/chat/isolated.ts:554</code></td>
+</tr>
+<tr>
+<td>Rook Backend 崩溃</td>
+<td>lease 过期后 <code>recoverExpired</code> 把 <code>Run</code> 置 <code>interrupted</code>。有未完成工具是 <code>execution_tool_result_unknown</code>，否则 <code>execution_interrupted</code></td>
+<td><code>src/chat/store.ts:809-844</code></td>
+</tr>
+<tr>
+<td>孤儿进程</td>
+<td>supervisor 是 subreaper，带 PDEATHSIG。<code>clean</code> 时杀掉被收养的子进程</td>
+<td><code>src/chat/native-supervisor.py:22, 161-179</code></td>
+</tr>
+<tr>
+<td>自动续跑</td>
+<td>没有。下一个 Turn 从最近的 checkpoint 开始</td>
+<td><code>src/chat/manager.ts:441-450</code></td>
+</tr>
+</tbody></table>
+<h3>1.9 失败码</h3>
+<p>读代码得到的清单：</p>
+<ul>
+<li>模型：<code>native_model_{aborted, error, length, empty_response, timeout, authentication_failed, access_denied, rate_limited, unavailable}</code>（<code>src/runtime/contracts.ts:32-52</code>，<code>src/chat/native.ts:530-536</code>）。</li>
+<li>Runtime：<code>native_timeout</code>、<code>native_incomplete</code>、<code>native_sdk_incomplete</code>、<code>native_control_*</code>、<code>native_context_*</code>、<code>native_event_persistence_failed</code>、<code>native_skill_unavailable</code>。</li>
+<li>执行实例：<code>execution_{timeout, cancel_timeout, lease_lost, lease_expired, cleanup_failed, worker_protocol, worker_busy, worker_failed, launcher_failed, interrupted, tool_result_unknown, tool_persistence_failed, stop_requested}</code>。</li>
+<li>Rook Backend：<code>service_interrupted</code>（<code>src/chat/manager.ts:549-551</code>）、<code>runtime_execution_failed</code>（<code>src/chat/manager.ts:557-561</code>）。</li>
+</ul>
+<h2>2. dsh、t3code、Orca</h2>
+<h3>2.1 对照表</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>dsh</th>
+<th>t3code</th>
+<th>Orca</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>驱动方式</td>
+<td>自己的 agent loop，进程内。每个 Session 一个长驻 agent（<code>$N/dsh-agent-loop/lib/index.js:651-665</code>）</td>
+<td><code>pi --mode rpc</code>，每个 provider session 一个子进程，跨 Turn 复用（<code>A:495, 542-606</code>）</td>
+<td><code>pi --mode rpc</code>，每个 session 一个长驻子进程（<code>M/pi/rpc/rpc-session-adapter.ts:46-96</code>）</td>
+</tr>
+<tr>
+<td>状态</td>
+<td>idle / maintenance / running（loop <code>:547-563</code>）。事件 turn/start、step/start、step/end、turn/end（loop <code>:731-819</code>）</td>
+<td>靠 Pi 事件。Turn 完成看 <code>agent_settled</code> 加 <code>get_state</code> 探测（<code>A:2595-2619</code>）</td>
+<td>忽略 <code>agent_end</code>，看 <code>agent_settled</code> 加 <code>get_state</code> idle（<code>M/pi/rpc/rpc-turns.ts:176-181</code>）</td>
+</tr>
+<tr>
+<td>模型重试</td>
+<td>插件 <code>dsh-llm-retry</code>：5 次，初始 500 ms，上限 10 s，jitter 0.1，遵守 retry-after。按错误码分类（<code>$N/dsh-llm/lib/types/retry-policy.js:12-22</code>）。pi-ai 适配器自己的重试关闭</td>
+<td>不自己重试。沿用 Pi auto_retry，展示重试项。15 分钟重试停滞看门狗（<code>PSM:105</code>）</td>
+<td>不配置重试，只观察</td>
+</tr>
+<tr>
+<td>模型超时</td>
+<td>流空闲 300 s（<code>$N/dsh-llm-pi-ai/lib/index.js:944</code>）。没有总时长或首字节超时</td>
+<td>没有自己的模型超时</td>
+<td>没有自己的模型超时</td>
+</tr>
+<tr>
+<td>RPC 超时</td>
+<td>不适用</td>
+<td>RPC 默认 30 s（<code>R:107</code>），adapter 15 s（<code>A:93</code>），生命周期 60 s（<code>A:96</code>）</td>
+<td>请求 30 s（<code>M/jsonl-rpc/peer-limits.ts:17</code>）</td>
+</tr>
+<tr>
+<td>工具超时</td>
+<td>按工具 <code>timeoutMs</code> 强制（<code>$N/dsh-tool-call-timeout-policy/lib/index.js:123-130</code>）。bash 超时转后台（<code>$N/dsh-tool-bash/lib/index.js:182, 233, 506-508</code>）</td>
+<td>没有</td>
+<td>没有</td>
+</tr>
+<tr>
+<td>Stop</td>
+<td>AbortController。在跑的工具排干，没有宽限计时器。未开始的工具记 ABORTED_BEFORE_DISPATCH。部分 assistant 输出带 <code>interrupted:true</code> 落盘（loop <code>:886-915</code>）</td>
+<td><code>clear_queue</code> + <code>abort</code>（<code>A:3804-3807</code>）。中断上限 15 s（<code>PSM:87</code>）。SIGTERM，1 s 后 SIGKILL（<code>R:108-109</code>）</td>
+<td><code>abort</code>，2 s 超时（<code>M/pi/rpc/rpc-session-adapter.ts:134-147</code>）。关闭阶梯：stdin end 1 s → SIGTERM 3 s → SIGKILL（<code>M/.../provider-process-supervisor.ts:6-24</code>）</td>
+</tr>
+<tr>
+<td>插话和排队</td>
+<td>持久 inbox：next-turn / next-step，followup / steer / inject（loop <code>:570-578</code>）。steer 在 Step 边界消费。每个 Turn 取一条 next-turn</td>
+<td>一律 <code>prompt</code> 加 <code>streamingBehavior:&quot;steer&quot;</code>（<code>A:3636-3638</code>）</td>
+<td>工作中用 steer，否则 followUp（<code>M/pi/rpc/rpc-turns.ts:69-71</code>）</td>
+</tr>
+<tr>
+<td>持久化</td>
+<td>append-only JSONL。200 ms 批量加 fsync（<code>$N/dsh-session-persistence-jsonl/lib/index.js:193</code>）。LLM 请求前、工具批前、pre-step 强制 flush（<code>$N/dsh-session-checkpoint-policy/lib/index.js:28, 66-73</code>）。flock。尾部残行截断</td>
+<td>直接用 Pi 的 session 文件，不复制</td>
+<td>Pi 文件为准。自己的 SQLite journal 从 Pi 文件追平</td>
+</tr>
+<tr>
+<td>崩溃恢复</td>
+<td>resume 时 <code>interruptedTurnClosers</code> 补 TOOL_OUTCOME_UNKNOWN / TOOL_NOT_STARTED（<code>$N/dsh-session/lib/index.js:726-907</code>）</td>
+<td>不自动重启。下一个 Turn 用 <code>--session</code> 重开</td>
+<td>意外退出把 Turn 置 interrupted。不自动重生。手动或可选 resume</td>
+</tr>
+<tr>
+<td>compaction</td>
+<td>阈值同 Rook。在 <code>agent/pre-step</code> 检查。失败只记日志并继续 Turn（<code>$N/dsh-compaction-basic/lib/index.js:839-851</code>）。<code>compactionRetries</code> 1，<code>maxOverflowRetries</code> 1（<code>:82-83</code>）</td>
+<td>沿用 Pi，展示 compaction 项</td>
+<td>沿用 Pi，只观察</td>
+</tr>
+<tr>
+<td>空闲回收</td>
+<td>没找到</td>
+<td>30 分钟释放，pin 最长 4 小时（<code>PSM:81-84</code>）</td>
+<td>5 分钟扫一次，30 分钟后停（<code>M/.../structured-agent-session-idle-sweep.ts:15-16</code>）</td>
+</tr>
+<tr>
+<td>卡死看门狗</td>
+<td>没找到</td>
+<td>只有重试停滞 15 分钟</td>
+<td>只看 Electron 主线程，不杀进程</td>
+</tr>
+</tbody></table>
+<h3>2.2 Rook 已经对齐的地方</h3>
+<p>以下都是读代码的结论。</p>
+<ul>
+<li>Rook 把 retry 和 compaction 做成 RunEvent。t3code 和 Orca 也是只展示不干预。</li>
+<li>Rook 用 <code>waitForIdle</code> 判定 Turn 结束。t3code 和 Orca 用 <code>agent_settled</code> 加 <code>get_state</code>。语义相同。</li>
+<li>Rook 的插话在 Step 边界生效。三家相同。</li>
+<li>Rook 的 compaction 阈值、prune 预算、summary 指令直接抄 dsh。</li>
+<li>Rook 没有“无活动看门狗”。三家也都没有。这一项不算差距。</li>
+<li>Rook 的 Queue 每条消息开一个新 <code>Run</code>。这是 Rook Backend 统一 Run 语义的设计，不是差距。</li>
+</ul>
+<h2>3. 差距，按对稳定性和效率的影响排序</h2>
+<h3>G1. checkpoint 是整文件复制，本地 JSONL 不是事实来源（3a 已计划）</h3>
+<ul>
+<li><strong>证据（读代码）</strong>：worker 每次 checkpoint 读整个 session 文件并整份经 IPC 发送（<code>src/chat/native.ts:434-449, 468-497</code>，<code>src/chat/native-worker.ts:127</code>）。超 16 MiB 时 checkpoint 静默跳过（<code>src/chat/native.ts:491-493</code>）。Stop 或失败时 Rook 删 <code>active.checkpoint</code> 并丢弃本地 context（<code>src/chat/isolated.ts:574-575, 588-589</code>）。</li>
+<li><strong>证据（实测）</strong>：15 MB 文件一次 checkpoint 的 IPC 往返 240 ms，子进程发送 143 ms，Rook Backend 事件循环单次阻塞 ≥ 53 ms（只算 IPC 解析）。每个 Turn 的固定开销在 1 MB 时约 30 ms，在 15 MB 时约 0.6 s。明细见 4.1。</li>
+<li><strong>对照</strong>：dsh、t3code、Orca 都把 append-only 日志当事实来源。dsh 在 LLM 请求前和工具批前强制 flush。</li>
+<li><strong>改动</strong>：3a 落地时让 checkpoint 只发增量（上次已确认的字节偏移之后的行）。<code>src/chat/context.ts:393-423</code> 已经按 64 KiB 分片去重并校验前缀 sha，Rook Backend 侧存储不用改。</li>
+<li><strong>层</strong>：Pi adapter（worker 侧）加 executor 的 context 帧。存储层属 Runtime 无关的 Chat 层，不动。</li>
+<li><strong>成本和风险</strong>：中。风险在前缀校验失败时要退回整文件路径。3a 分支已在开发，这里只是补数据。</li>
+<li><strong>收益</strong>：消除长 Session 的 O(文件大小) 开销，去掉 16 MiB 断崖。收益大小按实测数据推算，线上长 Session 的占比没有查，属推断。</li>
+</ul>
+<h3>G2. 冷启动贵，idle 预算只有 4</h3>
+<ul>
+<li><strong>证据（实测）</strong>：worker 冷启动 1558–2044 ms（7 次，中位约 1.77 s）。其中 <code>native.js</code> 的 import 占 520–560 ms，<code>pi-sdk-runtime.js</code> 的 import 占 975–1160 ms。RSS 约 150 MB。裸 <code>node -e 0</code> 是 42–47 ms，所以耗时几乎都在模块加载。</li>
+<li><strong>证据（读代码）</strong>：每个 Rook Backend 只留 4 个 idle worker（<code>src/chat/capacity.ts:2-6</code>）。第 5 个活跃 Session 的用户每次回来都付一次冷启动加 MySQL 整文件恢复。</li>
+<li><strong>对照</strong>：t3code 空闲 30 分钟才释放。Orca 30 分钟后才停。</li>
+<li><strong>改动</strong>：<ol>
+<li>现在就能做：调大 <code>ROOK_CHAT_MAX_IDLE_WORKERS</code>。按 150 MB 一个算内存上限。</li>
+<li>给 worker 设 <code>NODE_COMPILE_CACHE</code>。实测热缓存冷启动 1.25–1.29 s（有一次 1.68 s 的离群值），缓存目录 9.9 MB。省约 0.5 s。</li>
+<li>3b 的 30 分钟冻结落地时加数量或内存上限。共享机器上不能只按时间留。</li>
+</ol>
+</li>
+<li><strong>层</strong>：executor（<code>src/chat/isolated.ts</code>）和部署配置。和 Runtime 无关的部分是预算数字。</li>
+<li><strong>成本和风险</strong>：1 是配置改动，风险是内存。2 很小，但缓存目录对执行用户只读时是否生效我没有测。执行实例以不同 uid 运行，这一点必须先验证。</li>
+<li><strong>收益</strong>：冷启动命中率没有线上数据，收益大小是推断。建议先从 RunEvent 统计 <code>launchWorker</code> 的次数占比。</li>
+</ul>
+<h3>G3. Stop 或失败后的下一个 Turn 走整文件 MySQL 恢复</h3>
+<ul>
+<li><strong>证据（读代码）</strong>：<code>Run</code> 不是 succeeded 时 <code>isolatedExecutor</code> 执行 <code>delete active.checkpoint</code>（<code>src/chat/isolated.ts:574-575</code>）。下一个 Turn 因此拿不到 <code>previous</code>，走 MySQL 整文件恢复。用户点 Stop 后马上改口重发是常见操作，这条路径正好最慢。</li>
+<li><strong>已有的可复用路径</strong>：<code>evicted</code> 路径已经会懒比较本地文件和 checkpoint 的 digest（<code>src/chat/isolated.ts:265-267</code>，<code>src/chat/native.ts:149-165</code>）。</li>
+<li><strong>改动</strong>：<code>previous</code> 缺失但 worker 还活着、本地文件还在时，走同一条懒比较路径。digest 一致就沿用本地文件。</li>
+<li><strong>层</strong>：executor 加 Pi adapter 的恢复逻辑。</li>
+<li><strong>成本和风险</strong>：小。风险是 abort 后本地文件比 MySQL checkpoint 多出未确认的行。<code>readExtendedCheckpoint</code> 已经处理“本地更长”的情况（<code>src/chat/native.ts:602-623</code>）。必须保留密钥扫描。</li>
+<li><strong>收益</strong>：MySQL 恢复的耗时我没有测，收益大小是推断。</li>
+</ul>
+<h3>G4. 响应头等待实际是 120 s，重试策略比 dsh 慢</h3>
+<ul>
+<li><strong>证据（实测）</strong>：Pi 把 <code>httpIdleTimeoutMs</code> 当 provider SDK 的 <code>timeoutMs</code>（<code>pi-coding-agent/dist/core/sdk.js:194-204</code>）。探针把两个值按比例缩小：SDK 2000 ms 加 undici headers 6000 ms，请求在 2245 ms 结束，报 &quot;Request timed out.&quot;。反过来 SDK 6000 加 undici 2000，在 2013 ms 结束。openai-completions 结果相同。所以生产的响应头上限是 min(120 s, 180 s) = 120 s。<code>RUNTIME_CONTRACTS.md:195-199</code> 写的 180 s 和实际不符。</li>
+<li><strong>证据（实测）</strong>：<code>timeoutMs</code> 只管响应头。探针里 SDK <code>timeoutMs</code> 2000 ms，服务端在响应头之后持续流 6 s，请求跑满 6211 ms 才结束，没有被 2 s 截断。所以单独调小 <code>retry.provider.timeoutMs</code> 不会误杀长输出。</li>
+<li><strong>证据（读代码）</strong>：<code>RUNTIME_CONTRACTS.md:195-199</code> 的 llmapi 采样说成功请求都在 19 s 内返回响应头，卡住的请求到 90–150 s 仍是 0 字节。Codex relay 用 60 s。</li>
+<li><strong>证据（读代码）</strong>：Pi 重试 3 次，延迟 2 / 4 / 8 s，无 jitter。dsh 重试 5 次，500 ms 起步，上限 10 s，带 jitter，遵守 retry-after。</li>
+<li><strong>改动</strong>：在 <code>src/chat/pi-sdk-runtime.ts:179</code> 的 <code>SettingsManager.inMemory</code> 里加 <code>retry.provider.timeoutMs</code>（建议 60 s，和 Codex 一致），并把 <code>retry.maxRetries</code> 提到 5、<code>baseDelayMs</code> 调到 500。同时改 <code>RUNTIME_CONTRACTS.md</code> 里的 180 s。</li>
+<li><strong>层</strong>：Pi adapter，纯配置。</li>
+<li><strong>成本和风险</strong>：很小。风险是 60 s 对个别慢模型太短。采样只覆盖 llmapi。</li>
+<li><strong>收益</strong>：卡住的请求从等 120 s 降到 60 s。一个 Step 的最坏失败时间从约 8.2 分钟降到约 6 × 60 s + 退避 ≈ 6.3 分钟，但成功概率更高。实际能救回多少 <code>Run</code> 是推断。建议先用只读 RDS 查近 7 天 <code>native_model_timeout</code> 和 <code>native_model_unavailable</code> 的失败数，再决定次数。</li>
+</ul>
+<h3>G5. 工具没有默认超时</h3>
+<ul>
+<li><strong>证据（读代码）</strong>：Pi 的 bash 工具没有默认超时（<code>pi-coding-agent/dist/core/tools/bash.js:30</code>）。模型不传 timeout 时，一个卡住的命令会占住 Turn 直到 60 分钟上限。checkpoint 在有工具运行时还会跳过（<code>src/chat/pi-sdk.ts:55-68</code>）。</li>
+<li><strong>对照</strong>：dsh 按工具强制 <code>timeoutMs</code>。bash 超时后转后台。</li>
+<li><strong>改动</strong>：在 <code>guardTools</code>（<code>src/chat/pi-sdk-runtime.ts:83-105</code>）里给没带 timeout 的 bash 调用补一个默认值。Rook 已经在这里包了每个工具的 execute。</li>
+<li><strong>层</strong>：Pi adapter。Claude Code 和 Codex 有各自的原生工具超时，不用在 Chat 层统一。</li>
+<li><strong>成本和风险</strong>：小。风险是合法的长命令被截断。默认值要宽（例如 10 分钟），并让模型传的值优先。</li>
+<li><strong>收益</strong>：线上有多少 <code>native_timeout</code> 来自卡住的工具没有查，属推断。</li>
+</ul>
+<h3>G6. Stop 的 15 s 超时会丢最近的 Step（和 3a 耦合）</h3>
+<ul>
+<li><strong>证据（读代码）</strong>：cancel 15 s 没结果，<code>isolatedExecutor</code> 杀 worker 并丢弃本地 JSONL（<code>src/chat/isolated.ts:381-385, 588-589</code>）。上次 checkpoint 之后的 Step 全丢。<code>turn_end</code> 的 checkpoint 有 30 s 门限（<code>src/chat/pi-sdk.ts:97</code>）。</li>
+<li><strong>对照</strong>：dsh 把被中断的部分 assistant 输出带 <code>interrupted:true</code> 落盘。t3code 和 Orca 杀进程后 Pi 的 session 文件还在。</li>
+<li><strong>改动</strong>：不单独做。3a 的 checkpoint 屏障和 G1 的增量 checkpoint 落地后，这个窗口自然缩到一个 Step 以内。</li>
+<li><strong>层</strong>：Pi adapter。</li>
+<li><strong>成本和风险</strong>：并入 3a。</li>
+</ul>
+<h3>G7. Queue 衔接有最多 1 s 空档</h3>
+<ul>
+<li><strong>证据（读代码）</strong>：<code>wakeQueue</code> 只在 <code>src/chat/api.ts:99</code>、<code>src/chat/manager.ts:286</code> 和 1 s 轮询（<code>:729</code>）里调用。<code>Run</code> 结束的 finally（<code>src/chat/manager.ts:562-566</code>）没有调。</li>
+<li><strong>改动</strong>：finally 里加一次 <code>wakeQueue()</code>。</li>
+<li><strong>层</strong>：Runtime 无关的 Chat 层。三种 Runtime 同时受益。</li>
+<li><strong>成本和风险</strong>：一行。平均省 0.5 s，是按轮询间隔推算的，没有实测。</li>
+</ul>
+<h3>G8. compaction summary 失败后每个 Step 重试（和 dsh 一致，低优先级）</h3>
+<ul>
+<li><strong>证据（读代码）</strong>：summary 失败返回 <code>{cancel:true}</code>（<code>src/chat/pi-compaction.ts:148-152</code>）。Pi 在每次 assistant 响应前检查阈值（<code>pi-coding-agent/dist/core/agent-session.js:478-487</code>），所以每个 Step 多一次整段前缀的模型调用。</li>
+<li><strong>对照</strong>：dsh 行为相同（失败只记日志，继续 Turn）。这一项 Rook 是对齐的。</li>
+<li><strong>改动</strong>：先数 <code>pi_compaction_summary_failed</code> 的日志条数。条数高再加一个简单熔断（同一 Turn 连续失败 2 次后本 Turn 不再尝试）。</li>
+<li><strong>层</strong>：Pi adapter。</li>
+<li><strong>成本和风险</strong>：计数为零成本。熔断的风险是 context 溢出，Pi 的 overflow 恢复仍会兜底。</li>
+</ul>
+<h2>4. 实测数据</h2>
+<p>环境：本机，Node v22.23.2。没有模型调用，没有 MySQL。合成 session 文件由 <code>SessionManager</code> 写出，每个 Step 含一个 6 KB 的工具结果。这些数字是下限：真实 session 有 skills、扩展和网络。</p>
+<h3>4.1 每个 Turn 的 session 开销（<code>/tmp/rook-pi-probe/probe.mts</code>）</h3>
+<p>单位 ms。前六行是 5 次或 3 次的中位数。</p>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>1.1 MB / 480 条</th>
+<th>4.1 MB / 1860 条</th>
+<th>15 MB / 6780 条</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SessionManager.open</code></td>
+<td>7.1</td>
+<td>18.5</td>
+<td>94.3</td>
+</tr>
+<tr>
+<td>sessionDigest（逐条 JSON.stringify 加 sha256）</td>
+<td>8.2</td>
+<td>33.8</td>
+<td>169.2</td>
+</tr>
+<tr>
+<td>读文件加 sha256</td>
+<td>4.5</td>
+<td>17.4</td>
+<td>99.7</td>
+</tr>
+<tr>
+<td>密钥扫描</td>
+<td>3.2</td>
+<td>12.4</td>
+<td>46.7</td>
+</tr>
+<tr>
+<td><code>contextBytes</code></td>
+<td>3.7</td>
+<td>20.5</td>
+<td>50.6</td>
+</tr>
+<tr>
+<td>parse + migrate + digest</td>
+<td>13.6</td>
+<td>42.3</td>
+<td>181.9</td>
+</tr>
+<tr>
+<td><code>session.reload()</code>（无 skills）</td>
+<td>16.7–19.9</td>
+<td>同左</td>
+<td>同左</td>
+</tr>
+<tr>
+<td>IPC 整份往返</td>
+<td>20.9</td>
+<td>68.3</td>
+<td>239.9</td>
+</tr>
+<tr>
+<td>子进程 send</td>
+<td>10.9</td>
+<td>39.4</td>
+<td>142.6</td>
+</tr>
+<tr>
+<td>父进程事件循环最大阻塞（只算 IPC 解析）</td>
+<td>4.4</td>
+<td>14.6</td>
+<td>52.6</td>
+</tr>
+</tbody></table>
+<p>另外 <code>resourceLoader.reload</code> 20–28 ms，<code>createAgentSession</code> 4–19 ms，和文件大小无关。</p>
+<p>此前的基准（<code>/code/b/rook-superagent-20261125/.scratch/superagent-20261125/pi-dsh-persistence/grounding.md</code>）给出 checkpoint 约 29 ms/MiB，16 MiB 时 459 ms CPU，其中约 310 ms 在 Rook Backend 主线程。本次数字和它同量级。</p>
+<h3>4.2 worker 冷启动（<code>/tmp/rook-pi-probe/cold.mjs</code>，<code>cold-run.mjs</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th>耗时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>python3 -I</code> + <code>setpriv</code> + node + import <code>native.js</code> 和 <code>pi-sdk-runtime.js</code></td>
+<td>1558–2044 ms（7 次，中位约 1.77 s）</td>
+</tr>
+<tr>
+<td>同上，<code>NODE_COMPILE_CACHE</code> 已热</td>
+<td>1.25–1.29 s（一次 1.68 s 离群）</td>
+</tr>
+<tr>
+<td>裸 <code>node -e 0</code></td>
+<td>42–47 ms</td>
+</tr>
+</tbody></table>
+<p>RSS 约 150 MB。compile cache 目录 9.9 MB。没有测只读缓存目录。</p>
+<h3>4.3 响应头和响应体超时（<code>/tmp/rook-pi-probe/headers.mts</code>，<code>body.mts</code>）</h3>
+<table>
+<thead>
+<tr>
+<th>SDK <code>timeoutMs</code></th>
+<th>undici <code>headersTimeout</code></th>
+<th>服务端行为</th>
+<th>结束时间</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>2000</td>
+<td>6000</td>
+<td>不回响应头</td>
+<td>2245 ms</td>
+<td>&quot;Request timed out.&quot;</td>
+</tr>
+<tr>
+<td>6000</td>
+<td>2000</td>
+<td>不回响应头</td>
+<td>2013 ms</td>
+<td>超时</td>
+</tr>
+<tr>
+<td>2000</td>
+<td>180000</td>
+<td>立即回响应头，流 6 s</td>
+<td>6211 ms</td>
+<td>流正常跑完（探针服务端没发 stop，所以报 &quot;stream ended without a stop reason&quot;）</td>
+</tr>
+</tbody></table>
+<p>每次尝试只有 1 个 HTTP 请求。结论：响应头上限取两者较小值；SDK <code>timeoutMs</code> 不截断已经开始的流。</p>
+<h2>5. 没有做的事</h2>
+<ul>
+<li>没有调用真实模型。没有连 MySQL。MySQL 恢复和 <code>noteTool</code> 的耗时没有测。</li>
+<li>没有查线上失败率。G2、G3、G4、G5、G8 的收益大小都是推断。每项都给了先量再改的办法。</li>
+<li>没有测只读目录下的 <code>NODE_COMPILE_CACHE</code>。一条含递归删除的命令被 blast-radius hook 拦下，我没有重试。</li>
+<li>没有读 3a 分支 <code>release_fix/pi-dsh-persistence-20261126</code> 的代码。G1 和 G6 可能已被它部分覆盖。</li>
+<li>dsh、t3code、Orca 的行号只抽查了一部分。</li>
+<li>Rook 的行号对应 HEAD 6ed9642 的克隆。当前 worktree 有其它 session 的未提交改动，行号可能偏移。</li>
+</ul>
+</div></details>
+  </section>
+
+  <footer>
+    Sources: Rook main c2163db + MR !243 6ed9642；t3code 56dbca3bc5；Orca b9f7d01b3b4；dsh 0.2.2-rc.1；探测脚本在开发机 /tmp/rook-{codex-sm,cc,pi,sm}-probe，codex 0.169、claude 2.1.332、Agent SDK 0.3.332、本地假 Provider &nbsp;·&nbsp; generated 2026-11-28
+  </footer>
+
+</main>
+
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

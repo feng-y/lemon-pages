@@ -725,6 +725,23 @@
           "updated_at": "2026-11-28T09:49:41.941833Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/rook-runtime-state-machine-20261128",
+      "project": "Rook",
+      "title": "Rook Runtime 状态机评估",
+      "versions": [
+        {
+          "digest": "a991310fa4d86437ac651156d565f5a6d438ef440ce55f0e9e90eb6278b06a44",
+          "label": "v1",
+          "path": "reports/rook-runtime-state-machine-20261128",
+          "published_at": "2026-11-28T13:41:46.891418Z",
+          "summary": "Pi、Claude Code、Codex 与 Chat Turn 生命周期，对照 dsh、t3code、Orca",
+          "updated_at": "2026-11-28T13:41:46.891418Z"
+        }
+      ]
     }
   ]
 }
