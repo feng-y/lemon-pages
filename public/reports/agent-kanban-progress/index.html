@@ -406,8 +406,8 @@ footer {
     <div class="table-wrap"><table>
       <thead><tr><th scope="col">范围</th><th scope="col">已确认</th><th scope="col">下一项</th></tr></thead>
       <tbody>
-        <tr><td>智能体入口与创建</td><td>合入候选已通过本地构建和浏览器验证。覆盖模板、创建、编辑、运行身份绑定请求与导航。</td><td>完整回归通过，进入合入评审。</td></tr>
-        <tr><td>Kanban 审查</td><td>MySQL 回归覆盖已入 Queue 的请求。停止跟进后，旧请求无 Run。交付换版后，只有新版产生 Run 和审查结论。</td><td>两处线上入口的 SSO 只读检查通过。发布候选并开放协作后，用真实运行身份和 Provider 验收。</td></tr>
+        <tr><td>智能体入口与创建</td><td>合入候选已通过本地构建和浏览器验证。覆盖模板、创建、编辑、运行身份绑定请求与导航。</td><td>已提交合入评审。</td></tr>
+        <tr><td>Kanban 审查</td><td>MySQL 回归覆盖已入 Queue 的请求。停止跟进后，旧请求无 Run。交付换版后，只有新版产生 Run 和审查结论。两实例隔离验收确认定时复查只唤醒一次。后台 Task 会话仅从管理员执行详情查看，使用统计分享和报告均排除该会话。</td><td>两处线上入口的 SSO 只读检查通过。发布候选并开放协作后，用真实运行身份和 Provider 验收。</td></tr>
         <tr><td>共用 timer 与自动化任务</td><td>两套生产部署通过独立发布验收。连续两次定时触发各受理一次，各使用独立的系统 Session 和 Run。两个入口均可打开执行详情。</td><td>单独验收生产中断接管、回滚及错过通知送达。</td></tr>
       </tbody>
     </table></div>
