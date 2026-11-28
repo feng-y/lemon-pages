@@ -400,7 +400,7 @@ footer {
   </header>
   <div class="tldr" id="tldr">
     <div class="tldr-label">当前批次</div>
-    <p><strong>优先交付共用 timer 与自动化任务。</strong>先验证到点、独立执行、退出接管与运行记录，再验证兼容切换和通知。Kanban 本批只回归共用 timer 的定时复查。</p>
+    <p><strong>timer 与自动化任务已合入主线。</strong>本地已验证独立系统 Session、历史回执结算、执行详情和中断接管。兼容版本正在构建。</p>
   </div>
   <section id="status"><h2>推进现状</h2><hr class="rule">
     <div class="table-wrap"><table>
@@ -408,14 +408,14 @@ footer {
       <tbody>
         <tr><td>智能体入口与创建</td><td>候选已提交。验证环境已检查入口、创建表单和模板。</td><td>回归创建、编辑、停用、内置审查智能体的运行身份绑定与导航。</td></tr>
         <tr><td>Kanban 审查</td><td>首次交办、新版交付、定时复查和验收人答复已接入同一 event inbox。本地已验证。验证环境已检查 Kanban 读取。</td><td>用真实运行身份和 Provider 验收交办、写回、定时复查及中断恢复。</td></tr>
-        <tr><td>共用 timer 与自动化任务</td><td>本地验证了中断恢复、精确补跑和 Backend 退出接管。每分钟任务停机 24 小时后补最近一次，记录错过 1,439 次。</td><td>整理合入候选，再在目标环境验收兼容切换、回滚和通知。</td></tr>
+        <tr><td>共用 timer 与自动化任务</td><td>已合入主线。完整回归 602 项，594 通过、8 跳过、0 失败。可按任务间隔配置补跑窗口和重试。</td><td>先部署兼容版本，再验收切换、回滚、收件箱及外部通知。</td></tr>
       </tbody>
     </table></div>
   </section>
   <section id="delivery"><h2>交付批次</h2><hr class="rule">
     <div class="batch">
       <article data-current><h3>第一批 · timer 与自动化任务</h3>
-        <p>验证 timer、Run 受理与恢复、独立的系统 Session、错过记录和执行详情。兼容版本先上线，再开启独立执行并验证通知。</p></article>
+        <p>本地已验证 timer、Run 受理与恢复、独立系统 Session、错过记录和执行详情。兼容版本先上线，等共享数据库的 Backend 全部升级后再开启独立执行。</p></article>
       <article><h3>第二批 · 智能体与 Kanban 合入准备</h3>
         <p>解决 Web 冲突并构建候选。验证智能体管理、运行身份绑定和现有 Kanban 行为。</p></article>
       <article><h3>第三批 · Kanban 首版验收</h3>
@@ -432,10 +432,11 @@ footer {
     </ol>
   </section>
   <section id="updates"><h2>更新记录</h2><hr class="rule">
+    <p><time>2026-11-28 00:50 UTC</time>　自动化任务合入主线，进入兼容发布。定时、立即执行和试跑均覆盖独立系统 Session。</p>
     <p><time>2026-11-27 23:50 UTC</time>　将 timer 与自动化任务调整为首批，记录本地故障回归和目标环境待验收项。</p>
     <p><time>2026-11-27 23:33 UTC</time>　建立脱敏推进记录。各批分别记录实现、合入、发布和验收。完成验证后更新对应批次和剩余 TODO。</p>
   </section>
-  <footer>来源为项目推进记录、部署验收摘要与自动化合入评估。 &nbsp;—&nbsp; 更新于 2026-11-27 23:50 UTC</footer>
+  <footer>来源为项目推进记录、部署验收摘要与自动化合入评估。 &nbsp;—&nbsp; 更新于 2026-11-28 00:50 UTC</footer>
 </main>
 <!-- to-pages:back-link:start -->
 <style>

@@ -683,12 +683,12 @@
       "title": "智能体与 Kanban 推进记录",
       "versions": [
         {
-          "digest": "6ddaef40db0d0cb9dc64690549e2e59946322be4276bee8e94dc815b1c9bd5a2",
+          "digest": "2cf1e0cc57b380193c9620f0e89a27a7118453ef1d67fa8e04b44c23fd62b8cd",
           "label": "v1",
           "path": "reports/agent-kanban-progress",
           "published_at": "2026-11-27T23:34:24.408651Z",
           "summary": "将 timer 与自动化任务调整为首批，更新故障回归和待验收项",
-          "updated_at": "2026-11-27T23:51:03.475791Z"
+          "updated_at": "2026-11-28T00:50:21.549696Z"
         }
       ]
     }
