@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rook MR 合入评估</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+/* 状态机表在窄屏保持列宽，由 .table-wrap 横向滚动 */
+#sm table { min-width: 560px; }
+.steps { margin: 0; padding-left: 1.4em; }
+.steps li { margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<nav class="toc">
+  <div class="toc-title">On this page</div>
+  <a href="#tldr">TL;DR</a>
+  <a href="#gates">合入门禁</a>
+  <a href="#conflict">唯一冲突</a>
+  <a href="#review">评审留言</a>
+  <a href="#evidence">验证数字覆盖到哪</a>
+  <a href="#next">合入前的最小动作</a>
+</nav>
+
+<main>
+
+  <header>
+    <div class="head-top">
+      <h1>Rook MR 合入评估</h1>
+      <span class="pill-auto">auto-generated</span>
+    </div>
+    <p class="subtitle">Runtime 准入改动能否合入主干 · 2026-11-28</p>
+  </header>
+
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">TL;DR</div>
+    <p>目标是判断这条 MR 现在能否合入主干。结论是暂不可合入。代码本身没有新的阻塞项，阻塞来自合并状态：分支落后 <code>main</code> 14 个提交，<code>tests/mysql-fixture.ts</code> 有内容冲突，GitLab 返回 <code>has_conflicts=true</code>。</p>
+    <p>同步 <code>main</code>、解掉这一个冲突、重跑两套全量之后，再改两行文档口径就可以合入。评审留言的第二个问题由已合入的选择器限制和预览功能回答，不需要改代码。</p>
+  </div>
+
+  <section>
+    <div class="stats">
+      <div class="stat mark-warn">
+        <div class="stat-num">14</div>
+        <div class="stat-label">落后 main 的提交</div>
+        <div class="stat-note">最近一次同步之后</div>
+      </div>
+      <div class="stat mark-warn">
+        <div class="stat-num">1</div>
+        <div class="stat-label">冲突文件</div>
+        <div class="stat-note">tests/mysql-fixture.ts</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">2</div>
+        <div class="stat-label">要改的文档行</div>
+        <div class="stat-note">执行器口径</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">4</div>
+        <div class="stat-label">已记录的未验收项</div>
+        <div class="stat-note">不阻塞合入</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="gates">
+    <h2>合入门禁</h2>
+    <hr class="rule">
+    <p class="lede">九个门禁里，两个阻塞、一个需重跑、一个待确认，其余通过或不适用。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>门禁</th><th>状态</th><th>证据</th></tr></thead>
+        <tbody>
+          <tr><td>与 main 的合并</td><td><span class="tag danger">阻塞</span></td><td><code>git merge-tree</code> 退出 1，<code>tests/mysql-fixture.ts</code> 冲突；GitLab 返回 <code>has_conflicts=true</code>、<code>broken_status</code></td></tr>
+          <tr><td>全量验证</td><td><span class="tag warn">需重跑</span></td><td>现有两套全量都在同步前的树上，不覆盖 main 新增的 14 个提交</td></tr>
+          <tr><td>文档与实现</td><td><span class="tag danger">阻塞（小）</span></td><td><code>CONTEXT.md</code> 的执行器词条和 <code>deployment.md</code> 的环境变量口径仍写「由构建决定」和「不再控制入口」</td></tr>
+          <tr><td>评审留言的第二个问题</td><td><span class="tag warn">待确认</span></td><td>已合入的选择器限制和预览功能回答了它，需要在 MR 里回复一句</td></tr>
+          <tr><td>审批</td><td><span class="tag ok">通过</span></td><td><code>approvals_required=0</code>，<code>approved=true</code></td></tr>
+          <tr><td>讨论</td><td><span class="tag ok">通过</span></td><td><code>blocking_discussions_resolved=true</code></td></tr>
+          <tr><td>Draft</td><td><span class="tag ok">通过</span></td><td><code>draft=false</code></td></tr>
+          <tr><td>流水线</td><td><span class="tag neutral">不适用</span></td><td>仓库没有 GitLab CI 配置；推送前 hook 跑 <code>npm run check</code></td></tr>
+          <tr><td>合并方式</td><td><span class="tag ok">通过</span></td><td>走 MR 合入 main，符合「main 只接受 MR 合并」的约束</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>来源：本机 <code>git merge-tree</code>、<code>git rev-list --left-right --count</code>，以及 GitLab 的合并请求字段。查询时间 2026-11-28 23:00 前后。</p>
+  </section>
+
+  <section id="conflict">
+    <h2>唯一冲突</h2>
+    <hr class="rule">
+    <p class="lede">冲突只有一处，是测试夹具里的一份加密文档重置清单。两边各自往同一个数组里加了文档。</p>
+
+    <p><code>tests/mysql-fixture.ts</code> 的 <code>resetSystemDocuments</code> 维护一组要在共享测试库启动时清掉的系统文档。本 MR 加了 <code>runtime-enablement</code>。main 加了 <code>agent-inbox-index\0bot-chat</code> 和 <code>agent-timers\0bot-chat</code>。两边的改动落在同一行，所以 Git 判为内容冲突。</p>
+
+    <p>解法是取并集，共 10 项。</p>
+
+    <pre><code>const documents = ['user-admission\0rook-system', 'system-settings\0rook-system',
+  'chat-queue\0rook-system', 'kanban-directory\0default', 'agent-directory\0default',
+  'agent-inbox-index\0default', 'agent-inbox-index\0bot-chat',
+  'runtime-enablement\0rook-system', 'agent-review-timers\0default',
+  'agent-timers\0bot-chat'];</code></pre>
+
+    <p>其余 8 个重叠文件可以自动合并，包括 <code>CONTEXT.md</code>、<code>DESIGN.md</code>、<code>RUNTIME_CONTRACTS.md</code>、<code>deployment.md</code>、<code>src/chat/manager.ts</code>、<code>src/configuration.ts</code>、<code>src/server.ts</code> 和 <code>tests/claude-code.test.ts</code>。自动合并只说明文本不冲突，不说明语义正确。main 新增的 14 个提交有 28 个文件、1104 行新增、190 行删除，包含原生子智能体、SuperAgent 收件箱与定时器、Kanban 审查恢复。这些区域和本 MR 的准入改动相邻，所以合并结果必须重跑测试。</p>
+  </section>
+
+  <section id="review">
+    <h2>评审留言</h2>
+    <hr class="rule">
+    <p class="lede">唯一一条评审留言提了两处要处理和三条次要项。第一处仍需改文档，第二处已被后续合入回答，三条次要项里两条不是问题，一条没有测试。</p>
+
+    <h3>第一处：执行器由什么决定</h3>
+
+    <p>评审指出文档写「执行器由部署构建决定」，代码仍由环境变量决定。这一点在同步后的树上仍然成立。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>位置</th><th>当前文字或行为</th></tr></thead>
+        <tbody>
+          <tr><td><code>CONTEXT.md</code> 执行器词条</td><td>「由部署构建决定。当前构建接入 Pi、Claude Code 和 Codex。」</td></tr>
+          <tr><td><code>deployment.md</code> 的部署说明</td><td>「<code>ROOK_NATIVE_RUNTIMES_ENABLED</code> 只作为管理员首次保存前的默认值，不再控制新 Session 的入口。」</td></tr>
+          <tr><td><code>src/server.ts</code> 的 <code>executorRuntimes</code></td><td><code>runtimeNames.filter(runtime =&gt; runtimeEnabled(runtime, env))</code></td></tr>
+          <tr><td><code>src/runtime/capabilities.ts</code> 的 <code>runtimeEnabled</code></td><td>Pi 始终开放，Claude Code 和 Codex 需要 <code>ROOK_NATIVE_RUNTIMES_ENABLED=1</code></td></tr>
+          <tr><td><code>README.md</code> 和 <code>DESIGN.md</code></td><td>已经是准确口径：部署开关装载执行器，管理员放开才可选</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>后果很具体。运维如果按文档删掉 部署配置里的这个值，Claude Code 和 Codex 不会进入执行器列表，也不会被探测。管理员在「启动依赖」里放开之后，新请求仍返回 409 <code>native_runtime_not_available</code>。改代码让执行器不再读环境变量是一次更大的重构，改两行文档能消除同一个误解，所以最小修法是文档。</p>
+
+    <h3>第二处：全局放开与管理员可测</h3>
+
+    <p>评审问的是：全局放开关着时管理员也不能测，开着时所有用户都能选，这是不是取代了「普通用户置灰、管理员可测」的选择器限制。</p>
+
+    <p>不是遗漏，是三层叠加。已合入的选择器改动在 <code>web/main.tsx</code> 用预览功能 <code>native-runtimes</code> 决定谁看得见，<code>src/preview-features.ts</code> 给它的默认范围是 <code>admins</code>。部署开关决定执行器装不装，管理员放开决定 Runtime 可不可选，预览功能决定哪些用户看得到选项。关着时管理员也不能测，是全局开关的语义，不是选择器的回归。MR 里回复这一句即可。</p>
+
+    <h3>三条次要项</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>次要项</th><th>结论</th></tr></thead>
+        <tbody>
+          <tr><td><code>/api/me.executionAvailable</code> 在缺少 <code>configuration</code> 时由 <code>?? true</code> 变成 <code>?? false</code></td><td>生产环境只在 <code>documents</code>、<code>tokens</code>、<code>store</code> 都存在时创建 <code>configuration</code>，缺它只出现在测试夹具。不阻塞。</td></tr>
+          <tr><td>排队中的 Runtime 被关闭后，非自动化项被 pause，自动化项直接失败</td><td>行为符合词表，但没有找到覆盖这个转换的测试。合入前记录为未测，或补一条小用例。</td></tr>
+          <tr><td><code>runtimeEnablementDocument</code> 用默认值作为读取初值，删掉环境变量后默认值会不会被冻结</td><td>不是问题。<code>ConfigurationStore.read</code> 在没有文档时返回 <code>{ revision: 0, value: initial() }</code>，不写库。默认值每次读取都会重新计算，直到管理员保存。</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="evidence">
+    <h2>验证数字覆盖到哪</h2>
+    <hr class="rule">
+    <p class="lede">这些数字是真的，但它们只证明同步前的树。它们不能替代合并后的重跑。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>套件</th><th class="num">用例</th><th class="num">通过</th><th class="num">失败</th><th class="num">跳过</th><th>覆盖范围</th></tr></thead>
+        <tbody>
+          <tr><td>MySQL 全量</td><td class="num">646</td><td class="num">634</td><td class="num">0</td><td class="num">12</td><td>同步前的 HEAD</td></tr>
+          <tr><td>无 MySQL 全量</td><td class="num">561</td><td class="num">384</td><td class="num">0</td><td class="num">177</td><td>同步前的 HEAD</td></tr>
+          <tr><td>状态机审计定向</td><td class="num">37</td><td class="num">37</td><td class="num">0</td><td class="num">0</td><td><code>startup-dependencies</code>、<code>skill-installation</code>、<code>managed-session-skills</code>、<code>runtime-state</code></td></tr>
+          <tr><td><code>npm run check</code></td><td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td>lint、RDS 静态检查、<code>tsc --noEmit</code></td></tr>
+          <tr><td><code>npm run build</code></td><td class="num">1</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td>check、服务端编译、web 构建</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>数字的限制来自树的边界，不是测试本身。MySQL 全量跑了 14 分 39 秒，无 MySQL 全量跑了 5 分 13 秒，两套都只跑在同步前的提交上。main 的 14 个提交没有进过这两套测试。仓库没有 GitLab CI，合并前的测试只能靠本机重跑，所以「同步后重跑」是唯一的证据来源。</p>
+
+    <p>重跑的范围就是这两套全量加 <code>npm run check</code> 和 <code>npm run build</code>。定向 37 项可以只作为快速反馈，不能替代全量。</p>
+  </section>
+
+  <section id="next">
+    <h2>合入前的最小动作</h2>
+    <hr class="rule">
+    <p class="lede">五步。前四步做完之前不要合入，第五步是合入本身。</p>
+
+    <ol class="steps">
+      <li><strong>同步 <code>main</code> 并解冲突。</strong>只改 <code>tests/mysql-fixture.ts</code> 的那一个数组，取 10 项并集。其余文件保持自动合并结果。</li>
+      <li><strong>改两行文档。</strong><code>CONTEXT.md</code> 的执行器词条改成「部署开关装载执行器，管理员放开才可选」。<code>deployment.md</code> 删掉「不再控制新 Session 的入口」，改成该变量仍决定原生执行器是否装载和被探测。</li>
+      <li><strong>重跑验证。</strong><code>npm run check</code>、<code>npm run build</code>、MySQL 全量、无 MySQL 全量。四项都 0 失败才继续。</li>
+      <li><strong>回复评审留言。</strong>第二个问题按三层叠加回答。第三条次要项按「读取不写库」回答。排队关闭的行为记录为未测，或补一条用例。</li>
+      <li><strong>通过 MR 合入，再删源分支。</strong>合并后删除本地和远端的源分支，活跃 worktree 除外。</li>
+    </ol>
+
+    <h3>已记录、不阻塞合入的风险</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>风险</th><th>现状</th></tr></thead>
+        <tbody>
+          <tr><td>原生 Runtime 的真实对话</td><td>目标实例未验收，Merge 前只能依赖本地与预览环境的结果</td></tr>
+          <tr><td>DW CLI 探测</td><td>Caster 实例未实测，本地探测通过</td></tr>
+          <tr><td>滚动发布窗口</td><td>旧 web bundle 与新服务端混跑的兼容性未测</td></tr>
+          <tr><td>排队项在 Runtime 关闭后的转换</td><td>行为符合词表，但没有测试覆盖</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout ok">
+      <div class="callout-title">合入判断</div>
+      <p>完成前四步后可以合入。代码侧不需要新改动，剩下的是同步、解冲突、重验和两句文档与留言。阻塞不是设计问题，是分支状态问题。</p>
+    </div>
+  </section>
+
+  <footer>
+    Sources: 本机 <code>git merge-tree</code>、<code>git rev-list</code>、两套 <code>npm test</code> 日志、GitLab 合并请求字段及唯一一条评审留言 &nbsp;|&nbsp; 脱密版，不含仓库地址、分支名、提交号与测试环境路径 &nbsp;|&nbsp; generated 2026-11-28
+  </footer>
+
+</main>
+
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

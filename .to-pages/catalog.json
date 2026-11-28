@@ -840,6 +840,23 @@
           "updated_at": "2026-11-28T14:23:42.243370Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/rook-mr-merge-assessment-20261128",
+      "project": "Rook",
+      "title": "Rook MR 合入评估",
+      "versions": [
+        {
+          "digest": "09b072d931d3f33b46be960621be9daae31b8dde39537f7519297d7724ebd6df",
+          "label": "v1",
+          "path": "reports/rook-mr-merge-assessment-20261128",
+          "published_at": "2026-11-28T15:24:03.066767Z",
+          "summary": "结论暂不可合入：落后 main 14 个提交、一个夹具冲突、两行文档口径；同步重验后可合入",
+          "updated_at": "2026-11-28T15:24:03.066767Z"
+        }
+      ]
     }
   ]
 }
