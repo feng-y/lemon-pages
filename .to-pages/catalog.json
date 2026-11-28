@@ -683,12 +683,12 @@
       "title": "智能体与 Kanban 推进记录",
       "versions": [
         {
-          "digest": "dd7323dedc5b806fbbb4cac762197d49303c82b8231fcf70368e1e5eef12be50",
+          "digest": "9cd54b9a0effb87210f134725cbc26f59f26a6c81733505e756b34d40e04b9cb",
           "label": "v1",
           "path": "reports/agent-kanban-progress",
           "published_at": "2026-11-27T23:34:24.408651Z",
-          "summary": "更新自动化任务缺口修复顺序和隔离验收",
-          "updated_at": "2026-11-28T05:47:26.315886Z"
+          "summary": "记录主线合入与分频恢复验收",
+          "updated_at": "2026-11-28T05:56:27.362106Z"
         }
       ]
     }
