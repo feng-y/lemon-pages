@@ -400,7 +400,7 @@ footer {
   </header>
   <div class="tldr" id="tldr">
     <div class="tldr-label">当前批次</div>
-    <p><strong>timer 与自动化任务已合入主线。</strong>两套生产部署已启用独立的系统 Session。已有任务经立即执行、试跑和连续两次定时执行完成验证。结果在任务运行记录查看。</p>
+    <p><strong>两处生产部署已启用独立的系统 Session。</strong>本轮自动化候选已实现 timer 指标、企业微信通知重试和分频恢复配置。隔离环境通过了接管及回退验证。生产仍使用现有恢复策略。</p>
   </div>
   <section id="status"><h2>推进现状</h2><hr class="rule">
     <div class="table-wrap"><table>
@@ -408,14 +408,14 @@ footer {
       <tbody>
         <tr><td>智能体入口与创建</td><td>候选已提交。验证环境已检查入口、创建表单和模板。</td><td>回归创建、编辑、停用、内置审查智能体的运行身份绑定与导航。</td></tr>
         <tr><td>Kanban 审查</td><td>首次交办、新版交付、定时复查和验收人答复已接入同一 event inbox。本地已验证。验证环境已检查 Kanban 读取。</td><td>用真实运行身份和 Provider 验收交办、写回、定时复查及中断恢复。</td></tr>
-        <tr><td>共用 timer 与自动化任务</td><td>已合入主线。完整回归 602 项，594 通过、8 跳过、0 失败。两套生产部署已完成切换和真实执行验证。四次执行均有不同的系统 Session 和 Run，两个入口都能查看结果。</td><td>验收补跑与重试、收件箱、外部通知和回滚。</td></tr>
+        <tr><td>共用 timer 与自动化任务</td><td>已合入主线。完整回归 602 项，594 通过、8 跳过、0 失败。两套生产部署已完成切换和真实执行验证。四次执行均有不同的系统 Session 和 Run，两个入口都能查看结果。</td><td>候选已通过本地构建和隔离验证。下一步是部署候选、接入指标采集、统一恢复配置并验收实际通知。</td></tr>
       </tbody>
     </table></div>
   </section>
   <section id="delivery"><h2>交付批次</h2><hr class="rule">
     <div class="batch">
       <article data-current><h3>第一批 · timer 与自动化任务</h3>
-        <p>现有任务的后续新投递从独立的系统 Session 开始。生产已验证执行详情、普通 Chat 隔离和历史记录读取。恢复和错过处理已在本地验证，生产验收待完成。</p></article>
+        <p>现有任务的后续新投递从独立的系统 Session 开始。生产已验证执行详情、普通 Chat 隔离和历史记录读取。共享数据库保存每次计划执行的回执。两个 Backend 同时处理一个计划时点时，只受理一次。隔离验收也核对了旧投递按原快照结算，以及配置回退后新投递的行为。</p></article>
       <article><h3>第二批 · 智能体与 Kanban 合入准备</h3>
         <p>解决 Web 冲突并构建候选。验证智能体管理、运行身份绑定和现有 Kanban 行为。</p></article>
       <article><h3>第三批 · Kanban 首版验收</h3>
@@ -424,14 +424,20 @@ footer {
         <p>先在同一条 Task 验收开发 Bot 的交付、复审和一次返工。故障 Webhook、直接问答和跨来源 event inbox 分别验收。</p></article>
     </div>
   </section>
-  <section id="checks"><h2>自动化任务待验收项</h2><hr class="rule">
-    <ol class="points">
-      <li>在目标环境复验中断恢复、退出接管与同一时点去重。</li>
-      <li>验收切换时已落库的待投递记录结算和实际回滚。</li>
-      <li>在生产验收补跑与重试窗口、错过记录、收件箱和外部通知。</li>
-    </ol>
+  <section id="checks"><h2>自动化任务修复与验收</h2><hr class="rule">
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">顺序</th><th scope="col">缺口与修复</th><th scope="col">验收</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>timer 指标补齐最近扫描、失败次数、积压和投递延迟。</td><td>本地已验证正常、失败与积压变化。待两处采集端读取。</td></tr>
+        <tr><td>2</td><td>错过回执与收件箱同事务。企业微信失败后，另一 Backend 可按重试时间接管。</td><td>本地已检查收件箱只写一次。生产送达须用指定收件人确认。</td></tr>
+        <tr><td>3</td><td>停机接管和回退。已保存的投递沿用自身快照。</td><td>本地已验证两实例竞争、停止后接管及回退后新投递。生产滚动发布后验收。</td></tr>
+        <tr><td>4</td><td>按相邻计划时点的间隔恢复执行。分钟级超过 15 秒即记错过。小时级补跑窗口 15 分钟，计划时点后第 5 分钟可重试。天级窗口 120 分钟，第 10、30 分钟可重试。</td><td>本地验证窗口内补跑、失败重试及超期记录。待两处生产部署统一启用。</td></tr>
+      </tbody>
+    </table></div>
+    <p>企业微信接收消息后，如果 Backend 在保存发送结果前退出，接管实例可能重发。自动化修复验收完成后，Kanban 定时复查单独验收。</p>
   </section>
   <section id="updates"><h2>更新记录</h2><hr class="rule">
+    <p><time>2026-11-28 05:47 UTC</time>　timer 指标、错过通知重试和恢复配置编码完成候选验证。小时和天级恢复在隔离环境通过。生产当前仍用原恢复策略。</p>
     <p><time>2026-11-28 04:36 UTC</time>　两套生产部署完成独立系统 Session 切换。真实定时、立即执行、试跑、执行详情和两端 Chat 隔离验收通过。</p>
     <p><time>2026-11-28 01:42 UTC</time>　两套环境均完成兼容发布。第二套环境的真实定时任务、历史执行详情和跨环境回执读取通过。</p>
     <p><time>2026-11-28 01:20 UTC</time>　首套环境的兼容版本已发布。两个副本健康，真实定时任务、历史回执和旧版本读取通过。独立系统 Session 仍待统一切换。</p>
@@ -439,7 +445,7 @@ footer {
     <p><time>2026-11-27 23:50 UTC</time>　将 timer 与自动化任务调整为首批，记录本地故障回归和目标环境待验收项。</p>
     <p><time>2026-11-27 23:33 UTC</time>　建立脱敏推进记录。各批分别记录实现、合入、发布和验收。完成验证后更新对应批次和剩余 TODO。</p>
   </section>
-  <footer>来源为项目推进记录、部署验收摘要与自动化合入评估。 &nbsp;—&nbsp; 更新于 2026-11-28 04:36 UTC</footer>
+  <footer>来源为项目推进记录、部署验收摘要与自动化合入评估。 &nbsp;—&nbsp; 更新于 2026-11-28 05:47 UTC</footer>
 </main>
 <!-- to-pages:back-link:start -->
 <style>
