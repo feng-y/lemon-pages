@@ -406,7 +406,7 @@ footer {
     <div class="table-wrap"><table>
       <thead><tr><th scope="col">范围</th><th scope="col">已确认</th><th scope="col">下一项</th></tr></thead>
       <tbody>
-        <tr><td>智能体入口与创建</td><td>合入候选已通过本地构建和浏览器验证。覆盖模板、创建、编辑、运行身份绑定请求与导航。</td><td>核对完整回归及候选差异，准备合入。</td></tr>
+        <tr><td>智能体入口与创建</td><td>合入候选已通过本地构建和浏览器验证。覆盖模板、创建、编辑、运行身份绑定请求与导航。</td><td>完整回归通过，进入合入评审。</td></tr>
         <tr><td>Kanban 审查</td><td>首次交办、新版交付、定时复查和验收人答复已接入同一 event inbox。本地已验证。验证环境已检查 Kanban 读取。</td><td>用真实运行身份和 Provider 验收交办、写回、定时复查及中断恢复。</td></tr>
         <tr><td>共用 timer 与自动化任务</td><td>已合入主线。完整回归 602 项，594 通过、8 跳过、0 失败。两套生产部署已完成切换和真实执行验证。四次执行均有不同的系统 Session 和 Run，两个入口都能查看结果。</td><td>修复已合入。两个发布版本各自保留原先在线的功能，并通过隔离验证。待生产发布后接入指标采集、统一恢复配置并验收通知。</td></tr>
       </tbody>
@@ -414,10 +414,10 @@ footer {
   </section>
   <section id="delivery"><h2>交付批次</h2><hr class="rule">
     <div class="batch">
-      <article data-current><h3>第一批 · timer 与自动化任务</h3>
+      <article><h3>第一批 · timer 与自动化任务</h3>
         <p>现有任务的后续新投递从独立的系统 Session 开始。生产已验证执行详情、普通 Chat 隔离和历史记录读取。共享数据库保存每次计划执行的回执。两个 Backend 同时处理一个计划时点时，只受理一次。隔离验收也核对了旧投递按原快照结算，以及配置回退后新投递的行为。</p></article>
       <article data-current><h3>第二批 · 智能体与 Kanban 合入准备</h3>
-        <p>已整合导航、后台 Session 访问权限和共用 timer。MySQL 专项 91 项通过。浏览器通过智能体配置与 Kanban 审查回归。候选等待完整回归和合入评审。</p></article>
+        <p>已整合导航、后台 Session 访问权限和共用 timer。MySQL 专项 91 项通过。浏览器通过智能体配置与 Kanban 审查回归。完整回归 608 项，599 通过、9 跳过、0 失败。候选进入合入评审。</p></article>
       <article><h3>第三批 · Kanban 首版验收</h3>
         <p>候选合入后，在受控需求上用真实运行身份发起审查。核对结论写回对应交付版本、定时复查续用原 Task 会话、普通成员无法读取后台 Session，以及停止后迟到的结果被拦截。</p></article>
       <article><h3>第四批 · 后续场景</h3>
@@ -437,7 +437,7 @@ footer {
     <p>企业微信接收消息后，如果 Backend 在保存发送结果前退出，接管实例可能重发。自动化修复验收完成后，Kanban 定时复查单独验收。</p>
   </section>
   <section id="updates"><h2>更新记录</h2><hr class="rule">
-    <p><time>2026-11-28 07:18 UTC</time>　启动第二批。候选已接入共用 timer 和独立后台 Session，本地专项与浏览器通过。真实 Kanban 审查仍待验收。</p>
+    <p><time>2026-11-28 07:18 UTC</time>　启动第二批。候选已接入共用 timer 和独立后台 Session，本地专项、浏览器和完整回归通过。真实 Kanban 审查仍待验收。</p>
     <p><time>2026-11-28 05:47 UTC</time>　timer 指标、错过通知重试和恢复配置编码已合入。分钟、小时和天级恢复均通过隔离验证，两处生产发布候选各通过 60 项验证。生产当前仍用原恢复策略。</p>
     <p><time>2026-11-28 04:36 UTC</time>　两套生产部署完成独立系统 Session 切换。真实定时、立即执行、试跑、执行详情和两端 Chat 隔离验收通过。</p>
     <p><time>2026-11-28 01:42 UTC</time>　两套环境均完成兼容发布。第二套环境的真实定时任务、历史执行详情和跨环境回执读取通过。</p>
