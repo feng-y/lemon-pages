@@ -775,12 +775,12 @@
       "title": "Rook Runtime 准入评审修复",
       "versions": [
         {
-          "digest": "7126d34a0c456a01f58aba0c2e6917f6f0f95cb5053d38bd12c01f7ef6891b34",
+          "digest": "abf5c04f26fcb4e0e2f4824bdecdc48d80c76fdd8d4924649c80b84ee3bff580",
           "label": "v1",
           "path": "reports/rook-runtime-admission-review-fix",
           "published_at": "2026-11-28T13:57:44.039902Z",
-          "summary": "两轴评审修复：fork 准入、系统 skill 目录纳入 Pi 就绪、关闭的 Runtime 显示未检查；MySQL 645 项与无 MySQL 560 项全量测试 0 失败",
-          "updated_at": "2026-11-28T13:57:44.039902Z"
+          "summary": "补 Runtime 准入状态机：TLA+ 模型经 TLC 检查，5 个状态 18 条边；两轴评审修复与全量测试结果",
+          "updated_at": "2026-11-28T14:19:09.362512Z"
         }
       ]
     },
