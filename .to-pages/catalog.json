@@ -750,6 +750,23 @@
           "updated_at": "2026-11-28T13:41:46.891418Z"
         }
       ]
+    },
+    {
+      "category": "分析报告",
+      "description": "",
+      "id": "reports/rook-runtime-admission-review-fix",
+      "project": "Rook",
+      "title": "Rook Runtime 准入评审修复",
+      "versions": [
+        {
+          "digest": "7126d34a0c456a01f58aba0c2e6917f6f0f95cb5053d38bd12c01f7ef6891b34",
+          "label": "v1",
+          "path": "reports/rook-runtime-admission-review-fix",
+          "published_at": "2026-11-28T13:57:44.039902Z",
+          "summary": "两轴评审修复：fork 准入、系统 skill 目录纳入 Pi 就绪、关闭的 Runtime 显示未检查；MySQL 645 项与无 MySQL 560 项全量测试 0 失败",
+          "updated_at": "2026-11-28T13:57:44.039902Z"
+        }
+      ]
     }
   ]
 }

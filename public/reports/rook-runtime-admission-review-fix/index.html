@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rook Runtime 准入评审修复</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="toc">
+  <div class="toc-title">On this page</div>
+  <a href="#tldr">TL;DR</a>
+  <a href="#s1">背景：三个事实</a>
+  <a href="#s2">修复一：fork 准入</a>
+  <a href="#s3">修复二：目录检查</a>
+  <a href="#s4">修复三：未检查显示</a>
+  <a href="#s5">收敛：判定、名字、术语</a>
+  <a href="#s6">验证与未改项</a>
+</nav>
+
+<main>
+
+  <header>
+    <div class="head-top">
+      <h1>Rook Runtime 准入评审修复</h1>
+      <span class="pill-auto">auto-generated</span>
+    </div>
+    <p class="subtitle">两轴代码评审发现的 5 个问题、修复方式与验证结果 · 2026-11-28</p>
+  </header>
+
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">TL;DR</div>
+    <p>这轮评审修了 5 个问题，核心是两处 fail-open：fork 会话绕过 Runtime 准入，系统 skill 目录失败却不影响 Pi 就绪。两处都已经在服务端堵住，关闭的 Runtime 和坏掉的目录都会让新请求在入口失败。</p>
+    <p>另外三处是显示与口径：关闭的 Runtime 不再显示「未就绪」、管理开关统一叫「放开」、`/readyz` 与 `executionAvailable` 的语义写进文档。准入判定和依赖检查名各收敛到一处，改一处不会再漏另一处。</p>
+    <p>验证：两套全量测试 0 失败，MySQL 645 项 633 通过 12 跳过，无 MySQL 560 项 383 通过 177 跳过；定向测试 101/101。`/readyz` 的「任一执行器 Runtime 就绪」判定刻意保留。</p>
+  </div>
+
+  <section>
+    <div class="stats">
+      <div class="stat mark-ok">
+        <div class="stat-num">5</div>
+        <div class="stat-label">修复的问题</div>
+        <div class="stat-note">两处 fail-open，三处显示与口径</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">2</div>
+        <div class="stat-label">关闭的绕过路径</div>
+        <div class="stat-note">fork 准入、目录检查参与就绪</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">645</div>
+        <div class="stat-label">MySQL 全量用例</div>
+        <div class="stat-note">633 通过 0 失败 12 跳过</div>
+      </div>
+      <div class="stat mark-warn">
+        <div class="stat-num">1</div>
+        <div class="stat-label">刻意保留的判定</div>
+        <div class="stat-note">/readyz 任一执行器就绪</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="s1">
+    <h2>背景：三个事实决定准入</h2>
+    <hr class="rule">
+    <p class="lede">服务端把 Runtime 的可执行性拆成三个独立事实。修复都建立在这套模型上。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>事实</th><th>来源</th><th>谁在改</th></tr></thead>
+        <tbody>
+          <tr><td>就绪 readiness</td><td>启动检查快照</td><td>每次检查</td></tr>
+          <tr><td>放开 enablement</td><td>加密的 <code>runtime-enablement</code> 文档，revision CAS</td><td>管理员在「启动依赖」保存</td></tr>
+          <tr><td>执行器 executor</td><td>部署构建</td><td>部署</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>新建 Session、发送消息和入队走同一个判定，顺序固定。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="num">顺序</th><th>条件</th><th class="num">HTTP</th><th>错误码</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>未放开</td><td class="num">409</td><td><code>runtime_not_open</code></td></tr>
+          <tr><td class="num">2</td><td>执行器未接入</td><td class="num">409</td><td><code>native_runtime_not_available</code></td></tr>
+          <tr><td class="num">3</td><td>检查未就绪</td><td class="num">503</td><td><code>startup_dependencies_unavailable</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>已接受的 <code>requestId</code> 重放不受之后的关闭影响。Session 创建重放返回原 Session，发送和自动化投递重放先命中原 Run。</p>
+  </section>
+
+  <section id="s2">
+    <h2>修复一：fork 绕过准入</h2>
+    <hr class="rule">
+    <p class="lede">fork 是唯一一条不经过准入就创建 Session 的写路径。</p>
+
+    <p>改前，<code>ConfigurationService.forkSession</code> 直接创建新 Session，只校验原生 Session id 一致。Runtime 关闭时 fork 请求返回 201，新 Session 已经落库，用户下一次发送才收到 <code>runtime_not_open</code>。</p>
+
+    <figure>
+      <div class="chart">
+        <svg viewBox="0 0 400 330" role="img" aria-label="fork 请求经过两次准入校验的路径">
+          <g font-family="var(--sans)" font-size="13">
+            <rect x="12" y="8" width="376" height="38" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+            <text x="28" y="32" fill="var(--ink-strong)">fork 请求</text>
+
+            <line x1="200" y1="46" x2="200" y2="57" stroke="var(--line)" stroke-width="1.5"/>
+            <path d="m196 55 4 5 4-5" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+
+            <rect x="12" y="62" width="376" height="38" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+            <text x="28" y="86" fill="var(--ink)">读取 fork 源（forkSource）</text>
+
+            <line x1="200" y1="100" x2="200" y2="111" stroke="var(--line)" stroke-width="1.5"/>
+            <path d="m196 109 4 5 4-5" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+
+            <rect x="12" y="116" width="376" height="38" rx="8" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/>
+            <text x="28" y="140" fill="var(--ink-strong)">① 准入校验：未放开返回 409</text>
+
+            <line x1="200" y1="154" x2="200" y2="165" stroke="var(--line)" stroke-width="1.5"/>
+            <path d="m196 163 4 5 4-5" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+
+            <rect x="12" y="170" width="376" height="38" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+            <text x="28" y="194" fill="var(--ink)">准备原生 context（prepareFork）</text>
+
+            <line x1="200" y1="208" x2="200" y2="219" stroke="var(--line)" stroke-width="1.5"/>
+            <path d="m196 217 4 5 4-5" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+
+            <rect x="12" y="224" width="376" height="38" rx="8" fill="var(--accent-tint)" stroke="var(--accent)" stroke-width="1.5"/>
+            <text x="28" y="248" fill="var(--ink-strong)">② 事务内复核：未放开返回 409</text>
+
+            <line x1="200" y1="262" x2="200" y2="273" stroke="var(--line)" stroke-width="1.5"/>
+            <path d="m196 271 4 5 4-5" fill="none" stroke="var(--line)" stroke-width="1.5"/>
+
+            <rect x="12" y="278" width="376" height="38" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+            <text x="28" y="302" fill="var(--ink)">写入新 Session</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>两次校验分工：外层避免白准备原生 context，内层关掉检查到写入之间 Runtime 被关闭的窗口。</figcaption>
+    </figure>
+
+    <p>改后，<code>ChatManager.fork</code> 在读到 fork 源之后、<code>prepareFork</code> 之前调用 <code>requireRuntimeAccess</code>。<code>forkSession</code> 在数据库事务内再调一次。未放开时请求返回 409，不生成新 Session，也不写原生 context 文件。</p>
+
+    <p>同一 <code>requestId</code> 的重放仍然先返回原 fork。<code>priorFork</code> 在两次校验之前执行，关闭不影响已完成的 fork。</p>
+
+    <p>测试在 <code>tests/runtime-admission.test.ts</code>。关闭 Pi 后调用 <code>forkSession</code>，断言返回 409 <code>runtime_not_open</code>，再重新放开。</p>
+  </section>
+
+  <section id="s3">
+    <h2>修复二：系统 skill 目录不参与 Pi 就绪</h2>
+    <hr class="rule">
+    <p class="lede">检查表里能看到失败，就绪聚合却没有读它。</p>
+
+    <p>启动检查会产出「系统 skill 目录」一项。共享目录配置之后，<code>inspectSkillAncestors</code> 通过记 passed，抛错记 failed。</p>
+
+    <p>就绪聚合只读 <code>runtimeChecks</code> 列出的检查。<code>system-directory</code> 不在这张表里，失败只显示在检查明细，Pi 仍然聚合为 ready，新 Run 仍被放行。这是一处 fail-open。</p>
+
+    <p>改后 <code>runtimeChecks.pi</code> 加入 <code>system-directory</code>。目录失败时 Pi 不就绪，准入返回 503 <code>startup_dependencies_unavailable</code>。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Runtime</th><th>聚合的检查</th></tr></thead>
+        <tbody>
+          <tr><td>Pi</td><td><code>persistence</code>、<code>system-directory</code>、<code>dw-cli</code>、<code>clawsec-bundle</code>、<code>system-skills</code>、<code>pi-cli</code></td></tr>
+          <tr><td>Claude Code</td><td><code>persistence</code>、<code>dw-cli</code>、<code>native-system-skills</code>、<code>claude-code-cli</code></td></tr>
+          <tr><td>Codex</td><td><code>persistence</code>、<code>dw-cli</code>、<code>native-system-skills</code>、<code>codex-cli</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>只挂 Pi，因为 Pi 从共享目录发现系统 skill。Claude Code 和 Codex 用各自的原生系统 skill 目录，由 <code>native-system-skills</code> 覆盖，后者已经要求系统 skill 与 marketplace 都可用。</p>
+
+    <p>目录未配置时检查不产出，聚合里没有这一项，也就不会拦截。未探测不拦截是既定策略，这次没有改。</p>
+
+    <p>测试在 <code>tests/startup-dependencies.test.ts</code>。一条 <code>system-directory</code> 失败加一条 <code>pi-cli</code> 通过，断言 Pi 是 <code>not_ready</code>。</p>
+  </section>
+
+  <section id="s4">
+    <h2>修复三：关闭的 Runtime 显示「未检查」</h2>
+    <hr class="rule">
+    <p class="lede">页面说明与页面内容在说两件事。</p>
+
+    <p>关闭或未接入执行器的 Runtime 不做探测。快照给这类 Runtime 补一条 unknown 的 CLI 检查，<code>checkedReadiness</code> 把非 passed 一律记成 <code>not_ready</code>，那一行就显示「未就绪」。页面说明写的是「未放开或未接入的 Runtime 不做探测，显示为未检查」。</p>
+
+    <div class="callout warn">
+      <div class="callout-title">矛盾点</div>
+      <p>同一行为什么显示未就绪，页面说明却说未检查。管理员看到「未就绪」会去找启动依赖的问题，实际原因只是没放开。</p>
+    </div>
+
+    <p>改后标签从事实推导，不再从聚合状态直接取。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Runtime 状态</th><th>页面显示</th></tr></thead>
+        <tbody>
+          <tr><td>未放开或执行器未接入</td><td><span class="tag neutral">未检查</span></td></tr>
+          <tr><td>就绪 <code>ready</code></td><td><span class="tag ok">已就绪</span></td></tr>
+          <tr><td>未就绪 <code>not_ready</code></td><td><span class="tag danger">未就绪</span></td></tr>
+          <tr><td>未探测 <code>unknown</code></td><td><span class="tag neutral">未检查</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>准入不变。关闭的 Runtime 在判断就绪之前已经被 <code>runtime_not_open</code> 拦住，标签只是显示层。测试在 <code>tests/web-startup-dependencies.test.ts</code>，现在断言 1 个已就绪、1 个未就绪、1 个未检查。</p>
+  </section>
+
+  <section id="s5">
+    <h2>收敛：一处判定、一张名字表、一套术语</h2>
+    <hr class="rule">
+    <p class="lede">三件小事，都是为了下次改一处不会再漏另一处。</p>
+
+    <ul class="points">
+      <li><strong>准入判定收敛到 <code>ConfigurationService.requireRuntimeAccess</code>。</strong>Session 创建、发送与入队回调、fork、测试共用同一个方法。之前 server 和测试各自复制了一段判定。</li>
+      <li><strong>依赖检查名收敛到一张表 <code>dependencyCheckNames</code>。</strong>生产检查和就绪映射都读这张表。之前名字散在两处，改一处会让检查从就绪里静默消失，修复二就是这类问题。</li>
+      <li><strong>管理开关统一叫「放开」。</strong>模型选择器、Chat 提示、启动依赖页的开关、按钮和冲突提示全部改。两个地方保留「开放」：部署范围的文案，以及旧的 <code>SkillDependencies</code> 视图，那里的 <code>enabled</code> 是部署开关，不是管理员放开。</li>
+      <li><strong>删除 <code>web/main.tsx</code> 里只作兜底的 Runtime 标签表。</strong>运行时数据已经带 <code>label</code>。</li>
+    </ul>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>位置</th><th>改前</th><th>改后</th></tr></thead>
+        <tbody>
+          <tr><td>模型选择器提示</td><td>此 Runtime 尚未开放</td><td>此 Runtime 尚未放开</td></tr>
+          <tr><td>启动依赖页开关</td><td>未开放 / 保存开放状态</td><td>未放开 / 保存放开状态</td></tr>
+          <tr><td>保存冲突提示</td><td>开放状态已被更新</td><td>放开状态已被更新</td></tr>
+          <tr><td>Chat 错误文案</td><td>此 Runtime 未开放</td><td>此 Runtime 未放开</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>文档同步两处。README 的 <code>/readyz</code> 改为「任意已接入执行器的 Runtime 就绪」。DESIGN 补上 <code>executionAvailable</code> 表示至少一个 Runtime 可用，<code>/readyz</code> 在没有任何已接入执行器的 Runtime 就绪时返回 <code>startup_dependencies_unavailable</code>。</p>
+  </section>
+
+  <section id="s6">
+    <h2>验证与未改项</h2>
+    <hr class="rule">
+    <p class="lede">两套全量测试 0 失败。以下数字来自本机同一分支的最后一次完整运行。</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>套件</th><th class="num">用例</th><th class="num">通过</th><th class="num">失败</th><th class="num">跳过</th></tr></thead>
+        <tbody>
+          <tr><td>MySQL 全量</td><td class="num">645</td><td class="num">633</td><td class="num">0</td><td class="num">12</td></tr>
+          <tr><td>无 MySQL 全量</td><td class="num">560</td><td class="num">383</td><td class="num">0</td><td class="num">177</td></tr>
+          <tr><td>定向测试</td><td class="num">101</td><td class="num">101</td><td class="num">0</td><td class="num">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p><code>npm run check</code> 与 <code>npm run build</code> 退出 0。</p>
+
+    <details class="fold">
+      <summary>第一次 MySQL 全量的唯一失败</summary>
+      <div class="fold-body">
+        <p><code>tests/runtime-state.test.ts</code> 断言 Pi 聚合的检查 id 列表，期望值没有加 <code>system-directory</code>。这是断言没同步，不是产品缺陷。更新期望后单文件 6/6 通过，复跑全量 0 失败。</p>
+      </div>
+    </details>
+
+    <h3>刻意不改</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>评审项</th><th>不动的理由</th></tr></thead>
+        <tbody>
+          <tr><td><code>/readyz</code> 仍按「任一执行器 Runtime 就绪」判定</td><td>此前的既定选择。单个 Runtime 故障不把整个进程标记为不健康，管理员关闭也不触发滚动回滚。已写入 DESIGN。</td></tr>
+          <tr><td>两份放开文档解析</td><td>写入要求完整键，读取为旧文档补默认值。写和读是两个边界，合并会把兼容逻辑带进写入路径。</td></tr>
+          <tr><td>前端依赖清单的来源 URL 常量</td><td>从服务端模块 import 会把服务端代码带进 bundle，API 也没有返回这些常量。</td></tr>
+          <tr><td>ClawSec 相关文案</td><td><code>native-system-skills</code> 已经要求 marketplace 可用，原生 Runtime 的文案不需要再改。</td></tr>
+          <tr><td>系统管理页的设计系统范围</td><td>属于既有需求，这次不裁剪。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout ok">
+      <div class="callout-title">这轮之后</div>
+      <p>关闭的 Runtime 在 fork、新建、发送、入队四个入口都失败在准入，不会留下半成品。坏掉的系统 skill 目录会让 Pi 不就绪。管理页显示的原因与准入原因一致。</p>
+    </div>
+  </section>
+
+  <footer>
+    Sources: 本地分支的 git diff、<code>npm run check</code>、<code>npm run build</code>、两套全量 <code>npm test</code> 输出 &nbsp;—&nbsp; 脱密版，不含仓库地址、提交号与测试环境路径 &nbsp;—&nbsp; generated 2026-11-28
+  </footer>
+
+</main>
+
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>
