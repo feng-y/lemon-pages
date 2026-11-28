@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>智能体与 Kanban 推进记录</title>
+<style>
+/* ============================================================================
+   report-html baseline
+   整段内联进报告的 <style>。不要 <link>，不要 @import，不要 web font。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* 纸感暖底 + 墨色文字；不要用纯白底配冷灰，长文阅读会发涩 */
+  --ground: #FAF8F4;
+  --surface: #FFFFFF;
+  --ink: #1B1C1A;
+  --ink-strong: #0E0F0E;
+  --muted: #6B6E6A;
+  --faint: #9A9C97;
+  --line: #E5E1D8;
+  --line-soft: #F0EDE6;
+
+  --accent: #0F6E75;
+  --accent-strong: #0A5257;
+  --accent-tint: #E2EFEF;
+
+  /* 多序列图：每条序列一个色相。
+     不要用同一色相的三档明度——1.8px 的细线上分不出来，等于没区分。 */
+  --series-1: #0F6E75;  /* 青 */
+  --series-2: #4A5BA8;  /* 靛 */
+  --series-3: #4B5563;  /* 中性灰：参考序列走灰；琥珀与 --warn 同族，会被读成告警 */
+  --series-4: #8C4A7A;  /* 紫 */
+
+  --ok: #2E7D4E;      --ok-tint: #E6F1E9;
+  --warn: #A9700F;    --warn-tint: #F8F0DE;
+  --danger: #B03A2E;  --danger-tint: #F9E8E5;
+
+  /* 事件窗高亮带（图内时间范围标记），不是状态色 */
+  --band: #FBF0D8;
+
+  --code-bg: #F1EEE7;
+
+  /* 只用系统字体栈。标题走 sans：中文 serif 回退（SimSun/Songti）在多数
+     环境里会明显掉档，英文 serif 标题搬到中文报告上不成立。
+     serif 只留给大号数字。 */
+  --serif: ui-serif, Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "Liberation Mono", monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --border: 1.5px solid var(--line);
+  --measure: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #141614;
+    --surface: #1C1F1D;
+    --ink: #E6E8E4;
+    --ink-strong: #F5F7F3;
+    --muted: #9BA09A;
+    --faint: #767B75;
+    --line: #2B302C;
+    --line-soft: #232823;
+    --accent: #5FC6CC;
+    --accent-strong: #8AD9DE;
+    --accent-tint: #12312F;
+    --ok: #6FCB96;     --ok-tint: #16301F;
+    --warn: #E0AC55;   --warn-tint: #33280F;
+    --danger: #E88A7D; --danger-tint: #3A1D19;
+    --code-bg: #232823;
+    --band: #33280F;
+    --series-1: #5FC6CC; --series-2: #9AA9E8;
+    --series-3: #9BA3AF; --series-4: #D79AC4;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #141614;
+  --surface: #1C1F1D;
+  --ink: #E6E8E4;
+  --ink-strong: #F5F7F3;
+  --muted: #9BA09A;
+  --faint: #767B75;
+  --line: #2B302C;
+  --line-soft: #232823;
+  --accent: #5FC6CC;
+  --accent-strong: #8AD9DE;
+  --accent-tint: #12312F;
+  --ok: #6FCB96;     --ok-tint: #16301F;
+  --warn: #E0AC55;   --warn-tint: #33280F;
+  --danger: #E88A7D; --danger-tint: #3A1D19;
+  --code-bg: #232823;
+  --band: #33280F;
+  --series-1: #5FC6CC; --series-2: #9AA9E8;
+  --series-3: #9BA3AF; --series-4: #D79AC4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 56px 24px 120px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.75 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+main { max-width: var(--measure); margin: 0 auto; }
+
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+
+code, kbd, samp {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: .12em .38em;
+}
+
+/* ---------- header ---------- */
+header { margin-bottom: 36px; }
+.head-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 8px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px; font-weight: 650;
+  letter-spacing: -.015em; line-height: 1.3;
+  color: var(--ink-strong);
+}
+.subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+.subtitle code { font-size: 13px; }
+
+/* 明示读者这不是手写文档；按需改文案或删掉 */
+.pill-auto {
+  flex: none;
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  border: var(--border); border-radius: 999px;
+  padding: 5px 11px; white-space: nowrap;
+}
+
+/* ---------- TL;DR ---------- */
+/* 结论先说完。不要用「本文档介绍…」开头。 */
+.tldr {
+  background: var(--surface);
+  border: var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 18px 22px 16px;
+  margin-bottom: 44px;
+}
+.tldr-label {
+  font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); margin-bottom: 8px;
+}
+.tldr p { margin: 0; font-size: 15.5px; color: var(--ink-strong); }
+.tldr p + p { margin-top: 10px; }
+
+/* ---------- sections ---------- */
+section { margin-bottom: 52px; }
+h2 {
+  margin: 0 0 6px;
+  font-size: 21px; font-weight: 650;
+  letter-spacing: -.01em; color: var(--ink-strong);
+}
+hr.rule { border: none; border-top: 1px solid var(--line); margin: 0 0 22px; }
+h3 {
+  margin: 26px 0 8px;
+  font-size: 15px; font-weight: 650; color: var(--ink-strong);
+}
+p { margin: 0 0 12px; }
+.lede { color: var(--muted); font-size: 14px; margin: -2px 0 18px; }
+
+/* ---------- 指标带 ---------- */
+.stats {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.stat {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 18px 20px 16px;
+}
+.stat.mark-warn   { border-left: 4px solid var(--warn);   padding-left: 17px; }
+.stat.mark-danger { border-left: 4px solid var(--danger); padding-left: 17px; }
+.stat.mark-ok     { border-left: 4px solid var(--ok);     padding-left: 17px; }
+.stat-num {
+  font-family: var(--serif); font-size: 38px; font-weight: 500;
+  line-height: 1; color: var(--ink-strong); margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num .unit { font-size: 18px; margin-left: 3px; color: var(--muted); }
+.stat-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted);
+}
+.stat-note { font-family: var(--mono); font-size: 11.5px; margin-top: 7px; color: var(--muted); }
+.stat-note.up   { color: var(--ok); }
+.stat-note.down { color: var(--danger); }
+
+/* ---------- 要点 ---------- */
+.points { list-style: none; margin: 0; padding: 0; }
+.points li {
+  position: relative; padding: 0 0 14px 26px; color: var(--ink);
+}
+.points li::before {
+  content: ""; position: absolute; left: 6px; top: 9px;
+  width: 7px; height: 7px; border-radius: 2px; background: var(--accent);
+}
+.points li strong { color: var(--ink-strong); font-weight: 650; }
+
+/* ---------- 表格 ---------- */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+thead th {
+  text-align: left; font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); background: var(--line-soft);
+  padding: 11px 16px; border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody td {
+  padding: 12px 16px; font-size: 14px;
+  border-bottom: 1px solid var(--line-soft); vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--ground); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 13px; }
+
+/* ---------- 时间线 ---------- */
+.timeline { position: relative; margin: 0 0 0 4px; padding-left: 26px; border-left: 1.5px solid var(--line); }
+.tl-entry { position: relative; padding: 0 0 20px; }
+.tl-entry:last-child { padding-bottom: 0; }
+.tl-entry::before {
+  content: ""; position: absolute; left: -32.5px; top: 7px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--line); border: 2px solid var(--ground);
+}
+.tl-entry.is-impact::before   { background: var(--danger); }
+.tl-entry.is-mitigated::before{ background: var(--ok); }
+.tl-entry.is-decision::before { background: var(--accent); }
+.tl-time {
+  display: block; font-family: var(--mono); font-size: 12px;
+  color: var(--muted); margin-bottom: 3px;
+}
+.tl-body { font-size: 14.5px; }
+
+/* ---------- 风险点 ---------- */
+.risk { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.risk::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.risk.low::before    { background: var(--ok); }
+.risk.medium::before { background: var(--warn); }
+.risk.high::before   { background: var(--danger); }
+
+/* ---------- 状态标签 ---------- */
+.tag {
+  display: inline-block; font-size: 11.5px; font-weight: 600;
+  padding: 2px 9px; border-radius: 999px; white-space: nowrap;
+}
+.tag.ok      { color: var(--ok);     background: var(--ok-tint); }
+.tag.warn    { color: var(--warn);   background: var(--warn-tint); }
+.tag.danger  { color: var(--danger); background: var(--danger-tint); }
+.tag.neutral { color: var(--muted);  background: var(--line-soft); }
+.tag.accent  { color: var(--accent-strong); background: var(--accent-tint); }
+
+/* ---------- 提示块 ---------- */
+.callout {
+  border-radius: var(--radius); padding: 16px 20px;
+  background: var(--line-soft); font-size: 14.5px;
+}
+.callout.warn   { background: var(--warn-tint);   color: var(--ink-strong); }
+.callout.danger { background: var(--danger-tint); color: var(--ink-strong); }
+.callout.ok     { background: var(--ok-tint);     color: var(--ink-strong); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-title { font-weight: 650; color: var(--ink-strong); margin-bottom: 5px; }
+
+/* ---------- 图标 ---------- */
+/* Lucide 的描边参数收在这里，片段只留 viewBox 和图形；颜色跟随父元素文字色 */
+.icon {
+  width: 1em; height: 1em; vertical-align: -0.125em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* ---------- 图 ---------- */
+figure { margin: 0 0 18px; }
+.chart {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 20px 22px 14px;
+}
+.chart svg { display: block; width: 100%; height: auto; }
+/* 宽图（viewBox 横向超过 ~800 单位）：窄屏让它横向滚动，别缩到字看不清 */
+.chart.wide { overflow-x: auto; }
+.chart.wide svg { min-width: 680px; }
+figcaption { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+/* caption 要说出结论，不要写「上图为…」 */
+
+/* ---------- 代码块 ---------- */
+pre {
+  margin: 0 0 16px; padding: 14px 16px;
+  background: var(--code-bg); border-radius: var(--radius-sm);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- 折叠块 ---------- */
+/* 证据附录、查询明细、原始数据、identity 放这里。
+   读者只读完一百行，摊在正文里的附录等于没有。 */
+.fold {
+  background: var(--surface); border: var(--border);
+  border-radius: var(--radius); padding: 14px 18px; margin-bottom: 12px;
+}
+.fold > summary {
+  cursor: pointer; font-weight: 650; font-size: 14px;
+  color: var(--ink-strong);
+}
+.fold > summary:hover { color: var(--accent-strong); }
+.fold[open] > summary { margin-bottom: 10px; }
+.fold .fold-body { font-size: 14px; color: var(--muted); }
+.fold .fold-body > :last-child { margin-bottom: 0; }
+
+/* ---------- 锚点 TOC（可选，长报告才用） ---------- */
+/* 断点要放得下 main(880) + 两侧留白 + TOC(160)。1180px 时 TOC 会压到正文，
+   header 右上角的 pill-auto 首当其冲，所以抬到 1320px。 */
+.toc { display: none; }
+@media (min-width: 1320px) {
+  .toc {
+    display: block; position: fixed; top: 72px;
+    right: max(24px, calc(50vw - var(--measure) / 2 - 190px));
+    width: 160px; font-size: 13px;
+  }
+  .toc-title {
+    font-family: var(--mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--faint); margin-bottom: 10px;
+  }
+  .toc a {
+    display: block; color: var(--muted); text-decoration: none;
+    padding: 5px 0 5px 12px; border-left: 1.5px solid var(--line);
+    line-height: 1.35;
+  }
+  .toc a:hover { color: var(--ink-strong); border-left-color: var(--accent); }
+}
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 60px; padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; color: var(--faint);
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  body { padding: 32px 18px 72px; }
+  h1 { font-size: 24px; }
+  h2 { font-size: 19px; }
+  .stat-num { font-size: 32px; }
+  section { margin-bottom: 40px; }
+}
+
+
+.batch { display: grid; gap: .8rem; margin-top: 1.2rem; }
+.batch article { border: 1px solid var(--line); padding: 1rem 1.1rem; border-radius: .7rem; min-width: 0; }
+.batch article[data-current] { border-color: var(--accent); }
+.batch h3 { margin: 0 0 .55rem; }
+.batch p { margin: .45rem 0 0; }
+.table-wrap td:first-child { min-width: 7em; }
+
+</style>
+</head>
+<body>
+
+<nav class="toc" aria-label="目录">
+  <div class="toc-title">目录</div>
+  <a href="#status">现状</a>
+  <a href="#delivery">交付批次</a>
+  <a href="#coverage">SuperAgent 机制</a>
+  <a href="#checks">自动化验收</a>
+  <a href="#updates">更新记录</a>
+</nav>
+<main>
+  <header>
+    <div class="head-top"><h1>智能体与 Kanban 推进记录</h1></div>
+    <p class="subtitle">智能体管理、Kanban 审查与 timer 驱动的自动化任务</p>
+  </header>
+  <div class="tldr" id="tldr">
+    <div class="tldr-label">当前批次</div>
+    <p><strong>自动化定时执行已通过生产验收。</strong>智能体与 Kanban 审查已合入，两处生产入口完成兼容发布。Rook 已绑定固定运行身份。第三批在生产通过交付审查、timer 复查和停止跟进。第四批的 event inbox、Session 路由和通用 timers 已通过本地 MySQL 和隔离 Pi 验收。</p>
+  </div>
+  <section id="status"><h2>推进现状</h2><hr class="rule">
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">范围</th><th scope="col">已确认</th><th scope="col">下一项</th></tr></thead>
+      <tbody>
+        <tr><td>智能体入口与创建</td><td>已合入并发布。浏览器回归覆盖模板、创建、编辑、运行身份绑定和导航。</td><td>两处生产入口已确认内置 Rook 的固定运行身份。</td></tr>
+        <tr><td>Kanban 审查</td><td>MySQL 回归覆盖已入 Queue 的请求。停止跟进后，旧请求无 Run。交付换版后，只有新版产生 Run 和审查结论。两实例隔离验收确认定时复查只唤醒一次。后台 Task 会话仅从管理员执行详情查看，使用统计分享和报告均排除该会话。</td><td>两处生产入口已读回同一条审查结论。timer 到期只触发一次。停止跟进后，已到期的复查和之后的新交付均未触发执行。</td></tr>
+        <tr><td>共用 timer 与自动化任务</td><td>两套生产部署通过独立发布验收。连续两次定时触发各受理一次，各使用独立的系统 Session 和 Run。两个入口均可打开执行详情。</td><td>单独验收生产中断接管、回滚及错过通知送达。</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+  <section id="delivery"><h2>交付批次</h2><hr class="rule">
+    <div class="batch">
+      <article><h3>第一批 · timer 与自动化任务</h3>
+        <p>现有任务的后续新投递从独立的系统 Session 开始。生产已验证执行详情、普通 Chat 隔离和历史记录读取。共享数据库保存每次计划执行的回执。两个 Backend 同时处理一个计划时点时，只受理一次。隔离验收也核对了旧投递按原快照结算，以及配置回退后新投递的行为。</p></article>
+      <article><h3>第二批 · 智能体与 Kanban 兼容发布</h3>
+        <p>已整合智能体导航、后台 Session 访问权限和共用 timer。浏览器通过智能体配置与 Kanban 审查回归。MySQL 专项验证了 Run 受理、停止跟进、交付换版以及中断重排。</p></article>
+      <article><h3>第三批 · Kanban 首版验收</h3>
+        <p>管理员只对指定的生产 Task 开启协作。Rook 将审查结论写回当次交付。timer 在原 Task 会话启动新的 Run。停止后跨过下一次计划时点，复查与新交付均未唤醒 Rook。验收 Task 已关闭，临时配置已还原。</p></article>
+      <article data-current><h3>第四批 · SuperAgent 与 Bot 交互</h3>
+        <p>Kanban 与智能体直接问答复用持久化入口和定时器存储。下一项实现 memory，随后补齐权限与结果送达，并接入单一可信故障 Webhook。</p></article>
+      <article><h3>第五批 · 多 Bot 协作</h3>
+        <p>Bot 交互和开发工作区授权通过后，验证同一条 Task 上的开发交付、审查与返工。</p></article>
+    </div>
+  </section>
+  <section id="coverage"><h2>SuperAgent 机制覆盖</h2><hr class="rule">
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">机制</th><th scope="col">已有</th><th scope="col">待验收</th></tr></thead>
+      <tbody>
+        <tr><td>Event inbox</td><td>Kanban 审查事件与智能体直接问答进入共用入口。隔离测试验证签收后重启、两个 Worker 去重、按序追问和 Session 隔离。</td><td>可信故障 Webhook、故障轮次与乱序处理。生产环境的智能体直接问答待验收。</td></tr>
+        <tr><td>Timers</td><td>Kanban 一次性复查已通过生产验收。智能体一次性与周期定时器通过本地双 Backend 验收。覆盖到期去重、重启补领、取消和队列满恢复。</td><td>真实故障来源的定时复查和生产切换待验收。</td></tr>
+        <tr><td>Memory</td><td>保存当前审查摘要与交付版本。</td><td>持久保存用户指示、进度和已发送结果。换 Session 后继续工作，验证各工作之间的隔离。</td></tr>
+        <tr><td>Permissions</td><td>审查按 owner 执行，并有验收人答复与发布批准。</td><td>按操作校验权限。验证工具延期审批、释放 Worker、答复恢复和撤权。</td></tr>
+        <tr><td>Outbox</td><td>Kanban 事务内写回。自动化错过通知已有独立状态。</td><td>验证回复、静默结束、需要人工处理，以及需要可靠送达时的重试和对端去重。</td></tr>
+      </tbody>
+    </table></div>
+    <p><a href="https://pages.lemonyhn.top/reports/building-always-on-agents/">公开设计解读</a> · <a href="https://claude.com/resources/articles/building-always-on-agents">Anthropic 原文</a></p>
+  </section>
+  <section id="checks"><h2>自动化任务修复与验收</h2><hr class="rule">
+    <div class="table-wrap"><table>
+      <thead><tr><th scope="col">顺序</th><th scope="col">缺口与修复</th><th scope="col">验收</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>timer 指标补齐最近扫描、失败次数、积压和投递延迟。</td><td>生产样本验证最近扫描时间持续更新，四个副本的扫描失败计数均为零。集中采集待验收。</td></tr>
+        <tr><td>2</td><td>错过回执与收件箱同事务。企业微信失败后，另一 Backend 可按重试时间接管。</td><td>本地已检查收件箱只写一次。生产送达须用指定收件人确认。</td></tr>
+        <tr><td>3</td><td>停机接管和回退。已保存的投递沿用自身快照。</td><td>本地已验证两实例竞争、停止后接管及回退后新投递。生产滚动发布后验收。</td></tr>
+        <tr><td>4</td><td>按相邻计划时点的间隔恢复执行。分钟级超过 15 秒即记错过。小时级补跑窗口 15 分钟，计划时点后第 5 分钟可重试。天级窗口 120 分钟，第 10、30 分钟可重试。</td><td>本地验证窗口内补跑、失败重试及超期记录。待两处生产部署统一启用。</td></tr>
+      </tbody>
+    </table></div>
+    <p>企业微信接收消息后，如果 Backend 在保存发送结果前退出，接管实例可能重发。生产接管和企业微信实际送达待验收。</p>
+  </section>
+  <section id="updates"><h2>更新记录</h2><hr class="rule">
+    <p><time>2026-11-28</time>　通用 timers 通过本地验收。两个 Backend 在到期时竞争，隔离 Pi 只处理一次。队列满时保留到期时间。</p>
+    <p><time>2026-11-28</time>　event inbox 与 Session 路由通过本地验收。先签收消息，再重启 Backend，两个 Worker 竞争后隔离 Pi 只处理一次。追问续用原生 context。</p>
+    <p><time>2026-11-28</time>　核对 SuperAgent 五项机制。Bot 交互及其依赖排在多 Bot 协作之前。</p>
+    <p><time>2026-11-28</time>　第三批通过生产交付审查、timer 复查和停止跟进验收。</p>
+    <p><time>2026-11-28</time>　第三批完成发布版本的 Kanban 隔离回归和生产预检。待在单条生产 Task 验收。</p>
+    <p><time>2026-11-28</time>　内置 Rook 已绑定固定运行身份。两处生产入口读回同一条验收回复，验收 Task 已关闭。</p>
+    <p><time>2026-11-28</time>　两处生产入口完成兼容发布并通过只读检查。Kanban 协作保持关闭，待验收真实 Task。</p>
+    <p><time>2026-11-28</time>　自动化修复单独发布并通过生产定时验收。Kanban 审查补齐 Run 受理校验并通过专项回归。</p>
+    <p><time>2026-11-28 08:32 UTC</time>　Kanban 隔离验收通过。两处线上入口已完成 SSO 只读检查，尚未开放当前账号的协作入口。</p>
+    <p><time>2026-11-28 07:18 UTC</time>　启动第二批。候选已接入共用 timer 和独立后台 Session，本地专项、浏览器和完整回归通过。真实 Kanban 审查仍待验收。</p>
+    <p><time>2026-11-28 05:47 UTC</time>　timer 指标、错过通知重试和恢复配置编码已合入。分钟、小时和天级恢复均通过隔离验证，两处生产发布候选各通过 60 项验证。生产当前仍用原恢复策略。</p>
+    <p><time>2026-11-28 04:36 UTC</time>　两套生产部署完成独立系统 Session 切换。真实定时、立即执行、试跑、执行详情和两端 Chat 隔离验收通过。</p>
+    <p><time>2026-11-28 01:42 UTC</time>　两套环境均完成兼容发布。第二套环境的真实定时任务、历史执行详情和跨环境回执读取通过。</p>
+    <p><time>2026-11-28 01:20 UTC</time>　首套环境的兼容版本已发布。两个副本健康，真实定时任务、历史回执和旧版本读取通过。独立系统 Session 仍待统一切换。</p>
+    <p><time>2026-11-28 00:50 UTC</time>　自动化任务合入主线，首套环境的兼容镜像构建完成。定时、立即执行和试跑均通过本地独立系统 Session 验证。</p>
+    <p><time>2026-11-27 23:50 UTC</time>　将 timer 与自动化任务调整为首批，记录本地故障回归和目标环境待验收项。</p>
+    <p><time>2026-11-27 23:33 UTC</time>　建立脱敏推进记录。各批分别记录实现、合入、发布和验收。完成验证后更新对应批次和剩余 TODO。</p>
+  </section>
+  <footer>来源为项目推进记录、部署验收摘要与自动化合入评估。 &nbsp;—&nbsp; 更新于 2026-11-28</footer>
+</main>
+<!-- to-pages:back-link:start -->
+<style>
+#to-pages-back-link {
+  position: fixed; z-index: 10000;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: .45em;
+  min-height: 44px; box-sizing: border-box; padding: .55em .9em;
+  border: 1px solid #b4d5cd; border-radius: .65em;
+  background: #173a36; color: #fff; text-decoration: none;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  box-shadow: 0 3px 14px #13282140;
+}
+#to-pages-back-link:hover { background: #23534d; }
+#to-pages-back-link:focus-visible {
+  outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px #173a36;
+}
+@media print { #to-pages-back-link { display: none !important; } }
+</style>
+<a id="to-pages-back-link" href="/" data-site-path="/" target="_self"><span aria-hidden="true">←</span>返回导航</a>
+<script>
+(() => {
+  const link = document.getElementById("to-pages-back-link");
+  const home = new URL(link.dataset.sitePath, window.location.href);
+  const referrer = document.referrer && new URL(document.referrer);
+  if (referrer && referrer.origin === home.origin && referrer.pathname === home.pathname) {
+    home.search = referrer.search;
+  }
+  link.href = home.href;
+})();
+</script>
+<!-- to-pages:back-link:end --></body>
+</html>

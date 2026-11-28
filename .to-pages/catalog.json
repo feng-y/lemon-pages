@@ -697,6 +697,14 @@
           "published_at": "2026-11-28T13:52:36.230567Z",
           "summary": "event inbox 与 Session 路由通过本地验收",
           "updated_at": "2026-11-28T13:52:36.230567Z"
+        },
+        {
+          "digest": "a8ad5959dda4f6753ef11879f1dfba06e1bd229a6a42edeafee1daa9a2195b92",
+          "label": "v3",
+          "path": "reports/agent-kanban-progress-timers",
+          "published_at": "2026-11-28T14:03:49.018941Z",
+          "summary": "通用 timers 通过本地验收",
+          "updated_at": "2026-11-28T14:03:49.018941Z"
         }
       ]
     },
