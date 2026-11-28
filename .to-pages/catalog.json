@@ -683,12 +683,12 @@
       "title": "智能体与 Kanban 推进记录",
       "versions": [
         {
-          "digest": "da70a878107ddec383a57765466d0c9816778467eb80cc230a628d763aab28e8",
+          "digest": "9bdbc5305a3254c19cec21a998ef58ddb8530f866ee14b4d35c1d0067fa3f43b",
           "label": "v1",
           "path": "reports/agent-kanban-progress",
           "published_at": "2026-11-27T23:34:24.408651Z",
-          "summary": "更新自动化生产发布和四副本验收进展",
-          "updated_at": "2026-11-28T09:34:26.515572Z"
+          "summary": "更新 Kanban 审查 Run 受理与自动化生产验收进度",
+          "updated_at": "2026-11-28T11:47:05.813702Z"
         }
       ]
     },
