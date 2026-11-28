@@ -400,14 +400,14 @@ footer {
   </header>
   <div class="tldr" id="tldr">
     <div class="tldr-label">当前批次</div>
-    <p><strong>自动化定时执行已通过生产验收。</strong>当前推进智能体管理与 Kanban 审查首版。Rook Backend 在 Run 受理和结果写回时核对 Task、交付版本和绑定。线上协作仍待验收。</p>
+    <p><strong>自动化定时执行已通过生产验收。</strong>智能体与 Kanban 审查已合入，两处生产入口完成兼容发布。Kanban 协作保持关闭，待确认 Rook 固定运行身份后验收。</p>
   </div>
   <section id="status"><h2>推进现状</h2><hr class="rule">
     <div class="table-wrap"><table>
       <thead><tr><th scope="col">范围</th><th scope="col">已确认</th><th scope="col">下一项</th></tr></thead>
       <tbody>
-        <tr><td>智能体入口与创建</td><td>合入候选已通过本地构建和浏览器验证。覆盖模板、创建、编辑、运行身份绑定请求与导航。</td><td>已提交合入评审。</td></tr>
-        <tr><td>Kanban 审查</td><td>MySQL 回归覆盖已入 Queue 的请求。停止跟进后，旧请求无 Run。交付换版后，只有新版产生 Run 和审查结论。两实例隔离验收确认定时复查只唤醒一次。后台 Task 会话仅从管理员执行详情查看，使用统计分享和报告均排除该会话。</td><td>两处线上入口的 SSO 只读检查通过。发布候选并开放协作后，用真实运行身份和 Provider 验收。</td></tr>
+        <tr><td>智能体入口与创建</td><td>已合入并发布。浏览器回归覆盖模板、创建、编辑、运行身份绑定和导航。</td><td>确认内置 Rook 的固定运行身份。</td></tr>
+        <tr><td>Kanban 审查</td><td>MySQL 回归覆盖已入 Queue 的请求。停止跟进后，旧请求无 Run。交付换版后，只有新版产生 Run 和审查结论。两实例隔离验收确认定时复查只唤醒一次。后台 Task 会话仅从管理员执行详情查看，使用统计分享和报告均排除该会话。</td><td>两处线上入口的版本、SSO、Kanban、智能体和自动化任务读取检查通过。待用真实运行身份和 Provider 验收。</td></tr>
         <tr><td>共用 timer 与自动化任务</td><td>两套生产部署通过独立发布验收。连续两次定时触发各受理一次，各使用独立的系统 Session 和 Run。两个入口均可打开执行详情。</td><td>单独验收生产中断接管、回滚及错过通知送达。</td></tr>
       </tbody>
     </table></div>
@@ -416,10 +416,10 @@ footer {
     <div class="batch">
       <article><h3>第一批 · timer 与自动化任务</h3>
         <p>现有任务的后续新投递从独立的系统 Session 开始。生产已验证执行详情、普通 Chat 隔离和历史记录读取。共享数据库保存每次计划执行的回执。两个 Backend 同时处理一个计划时点时，只受理一次。隔离验收也核对了旧投递按原快照结算，以及配置回退后新投递的行为。</p></article>
-      <article data-current><h3>第二批 · 智能体与 Kanban 合入准备</h3>
+      <article><h3>第二批 · 智能体与 Kanban 兼容发布</h3>
         <p>已整合智能体导航、后台 Session 访问权限和共用 timer。浏览器通过智能体配置与 Kanban 审查回归。MySQL 专项验证了 Run 受理、停止跟进、交付换版以及中断重排。</p></article>
-      <article><h3>第三批 · Kanban 首版验收</h3>
-        <p>隔离验收使用两台 Backend、同一个测试数据库和真实 Pi Runtime。两台 Backend 针对同一计划时点只启动一次复查。复查沿用原 Task Session，并创建新的 Run。只有管理员可读执行详情。线上受控 Task 验收等待候选发布。</p></article>
+      <article data-current><h3>第三批 · Kanban 首版验收</h3>
+        <p>隔离验收使用两台 Backend、同一个测试数据库和真实 Pi Runtime。两台 Backend 针对同一计划时点只启动一次复查。复查沿用原 Task Session，并创建新的 Run。只有管理员可读执行详情。线上受控 Task 验收等待固定运行身份确认。</p></article>
       <article><h3>第四批 · 后续场景</h3>
         <p>先在同一条 Task 验收开发 Bot 的交付、复审和一次返工。故障 Webhook、直接问答和跨来源 event inbox 分别验收。</p></article>
     </div>
@@ -437,6 +437,7 @@ footer {
     <p>企业微信接收消息后，如果 Backend 在保存发送结果前退出，接管实例可能重发。生产接管和企业微信实际送达待验收。</p>
   </section>
   <section id="updates"><h2>更新记录</h2><hr class="rule">
+    <p><time>2026-11-28</time>　两处生产入口完成兼容发布并通过只读检查。Kanban 协作保持关闭，待验收真实 Task。</p>
     <p><time>2026-11-28</time>　自动化修复单独发布并通过生产定时验收。Kanban 审查补齐 Run 受理校验并通过专项回归。</p>
     <p><time>2026-11-28 08:32 UTC</time>　Kanban 隔离验收通过。两处线上入口已完成 SSO 只读检查，尚未开放当前账号的协作入口。</p>
     <p><time>2026-11-28 07:18 UTC</time>　启动第二批。候选已接入共用 timer 和独立后台 Session，本地专项、浏览器和完整回归通过。真实 Kanban 审查仍待验收。</p>
@@ -448,7 +449,7 @@ footer {
     <p><time>2026-11-27 23:50 UTC</time>　将 timer 与自动化任务调整为首批，记录本地故障回归和目标环境待验收项。</p>
     <p><time>2026-11-27 23:33 UTC</time>　建立脱敏推进记录。各批分别记录实现、合入、发布和验收。完成验证后更新对应批次和剩余 TODO。</p>
   </section>
-  <footer>来源为项目推进记录、部署验收摘要与自动化合入评估。 &nbsp;—&nbsp; 更新于 2026-11-28 08:32 UTC</footer>
+  <footer>来源为项目推进记录、部署验收摘要与自动化合入评估。 &nbsp;—&nbsp; 更新于 2026-11-28</footer>
 </main>
 <!-- to-pages:back-link:start -->
 <style>
